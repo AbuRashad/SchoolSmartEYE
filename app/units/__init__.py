@@ -1,0 +1,16 @@
+INTEGRATED_UNITS = {
+    "unit_01": "Access & Identity Monitoring",
+    "unit_02": "Classroom Attendance Intelligence",
+    "unit_03": "Behavioral Event Detection",
+    "unit_04": "Student Safety Alerts",
+    "unit_05": "Transport & Bus Tracking",
+    "unit_06": "Campus Perimeter Surveillance",
+    "unit_07": "Visitor Management Analytics",
+    "unit_08": "Academic Performance Signals",
+    "unit_09": "Wellbeing Risk Indicators",
+    "unit_10": "Facility Utilization Insights",
+    "unit_11": "Emergency Response Orchestration",
+    "unit_12": "Compliance & Audit Monitoring",
+    "unit_13": "Parent Communication Intelligence",
+    "unit_14": "National Education Observatory",
+}
