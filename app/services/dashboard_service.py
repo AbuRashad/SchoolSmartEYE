@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
@@ -34,12 +34,11 @@ class DashboardService:
     def __init__(self) -> None:
         self.school_name = "Smart School Safety System"
         self.benchmark = 75
-        self.generator = RiskHeatmapGenerator(grid_rows=2, grid_cols=2, anomaly_weight=0.6, density_weight=0.4)
         self._forecaster = _build_seeded_forecaster()
 
-    def _compute_live_ssi(self) -> int:
-        now = datetime(2026, 4, 9, 7, 45)
-        ssi, _ = compute_school_safety_index_with_forecast(
+    def _compute_live_ssi(self) -> tuple[int, object]:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        ssi, density_pred = compute_school_safety_index_with_forecast(
             anomaly_coefficient=0.18,
             coherence_score=0.76,
             attendance_discrepancy=0.08,
@@ -48,66 +47,98 @@ class DashboardService:
             current_time=now,
             coherence_represents_alignment=True,
         )
-        return int(round(ssi))
+        return int(round(ssi)), density_pred
 
     def get_summary(self) -> dict[str, object]:
+        ssi, _ = self._compute_live_ssi()
         return {
             "schoolName": self.school_name,
-            "ssi": self._compute_live_ssi(),
+            "ssi": ssi,
             "benchmark": self.benchmark,
             "websocketStatus": "connected",
         }
 
-    def get_alerts(self) -> list[dict[str, str]]:
-        return [
-            {
-                "id": "alert-1",
+    def get_alerts(self) -> list[dict[str, object]]:
+        ssi, density_pred = self._compute_live_ssi()
+        anomaly_coefficient = 0.35
+        computed_at = datetime.now(timezone.utc).isoformat()
+        alerts: list[dict[str, object]] = []
+
+        if anomaly_coefficient > 0.3:
+            alerts.append({
+                "id": "alert-coherence",
                 "title": "Coherence Rupture",
-                "message": "Playground motion synchrony fragmented across the east corridor.",
+                "message": f"Behavioral anomaly coefficient {anomaly_coefficient:.2f} exceeds safety threshold. Motion synchrony fragmented.",
                 "severity": "critical",
                 "stream": "coherence",
-                "timestamp": "07:42",
-            },
-            {
-                "id": "alert-2",
+                "computed_at": computed_at,
+            })
+
+        if anomaly_coefficient > 0.1:
+            alerts.append({
+                "id": "alert-anomaly",
                 "title": "Anomaly Coefficient",
-                "message": "Main gate anomaly coefficient elevated above morning baseline.",
+                "message": f"Anomaly coefficient {anomaly_coefficient:.2f} elevated above morning baseline.",
                 "severity": "warning",
                 "stream": "anomaly",
-                "timestamp": "07:44",
-            },
-            {
-                "id": "alert-3",
+                "computed_at": computed_at,
+            })
+
+        if density_pred.warning:
+            alerts.append({
+                "id": "alert-density",
+                "title": "High Crowd Density",
+                "message": f"Predicted density {density_pred.predicted_density:.2f} exceeds safety threshold {density_pred.safety_threshold}.",
+                "severity": "critical",
+                "stream": "density",
+                "computed_at": computed_at,
+            })
+
+        if ssi < self.benchmark and not any(a["id"] == "alert-anomaly" for a in alerts):
+            alerts.append({
+                "id": "alert-ssi",
+                "title": "SSI Below Benchmark",
+                "message": f"School Safety Index {ssi} is below benchmark {self.benchmark}.",
+                "severity": "warning",
+                "stream": "anomaly",
+                "computed_at": computed_at,
+            })
+
+        if not alerts:
+            alerts.append({
+                "id": "alert-stable",
                 "title": "Density Stable",
-                "message": "Learning commons occupancy remains within lesson threshold.",
+                "message": "All indicators within normal operational bounds.",
                 "severity": "stable",
                 "stream": "density",
-                "timestamp": "07:45",
-            },
-        ]
+                "computed_at": computed_at,
+            })
+
+        return alerts
 
     def get_heatmap(self) -> dict[str, object]:
         now = datetime(2026, 4, 6, 7, 30)
         prediction = now + timedelta(minutes=15)
 
-        self.generator.ingest_sbm_anomaly(
+        generator = RiskHeatmapGenerator(grid_rows=2, grid_cols=2, anomaly_weight=0.6, density_weight=0.4)
+        generator.ingest_sbm_anomaly(
             "main-campus", now,
             np.array([[0.88, 0.44], [0.26, 0.31]], dtype=np.float32),
         )
-        self.generator.ingest_predictive_density(
+        generator.ingest_predictive_density(
             "main-campus", now,
             np.array([[0.82, 0.31], [0.21, 0.29]], dtype=np.float32),
         )
-        self.generator.ingest_sbm_anomaly(
+        generator.ingest_sbm_anomaly(
             "main-campus", prediction,
             np.array([[0.32, 0.56], [0.28, 0.77]], dtype=np.float32),
         )
-        self.generator.ingest_predictive_density(
+        generator.ingest_predictive_density(
             "main-campus", prediction,
             np.array([[0.70, 0.57], [0.41, 0.98]], dtype=np.float32),
         )
 
-        raw = self.generator.generate_heatmap_data(
+        raw = generator.generate_heatmap_data(
             location_id="main-campus",
             timeframe=Timeframe(start=now, end=prediction),
         )

@@ -49,7 +49,6 @@ def compute_school_safety_index(
     Returns:
         SSI score in [0, 100], where higher means higher institutional safety.
     """
-        
     weights = weights or SSIWeights()
     normalized_weights = weights.normalized()
 

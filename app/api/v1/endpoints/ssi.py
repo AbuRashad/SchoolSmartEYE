@@ -1,7 +1,7 @@
 """SSI endpoint — live School Safety Index calculation from real service inputs."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 from fastapi import APIRouter
@@ -33,7 +33,7 @@ _forecaster.fit(_observations)
 @router.get("/live")
 def ssi_live() -> dict[str, object]:
     """Compute real-time SSI from current sensor signals."""
-    now = datetime(2026, 4, 9, 7, 45)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     # Simulated live sensor inputs (in production these come from Unit 05/06/07/08)
     anomaly_coefficient = 0.18

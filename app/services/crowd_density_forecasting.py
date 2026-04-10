@@ -128,6 +128,9 @@ class CrowdDensityForecaster:
         recent_mean = float(np.mean([obs.density for obs in recent]))
 
         predicted = 0.8 * temporal_profile + 0.2 * recent_mean
+        if len(recent) >= 2:
+            slope = recent[-1].density - recent[-2].density
+            predicted = float(np.clip(predicted + 0.1 * slope, 0.0, 1.0))
         return float(np.clip(predicted, 0.0, 1.0))
 
     def _risk_level(self, predicted_density: float) -> str:

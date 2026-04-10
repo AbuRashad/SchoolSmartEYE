@@ -34,7 +34,7 @@ class CameraStream:
         return self.drop_count / total
 
     def mark_frame_received(self, at: datetime | None = None) -> None:
-        self.last_frame_at = at or datetime.utcnow()
+        self.last_frame_at = at or datetime.now()
         self.total_frames_captured += 1
         if self.status == StreamStatus.OFFLINE:
             self.status = StreamStatus.DEGRADED

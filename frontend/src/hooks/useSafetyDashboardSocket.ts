@@ -25,9 +25,9 @@ export function useSafetyDashboardSocket(url = "ws://127.0.0.1:8000/api/v1/dashb
     async function fetchDashboardState() {
       try {
         const [summaryResponse, alertsResponse, heatmapResponse] = await Promise.all([
-          fetch("http://127.0.0.1:8000/api/v1/dashboard/summary"),
-          fetch("http://127.0.0.1:8000/api/v1/dashboard/alerts"),
-          fetch("http://127.0.0.1:8000/api/v1/dashboard/heatmap"),
+          fetch("/api/v1/dashboard/summary"),
+          fetch("/api/v1/dashboard/alerts"),
+          fetch("/api/v1/dashboard/heatmap"),
         ]);
 
         if (!summaryResponse.ok || !alertsResponse.ok || !heatmapResponse.ok) {

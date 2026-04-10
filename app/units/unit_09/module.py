@@ -30,7 +30,7 @@ class Alert:
     def acknowledge(self, by: str, at: datetime | None = None) -> None:
         self.acknowledged = True
         self.acknowledged_by = by
-        self.acknowledged_at = at or datetime.utcnow()
+        self.acknowledged_at = at or datetime.now()
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -72,7 +72,7 @@ class AlertResponseUnit:
             source_unit=source_unit,
             zone_id=zone_id,
             message=message,
-            created_at=at or datetime.utcnow(),
+            created_at=at or datetime.now(),
         )
         self._queue.append(alert)
         self._queue.sort(key=lambda a: (-int(a.priority), a.created_at))
@@ -90,7 +90,7 @@ class AlertResponseUnit:
 
     def escalate_stale(self, now: datetime | None = None) -> list[Alert]:
         """Escalate unacknowledged alerts that exceeded the escalation window."""
-        now = now or datetime.utcnow()
+        now = now or datetime.now()
         escalated: list[Alert] = []
         for alert in self._queue:
             if alert.acknowledged:
