@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SSILiveData, SSIHistoryData, UnitInfo } from "../types";
 
-const BASE = "http://127.0.0.1:8000/api/v1";
+const BASE = "/api/v1";
 
 export function useSSILive() {
   const [data, setData] = useState<SSILiveData | null>(null);

@@ -2,6 +2,32 @@
 
 Production-oriented FastAPI starter architecture for an intelligent school monitoring platform based on 14 integrated units, including a dedicated Arab Data Governance layer.
 
+## Quick Start
+
+### Backend
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+API docs: `http://127.0.0.1:8000/docs`
+
+> **Note:** Copy `.env.example` to `.env` (or leave blank — all settings have defaults).
+
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Tests
+```bash
+pytest -q
+```
+
 ## Project Structure
 
 - `app/main.py` - FastAPI app entrypoint.

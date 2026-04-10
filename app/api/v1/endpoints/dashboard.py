@@ -53,6 +53,12 @@ def dashboard_heatmap() -> dict[str, object]:
     return service.get_heatmap()
 
 
+@router.get("/live")
+def dashboard_live() -> dict[str, object]:
+    """REST polling fallback — returns the full dashboard snapshot as JSON."""
+    return service.get_snapshot()
+
+
 @router.websocket("/ws")
 async def dashboard_ws(websocket: WebSocket) -> None:
     await manager.connect(websocket)
