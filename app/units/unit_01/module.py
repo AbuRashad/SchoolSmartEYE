@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 UNIT_01_NAME = "Video Capture Unit"
@@ -34,7 +34,7 @@ class CameraStream:
         return self.drop_count / total
 
     def mark_frame_received(self, at: datetime | None = None) -> None:
-        self.last_frame_at = at or datetime.now()
+        self.last_frame_at = at or datetime.now(timezone.utc).replace(tzinfo=None)
         self.total_frames_captured += 1
         if self.status == StreamStatus.OFFLINE:
             self.status = StreamStatus.DEGRADED
