@@ -30,7 +30,7 @@ function buildInsights(ssi: number, benchmark: number, alerts: AlertFeedItem[]):
     insights.push({
       icon: AlertOctagon,
       title: "Critical Alert Active",
-      recommendation: "Immediate response required. Deploy on-call security to flagged zone. Verify crowd density thresholds and initiate containment protocol per Unit 07 guidelines.",
+      recommendation: "Immediate response required. Deploy on-call security to flagged zone. Verify crowd density thresholds and initiate containment protocol per Crowd Density Forecasting unit guidelines.",
       priority: "critical",
     });
   }
@@ -39,7 +39,7 @@ function buildInsights(ssi: number, benchmark: number, alerts: AlertFeedItem[]):
     insights.push({
       icon: Brain,
       title: "SSI Below National Benchmark",
-      recommendation: `Current SSI (${ssi}) is below the benchmark (${benchmark}). Recommend increasing patrol frequency by 20%, reviewing attendance discrepancies in Unit 08, and activating Unit 05 anomaly review workflow.`,
+      recommendation: `Current SSI (${ssi}) is below the benchmark (${benchmark}). Recommend increasing patrol frequency by 20%, reviewing attendance discrepancies in the Attendance Safety Integration unit, and activating the Spatial Behavioral Memory anomaly review workflow.`,
       priority: "high",
     });
   } else if (ssi < benchmark + 5) {

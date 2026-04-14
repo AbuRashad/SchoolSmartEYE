@@ -71,7 +71,7 @@ export function KpiGauge({ value, benchmark }: KpiGaugeProps) {
       <div className="mt-4 flex gap-2 border-t border-white/10 pt-4">
         <div className="flex flex-1 items-center gap-1.5 rounded-[1rem] border border-critical/20 bg-critical/8 px-3 py-2">
           <span className="h-2 w-2 rounded-full bg-critical" />
-          <span className="text-[10px] text-mist/60">Low &lt;65</span>
+          <span className="text-[10px] text-mist/60">Low &lt; 65</span>
         </div>
         <div className="flex flex-1 items-center gap-1.5 rounded-[1rem] border border-warning/20 bg-warning/8 px-3 py-2">
           <span className="h-2 w-2 rounded-full bg-warning" />
@@ -79,7 +79,7 @@ export function KpiGauge({ value, benchmark }: KpiGaugeProps) {
         </div>
         <div className="flex flex-1 items-center gap-1.5 rounded-[1rem] border border-safe/20 bg-safe/8 px-3 py-2">
           <span className="h-2 w-2 rounded-full bg-safe" />
-          <span className="text-[10px] text-mist/60">Healthy &gt;75</span>
+          <span className="text-[10px] text-mist/60">Healthy &gt; 75</span>
         </div>
       </div>
     </section>

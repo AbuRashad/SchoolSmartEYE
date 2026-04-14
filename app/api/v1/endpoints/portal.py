@@ -1,5 +1,6 @@
+"""Mock student portal data for demonstration purposes."""
+
 from fastapi import APIRouter
-from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 

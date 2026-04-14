@@ -25,8 +25,8 @@ export function ReportsDashboard({ reports, stats }: Props) {
   const barW = 32;
   const gap = (chartW - weekData.length * barW) / (weekData.length + 1);
 
-  // SVG horizontal bar chart: Top Risk Zones
-  const zones = stats?.top_risk_zones ?? [];
+// Zones renamed to topRiskZones for clarity
+  const topRiskZones = stats?.top_risk_zones ?? [];
 
   return (
     <div className="space-y-4">
@@ -101,7 +101,7 @@ export function ReportsDashboard({ reports, stats }: Props) {
           <section className="rounded-[2rem] border border-white/10 bg-panel/90 p-6 shadow-panel backdrop-blur">
             <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Top Risk Zones</p>
             <div className="mt-4 space-y-3">
-              {zones.map((z) => {
+              {topRiskZones.map((z) => {
                 const fill = z.risk >= 0.6 ? "#e84d5b" : z.risk >= 0.45 ? "#ffb84d" : "#46c37b";
                 return (
                   <div key={z.zone}>
