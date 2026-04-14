@@ -102,6 +102,55 @@ export function SSILivePanel({ data }: Props) {
             ))}
           </div>
         </div>
+
+        {/* Risk Assessment Matrix */}
+        <div className="mt-6 border-t border-white/10 pt-4">
+          <p className="text-xs uppercase tracking-[0.22em] text-mist/45">Risk Assessment Matrix</p>
+          {(() => {
+            const b = data.inputs.anomaly_coefficient;
+            const c = 1 - data.inputs.coherence_score;
+            const a = data.inputs.attendance_discrepancy;
+            const p = data.inputs.predictive_risk_level;
+            const composite = (b * 0.35 + c * 0.25 + a * 0.2 + p * 0.2);
+            const matrixItems = [
+              { label: "Behavioral Risk", value: b, desc: "Anomaly coeff." },
+              { label: "Crowd Risk", value: p, desc: "Density forecast" },
+              { label: "Attendance Risk", value: a, desc: "Discrepancy gap" },
+              { label: "Predictive Risk", value: (b * 0.4 + c * 0.3 + p * 0.3), desc: "AI composite" },
+            ];
+            const cellColor = (v: number) => v >= 0.7 ? "#e84d5b" : v >= 0.4 ? "#ffb84d" : "#46c37b";
+            const compColor = composite >= 0.6 ? "#e84d5b" : composite >= 0.35 ? "#ffb84d" : "#46c37b";
+            return (
+              <>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {matrixItems.map(({ label, value, desc }) => (
+                    <div
+                      key={label}
+                      className="rounded-[1.2rem] border px-3 py-3"
+                      style={{ borderColor: `${cellColor(value)}40`, backgroundColor: `${cellColor(value)}08` }}
+                    >
+                      <p className="text-[9px] uppercase tracking-[0.18em] text-mist/45">{label}</p>
+                      <p className="mt-1 text-lg font-bold text-white">{(value * 100).toFixed(0)}%</p>
+                      <p className="text-[10px]" style={{ color: cellColor(value) }}>{desc}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 rounded-[1.2rem] border border-white/15 bg-white/5 px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-mist/45">Composite Risk Score</p>
+                    <p className="mt-1 text-2xl font-bold text-white">{(composite * 100).toFixed(1)}%</p>
+                  </div>
+                  <div
+                    className="rounded-full px-3 py-1.5 text-xs font-bold uppercase text-white"
+                    style={{ backgroundColor: compColor }}
+                  >
+                    {composite >= 0.6 ? "High" : composite >= 0.35 ? "Moderate" : "Low"}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </div>
       </section>
     </div>
   );

@@ -1,13 +1,19 @@
 import { useState } from "react";
+import { Users, Activity, Calendar, Camera } from "lucide-react";
+import { AIInsightsPanel } from "./components/AIInsightsPanel";
+import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { KpiGauge } from "./components/KpiGauge";
 import { LiveAlertFeed } from "./components/LiveAlertFeed";
+import { MetricCard } from "./components/MetricCard";
+import { ParentPortalFull } from "./components/ParentPortalFull";
+import { ReportsDashboard } from "./components/ReportsDashboard";
 import { RiskHeatmap } from "./components/RiskHeatmap";
 import { Sidebar } from "./components/Sidebar";
 import { SSIHistoryChart } from "./components/SSIHistoryChart";
 import { SSILivePanel } from "./components/SSILivePanel";
 import { UnitsGrid } from "./components/UnitsGrid";
 import { useSafetyDashboardSocket } from "./hooks/useSafetyDashboardSocket";
-import { useSSILive, useSSIHistory, useUnits } from "./hooks/useSSIData";
+import { useSSILive, useSSIHistory, useUnits, useAnalyticsOverview, useReportsList, useReportsStats, useStudentPortal } from "./hooks/useSSIData";
 import type { NavPage } from "./types";
 
 export default function App() {
@@ -16,6 +22,10 @@ export default function App() {
   const { data: ssiLive } = useSSILive();
   const ssiHistory = useSSIHistory();
   const units = useUnits();
+  const { data: analytics } = useAnalyticsOverview();
+  const reports = useReportsList();
+  const reportStats = useReportsStats();
+  const studentData = useStudentPortal();
 
   return (
     <div className="min-h-screen bg-academic px-4 py-4 text-white lg:px-6 lg:py-6">
@@ -57,12 +67,24 @@ export default function App() {
                 </div>
               </section>
 
+              {/* Analytics metric row */}
+              {analytics && (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <MetricCard title="Total Students" value={analytics.total_students.toLocaleString()} subtitle="Enrolled & tracked" icon={Users} color="blue" trend="stable" trendValue="No change" />
+                  <MetricCard title="Attendance Rate" value={`${analytics.attendance_rate.toFixed(1)}%`} subtitle="Today's attendance" icon={Calendar} color="green" trend="up" trendValue="+1.2%" />
+                  <MetricCard title="Active Cameras" value={analytics.active_cameras} subtitle={`of ${analytics.total_units * 2} cameras`} icon={Camera} color="blue" trend="stable" trendValue="Nominal" />
+                  <MetricCard title="System Uptime" value={`${analytics.uptime_percent.toFixed(1)}%`} subtitle="30-day SLA" icon={Activity} color="green" trend="up" trendValue="SLA OK" />
+                </div>
+              )}
+
               <div className="grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
                 <KpiGauge value={snapshot.ssi} benchmark={snapshot.benchmark} />
                 <LiveAlertFeed alerts={snapshot.liveAlerts} />
               </div>
 
               <RiskHeatmap cells={snapshot.heatmapCells} availableTimeSlots={snapshot.availableTimeSlots} />
+
+              <AIInsightsPanel ssi={snapshot.ssi} benchmark={snapshot.benchmark} alerts={snapshot.liveAlerts} />
             </>
           )}
 
@@ -119,51 +141,46 @@ export default function App() {
             </>
           )}
 
+          {/* ─── ANALYTICS PAGE ──────────────────────────────── */}
+          {page === "analytics" && (
+            <>
+              <section className="rounded-[2rem] border border-white/10 bg-panel/70 px-6 py-5 shadow-panel">
+                <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Analytics</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">System Analytics Overview</h2>
+                <p className="mt-2 text-sm text-mist/75">
+                  Comprehensive performance metrics across attendance, security, cameras, and governance compliance.
+                </p>
+              </section>
+              <AnalyticsDashboard data={analytics} />
+            </>
+          )}
+
           {/* ─── REPORTS PAGE ────────────────────────────────── */}
           {page === "reports" && (
-            <section className="rounded-[2rem] border border-white/10 bg-panel/70 px-6 py-10 shadow-panel text-center">
-              <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Ministerial Reports</p>
-              <h2 className="mt-3 text-2xl font-semibold text-white">Multi-Level Periodic Reports</h2>
-              <p className="mt-4 text-sm text-mist/60 max-w-lg mx-auto">
-                Operational, analytical, supervisory, and ministerial reports powered by Unit 11.
-                Connect the backend to generate live semester summaries.
-              </p>
-              <div className="mt-8 grid gap-4 sm:grid-cols-3 max-w-2xl mx-auto">
-                {["Operational Report", "School Analytics", "Ministerial Summary"].map((r) => (
-                  <div key={r} className="rounded-[1.6rem] border border-white/10 bg-white/5 p-5">
-                    <p className="text-sm font-medium text-white">{r}</p>
-                    <p className="mt-2 text-xs text-mist/40">Available via /api/v1/ssi/history</p>
-                  </div>
-                ))}
-              </div>
-            </section>
+            <>
+              <section className="rounded-[2rem] border border-white/10 bg-panel/70 px-6 py-5 shadow-panel">
+                <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Reports</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">Multi-Level Periodic Reports</h2>
+                <p className="mt-2 text-sm text-mist/75">
+                  Operational, analytical, supervisory, and ministerial reports powered by Unit 11.
+                </p>
+              </section>
+              <ReportsDashboard reports={reports} stats={reportStats} />
+            </>
           )}
 
           {/* ─── PARENT PORTAL PAGE ──────────────────────────── */}
           {page === "portal" && (
-            <section className="rounded-[2rem] border border-white/10 bg-panel/70 px-6 py-10 shadow-panel text-center">
-              <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Parent Portal</p>
-              <h2 className="mt-3 text-2xl font-semibold text-white">Smart Parent Portal — Unit 12</h2>
-              <p className="mt-4 text-sm text-mist/60 max-w-lg mx-auto">
-                Privacy-governed attendance & safety notifications for guardians. Powered by the Arab Data Governance Model (Unit 14).
-              </p>
-              <div className="mt-8 grid gap-4 sm:grid-cols-2 max-w-xl mx-auto">
-                {[
-                  { label: "Attendance Status", val: "Present ✓" },
-                  { label: "Safety Status", val: "Safe ✓" },
-                  { label: "Last Known Zone", val: "Learning Commons" },
-                  { label: "Dismissal Status", val: "Not at exit gate" },
-                ].map(({ label, val }) => (
-                  <div key={label} className="rounded-[1.6rem] border border-white/10 bg-white/5 p-5 text-left">
-                    <p className="text-xs uppercase tracking-[0.2em] text-mist/40">{label}</p>
-                    <p className="mt-2 text-base font-semibold text-white">{val}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-6 text-xs text-mist/30">
-                All data anonymized per POLICY.minor_age_threshold = 18. Video logs expire after 72h TTL.
-              </p>
-            </section>
+            <>
+              <section className="rounded-[2rem] border border-white/10 bg-panel/70 px-6 py-5 shadow-panel">
+                <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Parent Portal</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">Smart Parent Portal — Unit 12</h2>
+                <p className="mt-2 text-sm text-mist/75">
+                  Privacy-governed attendance & safety notifications for guardians. Powered by the Arab Data Governance Model (Unit 14).
+                </p>
+              </section>
+              <ParentPortalFull data={studentData} />
+            </>
           )}
         </main>
       </div>

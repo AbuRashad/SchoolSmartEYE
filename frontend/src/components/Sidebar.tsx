@@ -1,5 +1,5 @@
 import {
-  Activity, LineChart, ShieldCheck, FileBarChart2, BellRing, LayoutGrid,
+  Activity, LineChart, ShieldCheck, FileBarChart2, BellRing, LayoutGrid, BarChart3,
 } from "lucide-react";
 import type { NavPage } from "../types";
 
@@ -7,6 +7,7 @@ const navigation: { label: string; icon: typeof Activity; page: NavPage }[] = [
   { label: "Real-time Monitoring", icon: Activity, page: "dashboard" },
   { label: "SSI Deep Analysis", icon: LineChart, page: "ssi" },
   { label: "System Units", icon: LayoutGrid, page: "units" },
+  { label: "Analytics Overview", icon: BarChart3, page: "analytics" },
   { label: "Ministerial Reports", icon: FileBarChart2, page: "reports" },
   { label: "Parent Portal", icon: BellRing, page: "portal" },
 ];
