@@ -1,90 +1,202 @@
-# Intelligent School Monitoring System (FastAPI)
+# Intelligent School Monitoring System — SchoolSmartEYE
 
-Production-oriented FastAPI starter architecture for an intelligent school monitoring platform based on 14 integrated units, including a dedicated Arab Data Governance layer.
+A production-ready, real-time school safety and monitoring platform built on **14 integrated AI-powered units**, with a FastAPI backend and React + Tailwind frontend.
 
-## Quick Start
+---
 
-### Backend
+## 🚀 Quick Start
+
+### Option 1 — Docker (recommended, one command)
+
+```bash
+git clone https://github.com/AbuRashad/SchoolSmartEYE.git
+cd SchoolSmartEYE
+docker-compose up --build
+```
+
+| Service   | URL                               |
+|-----------|-----------------------------------|
+| Frontend  | <http://localhost:3000>           |
+| Backend   | <http://localhost:8000>           |
+| API Docs  | <http://localhost:8000/docs>      |
+
+### Option 2 — Local Development
+
+#### Backend
+
 ```bash
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+cp .env.example .env               # edit as needed
 uvicorn app.main:app --reload
 ```
 
-API docs: `http://127.0.0.1:8000/docs`
+API docs: <http://127.0.0.1:8000/docs>
 
-> **Note:** Copy `.env.example` to `.env` (or leave blank — all settings have defaults).
+#### Frontend
 
-### Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
+Dashboard: <http://127.0.0.1:5173>
+
+> The Vite dev server proxies all `/api/*` calls to the FastAPI backend on port 8000.
 
 ### Tests
-```bash
-pytest -q
-```
-
-## Project Structure
-
-- `app/main.py` - FastAPI app entrypoint.
-- `app/api/v1/` - API routes.
-- `app/core/config.py` - Runtime settings.
-- `app/core/governance_layer.py` - Arab Data Governance Model implementation.
-- `app/units/` - 14 integrated unit placeholders.
-- `tests/` - Initial test suite.
-
-## Governance Layer Capabilities
-
-1. Automated data anonymization by blurring detected faces of minors.
-2. Strict Time-To-Live (TTL) enforcement for stored video logs.
-3. Role-Based Access Control (RBAC) for `Teacher`, `Principal`, and `Ministry` hierarchy.
-
-## Run Locally
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-API docs: `http://127.0.0.1:8000/docs`
-
-## Run Tests
 
 ```bash
 pytest -q
 ```
 
-## Frontend Dashboard
+---
 
-A React + Tailwind operational dashboard is available under `frontend/`.
+## 🏗️ Architecture
 
-```bash
-cd frontend
-npm install
-npm run dev
+```
+SchoolSmartEYE/
+├── app/
+│   ├── main.py                     # FastAPI entrypoint (with seed data lifespan)
+│   ├── core/
+│   │   ├── config.py               # Pydantic settings
+│   │   └── governance_layer.py     # Arab Data Governance Model (RBAC, anonymization, TTL)
+│   ├── api/v1/
+│   │   ├── router.py               # Mounts all 7 endpoint routers
+│   │   └── endpoints/              # health, dashboard, ssi, units, analytics, reports, portal
+│   ├── units/                      # 14 integrated monitoring units
+│   │   ├── unit_01/  ...  unit_14/ # Each: module.py with service class
+│   ├── services/                   # Core AI/analytics services
+│   ├── schemas/                    # Pydantic request/response schemas
+│   ├── models/                     # Domain models shared across units
+│   └── services/seed_data.py       # In-memory demo data (populated on startup)
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx                 # Main dashboard app
+│   │   ├── components/             # UI components (KPI gauge, heatmap, alerts, etc.)
+│   │   ├── hooks/                  # WebSocket + REST data hooks
+│   │   └── types.ts                # TypeScript type definitions
+│   ├── vite.config.ts              # Dev proxy to backend :8000
+│   ├── Dockerfile                  # Multi-stage build (Node to nginx)
+│   └── nginx.conf                  # Reverse proxy for API + WebSocket
+├── tests/                          # 41+ unit & integration tests
+├── Dockerfile                      # Backend container
+└── docker-compose.yml              # Full-stack one-command startup
 ```
 
-The UI includes:
+---
 
-- Sidebar navigation for safety operations modules.
-- KPI header with an SSI gauge chart.
-- Color-coded live alert feed for coherence ruptures and anomaly alerts.
-- SVG floor-plan heatmap with dynamic risk overlays, tooltips, and time slider.
-- WebSocket-ready dashboard state hook for real-time backend integration.
+## 📡 API Endpoints
 
-## Dashboard API
+### Health
 
-The frontend dashboard consumes the following backend endpoints:
+| Method | Endpoint           | Description          |
+|--------|--------------------|----------------------|
+| GET    | `/api/v1/health`   | Service health check |
 
-- `GET /api/v1/dashboard/summary` - School name, SSI, benchmark, and connection state.
-- `GET /api/v1/dashboard/alerts` - Live alert feed items for coherence, anomaly, and density streams.
-- `GET /api/v1/dashboard/heatmap` - Frontend-ready heatmap cells with `x`, `y`, `time_slot`, `risk_intensity`, `reason`, and `label`.
-- `WS /api/v1/dashboard/ws` - Event-driven snapshot stream for dashboard refresh events.
+### Dashboard
 
-The WebSocket sends an initial snapshot on connect and can return a fresh payload when the client sends `refresh`.
+| Method    | Endpoint                     | Description                                    |
+|-----------|------------------------------|------------------------------------------------|
+| GET       | `/api/v1/dashboard/summary`  | School name, SSI score, benchmark             |
+| GET       | `/api/v1/dashboard/alerts`   | Live alert feed (coherence, anomaly, density) |
+| GET       | `/api/v1/dashboard/heatmap`  | Risk heatmap cells with zone labels           |
+| GET       | `/api/v1/dashboard/live`     | Full snapshot (REST polling fallback)         |
+| WebSocket | `/api/v1/dashboard/ws`       | Real-time dashboard stream                    |
+
+**WebSocket messages:** send `refresh`, `subscribe`, `ping` to receive snapshot JSON; send `close` to disconnect.
+
+### School Safety Index (SSI)
+
+| Method | Endpoint              | Description                                       |
+|--------|-----------------------|---------------------------------------------------|
+| GET    | `/api/v1/ssi/live`    | Real-time SSI computed from sensor inputs        |
+| GET    | `/api/v1/ssi/history` | 30-day SSI trend with improvement analysis       |
+
+### Units
+
+| Method | Endpoint                       | Description                             |
+|--------|--------------------------------|-----------------------------------------|
+| GET    | `/api/v1/units`                | Metadata for all 14 system units       |
+| GET    | `/api/v1/units/capture/health` | Unit 01 camera stream health           |
+| GET    | `/api/v1/units/alerts/summary` | Unit 09 alert queue summary            |
+
+### Analytics
+
+| Method | Endpoint                     | Description                             |
+|--------|------------------------------|-----------------------------------------|
+| GET    | `/api/v1/analytics/overview` | KPI metrics (attendance, cameras, etc.) |
+
+### Reports
+
+| Method | Endpoint                | Description                             |
+|--------|-------------------------|-----------------------------------------|
+| GET    | `/api/v1/reports/list`  | List all generated reports             |
+| GET    | `/api/v1/reports/stats` | Incident statistics and zone risk data |
+
+### Parent Portal
+
+| Method | Endpoint                  | Description                             |
+|--------|---------------------------|-----------------------------------------|
+| GET    | `/api/v1/portal/student`  | Student attendance and safety status   |
+
+---
+
+## 🧩 14 Integrated Units
+
+| # | Unit Name | Description |
+|---|-----------|-------------|
+| 01 | Video Capture Unit | Manages live camera streams across all school zones |
+| 02 | Scene Understanding Unit | Crowd density, movement direction, congestion zones |
+| 03 | Path Tracking Unit | Learns typical movement paths, flags deviations |
+| 04 | Hazard Detection Unit | Detects falls, stampedes, fights, loitering |
+| 05 | Spatial Behavioral Memory | Tracks zone-level behavioral baselines |
+| 06 | Collective Behavioral Coherence | Measures group synchrony vs. fragmentation |
+| 07 | Predictive Density Unit | Forecasts crowd density with safety thresholds |
+| 08 | Attendance & Safety Integration | Links attendance records with safety detections |
+| 09 | Alert & Response Unit | Issues prioritized safety alerts |
+| 10 | Smart Monitoring Dashboard | Real-time KPI aggregation and heatmaps |
+| 11 | Multi-Level Periodic Reports | Operational, analytical, supervisory, ministerial |
+| 12 | Smart Parent Portal | Privacy-governed parent access to child status |
+| 13 | Institutional Self-Assessment | End-of-semester safety assessment reports |
+| 14 | Arab Data Governance Layer | RBAC, face anonymization, video TTL enforcement |
+
+---
+
+## 🔒 Arab Data Governance Model
+
+The governance layer (`app/core/governance_layer.py`) enforces:
+
+1. **Automated anonymization** — OpenCV-based face blurring for minors in all video streams
+2. **Video TTL enforcement** — Strict 72-hour default retention policy with configurable TTL
+3. **RBAC hierarchy** — Teacher → Principal → Ministry access levels with scope isolation
+
+---
+
+## ⚙️ Configuration
+
+Copy `.env.example` to `.env` and adjust as needed:
+
+```env
+APP_NAME=Intelligent School Monitoring System
+APP_ENV=development
+API_V1_STR=/api/v1
+VIDEO_LOG_DIR=./video_logs
+VIDEO_TTL_HOURS=72
+```
+
+---
+
+## 🧪 Running Tests
+
+```bash
+# All tests
+pytest -q
+
+# With verbose output
+pytest -v tests/
+```
+
+Tests cover: governance layer, health, dashboard, SSI, drill simulation, ministry reports, parent portal, report generator, risk heatmap, school safety index, spatial behavioral memory, attendance-safety integration, collective behavioral coherence, and crowd density forecasting.
