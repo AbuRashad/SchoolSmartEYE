@@ -77,4 +77,59 @@ export type SSILiveData = {
   computed_at: string;
 };
 
-export type NavPage = "dashboard" | "ssi" | "units" | "reports" | "portal";
+export type NavPage = "dashboard" | "ssi" | "units" | "reports" | "portal" | "analytics";
+
+export type AnalyticsOverview = {
+  attendance_rate: number;
+  total_students: number;
+  active_cameras: number;
+  total_units: number;
+  incidents_today: number;
+  incidents_week: number;
+  avg_crowd_density: number;
+  peak_density_zone: string;
+  uptime_percent: number;
+  alerts_resolved_today: number;
+  patrol_efficiency: number;
+  compliance_score: number;
+};
+
+export type ReportItem = {
+  id: string;
+  title: string;
+  type: "operational" | "analytical" | "supervisory" | "ministerial";
+  period: string;
+  generated_at: string;
+  status: "ready" | "generating" | "scheduled";
+};
+
+export type ReportStats = {
+  weekly_incidents_by_day: { day: string; count: number }[];
+  top_risk_zones: { zone: string; risk: number; incidents: number }[];
+  attendance_by_week: { week: string; rate: number }[];
+  incident_types: { type: string; count: number; color: string }[];
+};
+
+export type PortalNotification = {
+  id: string;
+  type: "attendance" | "safety" | "info";
+  message: string;
+  time: string;
+  read: boolean;
+};
+
+export type StudentPortalData = {
+  name: string;
+  grade: string;
+  student_id: string;
+  photo_initial: string;
+  attendance_today: "present" | "absent" | "late";
+  arrival_time: string;
+  last_seen_zone: string;
+  dismissal_status: string;
+  safety_status: "safe" | "warning" | "unknown";
+  attendance_streak: number;
+  monthly_attendance: number;
+  notifications: PortalNotification[];
+  weekly_attendance: { day: string; present: boolean }[];
+};

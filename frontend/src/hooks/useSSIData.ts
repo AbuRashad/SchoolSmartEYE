@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SSILiveData, SSIHistoryData, UnitInfo } from "../types";
+import type { SSILiveData, SSIHistoryData, UnitInfo, AnalyticsOverview, ReportItem, ReportStats, StudentPortalData } from "../types";
 
 const BASE = "/api/v1";
 
@@ -41,4 +41,57 @@ export function useUnits() {
   }, []);
 
   return units;
+}
+
+export function useAnalyticsOverview() {
+  const [data, setData] = useState<AnalyticsOverview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${BASE}/analytics/overview`)
+      .then((r) => r.json())
+      .then((d) => setData(d as AnalyticsOverview))
+      .catch(() => setError("Analytics endpoint unavailable."));
+  }, []);
+
+  return { data, error };
+}
+
+export function useReportsList() {
+  const [data, setData] = useState<ReportItem[]>([]);
+
+  useEffect(() => {
+    fetch(`${BASE}/reports/list`)
+      .then((r) => r.json())
+      .then((d) => setData(d as ReportItem[]))
+      .catch(() => null);
+  }, []);
+
+  return data;
+}
+
+export function useReportsStats() {
+  const [data, setData] = useState<ReportStats | null>(null);
+
+  useEffect(() => {
+    fetch(`${BASE}/reports/stats`)
+      .then((r) => r.json())
+      .then((d) => setData(d as ReportStats))
+      .catch(() => null);
+  }, []);
+
+  return data;
+}
+
+export function useStudentPortal() {
+  const [data, setData] = useState<StudentPortalData | null>(null);
+
+  useEffect(() => {
+    fetch(`${BASE}/portal/student`)
+      .then((r) => r.json())
+      .then((d) => setData(d as StudentPortalData))
+      .catch(() => null);
+  }, []);
+
+  return data;
 }
