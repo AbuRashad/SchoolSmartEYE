@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -7,13 +8,34 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.services import seed_data
+from app.services.camera_ingestion import ingestion_service
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Populate demo seed data once on startup."""
+    """Populate demo seed data and start live camera ingestion on startup."""
+    logger.info("Application startup initiated", extra={"app_env": settings.app_env})
     seed_data.populate()
-    yield
+    logger.info("Seed data population complete")
+
+    # Live camera ingestion — only activates if cameras_sources_file exists.
+    loaded = ingestion_service.load_from_file(settings.camera_sources_file)
+    if loaded:
+        logger.info("Live camera ingestion active: %d camera(s)", loaded)
+    else:
+        logger.info(
+            "No live cameras configured (looked for %s). Running in demo mode.",
+            settings.camera_sources_file,
+        )
+
+    try:
+        yield
+    finally:
+        ingestion_service.stop_all()
+        logger.info("Application shutdown complete")
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)

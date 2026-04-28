@@ -77,7 +77,21 @@ export type SSILiveData = {
   computed_at: string;
 };
 
-export type NavPage = "dashboard" | "ssi" | "units" | "reports" | "portal" | "analytics";
+export type NavPage = "dashboard" | "ssi" | "units" | "reports" | "portal" | "analytics" | "cameras" | "control";
+
+export type LiveCameraInfo = {
+  camera_id: string;
+  zone_id: string;
+  label: string;
+  source_url: string;
+  anonymize_faces: boolean;
+  status: "active" | "degraded" | "offline";
+  is_running: boolean;
+  last_frame_at: string | null;
+  total_frames_captured: number;
+  drop_rate: number;
+  last_error: string | null;
+};
 
 export type AnalyticsOverview = {
   attendance_rate: number;
@@ -132,4 +146,148 @@ export type StudentPortalData = {
   monthly_attendance: number;
   notifications: PortalNotification[];
   weekly_attendance: { day: string; present: boolean }[];
+};
+
+// ── Control Panel ────────────────────────────────────────────────────────────
+
+export type StudentRecord = {
+  student_id: string;
+  name: string;
+  grade: string;
+  class_section: string;
+  parent_id: string;
+  photo_initial: string;
+  is_active: boolean;
+};
+
+export type StudentCreatePayload = {
+  student_id: string;
+  name: string;
+  grade: string;
+  class_section: string;
+  parent_id: string;
+  photo_initial?: string;
+  is_active?: boolean;
+};
+
+export type ZoneRecord = {
+  zone_id: string;
+  label: string;
+  zone_type: string;
+  capacity: number;
+  floor: number;
+};
+
+export type BraceletRecord = {
+  bracelet_id: string;
+  student_id: string;
+  student_name: string | null;
+  mac_address: string;
+  battery_level: number;
+  is_active: boolean;
+  last_seen_zone: string | null;
+  last_seen_at: string | null;
+  firmware_version: string;
+  notes: string;
+  low_battery: boolean;
+};
+
+export type BraceletCreatePayload = {
+  bracelet_id: string;
+  student_id: string;
+  mac_address: string;
+  battery_level?: number;
+  firmware_version?: string;
+  notes?: string;
+  is_active?: boolean;
+};
+
+export type CameraCreatePayload = {
+  camera_id: string;
+  zone_id: string;
+  label: string;
+  source_url: string;
+  anonymize_faces: boolean;
+};
+
+export type SystemSettings = {
+  camera_max_fps: number;
+  camera_jpeg_quality: number;
+  camera_reconnect_seconds: number;
+  camera_anonymize_faces: boolean;
+  ssi_benchmark: number;
+  video_ttl_hours: number;
+  bracelet_low_battery_percent: number;
+};
+
+// ── Student Profile ──────────────────────────────────────────────────────────
+
+export type AttendanceDay = {
+  date: string;
+  status: "present" | "absent" | "late" | "unknown";
+  arrival_time: string | null;
+  departure_time: string | null;
+  last_seen_zone: string | null;
+  last_seen_zone_label: string | null;
+};
+
+export type BraceletSummary = {
+  bracelet_id: string;
+  mac_address: string;
+  battery_level: number;
+  is_active: boolean;
+  last_seen_zone: string | null;
+  last_seen_zone_label: string | null;
+  last_seen_at: string | null;
+  firmware_version: string;
+  notes: string;
+  low_battery: boolean;
+};
+
+export type ProfileNotification = {
+  notification_id: string;
+  message: string;
+  notification_type: string;
+  sent_at: string;
+  read: boolean;
+};
+
+export type StudentProfile = {
+  student_id: string;
+  name: string;
+  grade: string;
+  class_section: string;
+  parent_id: string;
+  photo_initial: string;
+  is_active: boolean;
+
+  safety_status: "safe" | "warning" | "critical" | "unknown";
+  today_status: "present" | "absent" | "late" | "unknown";
+  arrival_time: string | null;
+  departure_time: string | null;
+  last_seen_zone: string | null;
+  last_seen_zone_label: string | null;
+
+  attendance_streak: number;
+  monthly_attendance_pct: number;
+  last_30_days_present: number;
+  last_30_days_total: number;
+
+  weekly_attendance: AttendanceDay[];
+  recent_attendance: AttendanceDay[];
+
+  bracelet: BraceletSummary | null;
+  notifications: ProfileNotification[];
+  unread_notifications: number;
+
+  open_incidents_in_last_zone: number;
+};
+
+export type StudentUpdatePayload = {
+  name?: string;
+  grade?: string;
+  class_section?: string;
+  parent_id?: string;
+  photo_initial?: string;
+  is_active?: boolean;
 };

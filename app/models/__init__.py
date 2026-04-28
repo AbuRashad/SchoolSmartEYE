@@ -182,3 +182,22 @@ class TransportRoute:
     stops: list[str] = field(default_factory=list)
     is_active: bool = True
     current_location: Optional[str] = None
+
+
+@dataclass
+class Bracelet:
+    """A wearable tracker bracelet assigned to a student.
+
+    Used by the attendance / safety subsystem (Units 02, 07, 12) to correlate
+    physical presence with camera-based detection. Designed to be hardware-
+    agnostic — any BLE / LoRa / GPS tag can hydrate this record.
+    """
+    bracelet_id: str
+    student_id: str
+    mac_address: str
+    battery_level: int = 100  # 0-100 percent
+    is_active: bool = True
+    last_seen_zone: Optional[str] = None
+    last_seen_at: Optional[datetime] = None
+    firmware_version: str = "1.0.0"
+    notes: str = ""
