@@ -4,7 +4,9 @@ import { AIInsightsPanel } from "./components/AIInsightsPanel";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { KpiGauge } from "./components/KpiGauge";
 import { LiveAlertFeed } from "./components/LiveAlertFeed";
+import { LiveCameraGrid } from "./components/LiveCameraGrid";
 import { MetricCard } from "./components/MetricCard";
+import { ControlPanel } from "./components/ControlPanel";
 import { ParentPortalFull } from "./components/ParentPortalFull";
 import { ReportsDashboard } from "./components/ReportsDashboard";
 import { RiskHeatmap } from "./components/RiskHeatmap";
@@ -169,6 +171,21 @@ export default function App() {
             </>
           )}
 
+          {/* ─── LIVE CAMERAS PAGE ───────────────────────────── */}
+          {page === "cameras" && (
+            <>
+              <section className="rounded-[2rem] border border-white/10 bg-panel/70 px-6 py-5 shadow-panel">
+                <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Live Cameras</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">Real Camera Feeds — Unit 01</h2>
+                <p className="mt-2 text-sm text-mist/75">
+                  Live RTSP / HTTP / USB camera streams from across the campus. All faces are blurred in real time by the
+                  Arab Data Governance Layer (Unit 14) before any frame is shown or stored.
+                </p>
+              </section>
+              <LiveCameraGrid />
+            </>
+          )}
+
           {/* ─── PARENT PORTAL PAGE ──────────────────────────── */}
           {page === "portal" && (
             <>
@@ -182,6 +199,9 @@ export default function App() {
               <ParentPortalFull data={studentData} />
             </>
           )}
+
+          {/* ─── CONTROL PANEL PAGE ──────────────────────────── */}
+          {page === "control" && <ControlPanel />}
         </main>
       </div>
     </div>

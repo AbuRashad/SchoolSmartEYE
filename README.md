@@ -165,6 +165,92 @@ SchoolSmartEYE/
 
 ---
 
+## 📹 Connecting Real School Cameras
+
+SchoolSmartEYE can ingest live frames from real cameras via RTSP, HTTP MJPEG,
+USB webcams, or local video files. All frames pass through the **Arab Data
+Governance Layer (Unit 14)** for automatic face anonymization before being
+shown or stored.
+
+### 1. Create a `cameras.json` file at the project root
+
+A template is provided in `cameras.example.json`. Copy it and edit:
+
+```bash
+cp cameras.example.json cameras.json
+```
+
+Each entry supports four source types:
+
+| Type            | `source_url` example                                                      |
+|-----------------|---------------------------------------------------------------------------|
+| RTSP (IP cam)   | `rtsp://admin:PASSWORD@192.168.1.50:554/Streaming/Channels/101`           |
+| HTTP MJPEG      | `http://192.168.1.60/mjpg/video.mjpg`                                     |
+| USB webcam      | `"0"` (camera index as string)                                            |
+| Local file      | `./samples/playground.mp4` (loops via auto-reconnect)                     |
+
+```json
+[
+  {
+    "camera_id": "cam-gate",
+    "zone_id": "zone-main-gate",
+    "label": "Main Gate — Entry",
+    "source_url": "rtsp://admin:YOUR_PASSWORD@192.168.1.50:554/Streaming/Channels/101",
+    "anonymize_faces": true
+  }
+]
+```
+
+### 2. Restart the backend
+
+```bash
+uvicorn app.main:app --reload
+```
+
+You should see:
+
+```
+INFO  Live camera ingestion active: 1 camera(s)
+```
+
+### 3. Open the **Live Cameras** tab in the dashboard
+
+Navigate to <http://127.0.0.1:5173> and click **Live Cameras** in the sidebar.
+Each registered camera appears as an MJPEG tile updated in real time.
+
+### Runtime endpoints
+
+| Method | Endpoint                                          | Description                             |
+|--------|---------------------------------------------------|-----------------------------------------|
+| GET    | `/api/v1/cameras`                                 | List registered live cameras + status   |
+| POST   | `/api/v1/cameras`                                 | Register a new camera at runtime        |
+| DELETE | `/api/v1/cameras/{camera_id}`                     | Unregister & stop a camera              |
+| POST   | `/api/v1/cameras/{camera_id}/start`               | Restart a stopped worker                |
+| POST   | `/api/v1/cameras/{camera_id}/stop`                | Stop a worker (keep registration)       |
+| GET    | `/api/v1/cameras/{camera_id}/snapshot.jpg`        | One-shot latest JPEG                    |
+| GET    | `/api/v1/cameras/{camera_id}/stream.mjpg`         | Live MJPEG multipart stream             |
+
+### Tuning (in `.env`)
+
+```env
+CAMERA_SOURCES_FILE=./cameras.json
+CAMERA_RECONNECT_SECONDS=5.0
+CAMERA_JPEG_QUALITY=70           # 1-100; lower = less bandwidth
+CAMERA_MAX_FPS=15                # cap CPU/network use per camera
+CAMERA_ANONYMIZE_FACES=true      # global default for new cameras
+CAMERA_OPEN_TIMEOUT_SECONDS=10
+```
+
+### Troubleshooting
+
+- **Camera shows "offline"** → Check the URL with VLC first. RTSP credentials
+  often need URL-encoding (`@` → `%40`).
+- **No tile appears at all** → Backend logs say `"No live cameras configured"`
+  → check that `cameras.json` exists at the project root and is valid JSON.
+- **High latency** → Lower `CAMERA_MAX_FPS` and `CAMERA_JPEG_QUALITY`.
+
+---
+
 ## 🔒 Arab Data Governance Model
 
 The governance layer (`app/core/governance_layer.py`) enforces:

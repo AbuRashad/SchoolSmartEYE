@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from app.models import (
     AttendanceStatus,
+    Bracelet,
     CameraFeed,
     DailyAttendance,
     IncidentSeverity,
@@ -39,6 +40,7 @@ reports: list[ReportRecord] = []
 notifications: list[NotificationMessage] = []
 visitors: list[VisitorRecord] = []
 transport_routes: list[TransportRoute] = []
+bracelets: list[Bracelet] = []
 
 
 def _utc(hour: int = 8, minute: int = 0, day_offset: int = 0) -> datetime:
@@ -286,6 +288,29 @@ def _seed_visitors() -> None:
 # ── Transport Routes ──────────────────────────────────────────────────────────
 
 
+def _seed_bracelets() -> None:
+    now = datetime.now(timezone.utc)
+    bracelet_data = [
+        ("BR-0001", "STU-2024-0847", "AA:BB:CC:00:00:01", 92, "zone-classroom-1a"),
+        ("BR-0002", "STU-2024-0848", "AA:BB:CC:00:00:02", 78, "zone-classroom-1a"),
+        ("BR-0003", "STU-2024-0849", "AA:BB:CC:00:00:03", 64, "zone-corridor-a"),
+        ("BR-0004", "STU-2024-0850", "AA:BB:CC:00:00:04", 41, "zone-classroom-1b"),
+        ("BR-0005", "STU-2024-0852", "AA:BB:CC:00:00:05", 88, "zone-classroom-2a"),
+    ]
+    for bid, sid, mac, battery, zone in bracelet_data:
+        bracelets.append(
+            Bracelet(
+                bracelet_id=bid,
+                student_id=sid,
+                mac_address=mac,
+                battery_level=battery,
+                last_seen_zone=zone,
+                last_seen_at=now,
+                firmware_version="1.2.0",
+            )
+        )
+
+
 def _seed_transport() -> None:
     transport_routes.extend(
         [
@@ -337,6 +362,7 @@ def populate() -> None:
     _seed_notifications()
     _seed_visitors()
     _seed_transport()
+    _seed_bracelets()
 
 
 def get_school_metrics() -> SchoolMetrics:

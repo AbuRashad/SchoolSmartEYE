@@ -1,0 +1,37 @@
+[
+  {
+    "camera_id": "cam-gate",
+    "zone_id": "zone-main-gate",
+    "label": "Main Gate — Entry",
+    "source_url": "rtsp://admin:YOUR_PASSWORD@192.168.1.50:554/Streaming/Channels/101",
+    "anonymize_faces": true
+  },
+  {
+    "camera_id": "cam-corridor-a",
+    "zone_id": "zone-corridor-a",
+    "label": "Corridor A — Floor 1",
+    "source_url": "rtsp://admin:YOUR_PASSWORD@192.168.1.51:554/cam/realmonitor?channel=1&subtype=0",
+    "anonymize_faces": true
+  },
+  {
+    "camera_id": "cam-mjpeg",
+    "zone_id": "zone-cafeteria",
+    "label": "Cafeteria North (MJPEG)",
+    "source_url": "http://192.168.1.60/mjpg/video.mjpg",
+    "anonymize_faces": true
+  },
+  {
+    "camera_id": "cam-webcam",
+    "zone_id": "zone-classroom-1a",
+    "label": "Classroom 1A — USB Webcam",
+    "source_url": "0",
+    "anonymize_faces": true
+  },
+  {
+    "camera_id": "cam-demo-file",
+    "zone_id": "zone-playground",
+    "label": "Playground (test file)",
+    "source_url": "./samples/playground.mp4",
+    "anonymize_faces": true
+  }
+]
