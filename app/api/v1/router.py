@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.endpoints.agent import router as agent_router
 from app.api.v1.endpoints.analytics import router as analytics_router
 from app.api.v1.endpoints.bracelets import router as bracelets_router
 from app.api.v1.endpoints.cameras import router as cameras_router
@@ -24,3 +25,4 @@ api_router.include_router(cameras_router)
 api_router.include_router(students_router)
 api_router.include_router(bracelets_router)
 api_router.include_router(settings_router)
+api_router.include_router(agent_router)

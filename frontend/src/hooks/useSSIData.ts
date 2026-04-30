@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SSILiveData, SSIHistoryData, UnitInfo, AnalyticsOverview, ReportItem, ReportStats, StudentPortalData } from "../types";
+import type { SSILiveData, SSIHistoryData, UnitInfo, AnalyticsOverview, ReportItem, ReportStats, StudentPortalData, AgentSessionInsights, EngagementSnapshotRecord } from "../types";
 
 const BASE = "/api/v1";
 
@@ -94,4 +94,36 @@ export function useStudentPortal() {
   }, []);
 
   return data;
+}
+
+export function useAgentInsights() {
+  const [data, setData] = useState<AgentSessionInsights | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${BASE}/agent/insights`)
+      .then((r) => r.json())
+      .then((d) => setData(d as AgentSessionInsights))
+      .catch(() => setError("Agent insights endpoint unavailable."));
+  }, []);
+
+  return { data, error };
+}
+
+export function useStudentBehavioralHistory(studentId: string, days = 30) {
+  const [data, setData] = useState<EngagementSnapshotRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetch(`${BASE}/students/${encodeURIComponent(studentId)}/behavioral-history?days=${days}`)
+      .then((r) => r.json())
+      .then((d) => setData(d as EngagementSnapshotRecord[]))
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setLoading(false));
+  }, [studentId, days]);
+
+  return { data, loading, error };
 }
