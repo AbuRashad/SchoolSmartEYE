@@ -2,19 +2,21 @@ import { useCallback, useEffect, useState } from "react";
 import {
   X, User, Calendar, Watch, Bell, Edit3, MapPin, Clock, TrendingUp,
   Shield, ShieldAlert, ShieldCheck, AlertTriangle, CheckCircle2, XCircle,
-  Battery, BatteryLow, RefreshCw, Trash2, Save, Users, Activity, Info,
+  Battery, BatteryLow, RefreshCw, Trash2, Save, Users, Activity, Info, Brain,
 } from "lucide-react";
-import type { AttendanceDay, StudentProfile, StudentUpdatePayload } from "../../types";
+import type { AttendanceDay, StudentProfile, StudentUpdatePayload, EngagementSnapshotRecord } from "../../types";
 import { api } from "./api";
 import { Field, inputCls, type Flash } from "./ui";
+import { useStudentBehavioralHistory } from "../../hooks/useSSIData";
 
-type Tab = "overview" | "attendance" | "bracelet" | "notifications" | "edit";
+type Tab = "overview" | "attendance" | "bracelet" | "notifications" | "engagement" | "edit";
 
 const TABS: { id: Tab; label: string; icon: typeof User }[] = [
   { id: "overview", label: "Overview", icon: User },
   { id: "attendance", label: "Attendance", icon: Calendar },
   { id: "bracelet", label: "Bracelet", icon: Watch },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "engagement", label: "Engagement", icon: Brain },
   { id: "edit", label: "Edit", icon: Edit3 },
 ];
 
@@ -345,6 +347,156 @@ function BraceletTab({ profile }: { profile: StudentProfile }) {
   );
 }
 
+// ── Engagement helpers ────────────────────────────────────────────────────────
+
+const ENGAGEMENT_STATE_CFG = {
+  engaged:    { color: "text-safe",    bg: "bg-safe/10",    border: "border-safe/40",    label: "Engaged" },
+  attentive:  { color: "text-sky",     bg: "bg-sky/10",     border: "border-sky/40",     label: "Attentive" },
+  distracted: { color: "text-warning", bg: "bg-warning/10", border: "border-warning/40", label: "Distracted" },
+  drowsy:     { color: "text-critical",bg: "bg-critical/10",border: "border-critical/40",label: "Drowsy" },
+  unknown:    { color: "text-mist/60", bg: "bg-white/5",    border: "border-white/10",   label: "Unknown" },
+} as const;
+
+const TREND_CFG = {
+  improving: { color: "text-safe",    label: "↑ Improving" },
+  stable:    { color: "text-sky",     label: "→ Stable" },
+  declining: { color: "text-critical",label: "↓ Declining" },
+} as const;
+
+const fmtRecordedAt = (iso: string): string => {
+  try {
+    return new Date(iso).toLocaleString([], {
+      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+};
+
+function EngagementStateBadge({ state }: { state: EngagementSnapshotRecord["state"] }) {
+  const cfg = ENGAGEMENT_STATE_CFG[state] ?? ENGAGEMENT_STATE_CFG.unknown;
+  return (
+    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${cfg.border} ${cfg.bg} ${cfg.color}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function ScoreBar({ score }: { score: number }) {
+  const pct = Math.round(score * 100);
+  const color = pct >= 70 ? "bg-safe" : pct >= 40 ? "bg-amber-400" : "bg-critical";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+        <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-8 shrink-0 text-right text-[11px] text-mist/70">{pct}%</span>
+    </div>
+  );
+}
+
+function EngagementTab({ studentId, profile }: { studentId: string; profile: StudentProfile }) {
+  const { data: history, loading, error } = useStudentBehavioralHistory(studentId, 30);
+  const summary = profile.engagement_summary;
+
+  return (
+    <div className="space-y-5">
+      {/* Summary cards */}
+      {summary ? (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard
+            icon={Brain}
+            label="Avg Score (7d)"
+            value={`${Math.round(summary.avg_score_7d * 100)}%`}
+            tone={summary.avg_score_7d >= 0.7 ? "good" : summary.avg_score_7d >= 0.4 ? "warn" : "bad"}
+          />
+          <StatCard
+            icon={Activity}
+            label="Dominant State"
+            value={ENGAGEMENT_STATE_CFG[summary.dominant_state]?.label ?? summary.dominant_state}
+            tone={summary.dominant_state === "engaged" || summary.dominant_state === "attentive" ? "good"
+              : summary.dominant_state === "distracted" || summary.dominant_state === "drowsy" ? "bad" : "default"}
+          />
+          <StatCard
+            icon={TrendingUp}
+            label="Trend"
+            value={TREND_CFG[summary.trend as keyof typeof TREND_CFG]?.label ?? summary.trend}
+            sublabel={`${summary.total_snapshots_7d} snapshots`}
+            tone={summary.trend === "improving" ? "good" : summary.trend === "declining" ? "bad" : "default"}
+          />
+          <StatCard
+            icon={AlertTriangle}
+            label="A/V Mismatches"
+            value={summary.mismatch_count_7d}
+            sublabel="Last 7 days"
+            tone={summary.mismatch_count_7d > 0 ? "warn" : "default"}
+          />
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-white/10 bg-panel/60 px-4 py-6 text-center text-sm text-mist/60">
+          <Brain className="mx-auto mb-2 h-8 w-8 text-mist/40" />
+          No engagement data recorded yet for this student.
+        </div>
+      )}
+
+      {/* Timeline */}
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-panel/60">
+        <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-4 py-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-mist/60">
+            Engagement Timeline (last 30 days)
+          </span>
+          {loading && <RefreshCw className="h-3.5 w-3.5 animate-spin text-mist/50" />}
+        </div>
+
+        {error ? (
+          <div className="px-4 py-6 text-center text-sm text-critical/80">{error}</div>
+        ) : history.length === 0 && !loading ? (
+          <div className="px-4 py-6 text-center text-sm text-mist/60">No snapshots in the last 30 days.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-[11px] uppercase tracking-wider text-mist/50">
+                <tr>
+                  <th className="px-4 py-2">Time</th>
+                  <th className="px-4 py-2">Session</th>
+                  <th className="px-4 py-2">State</th>
+                  <th className="px-4 py-2">Score</th>
+                  <th className="px-4 py-2">Audio</th>
+                  <th className="px-4 py-2">Zone</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((s) => (
+                  <tr
+                    key={`${s.student_id}-${s.recorded_at}`}
+                    className={`border-t border-white/5 ${s.audio_visual_mismatch ? "bg-amber-400/5" : ""}`}
+                  >
+                    <td className="px-4 py-2 font-mono text-[11px] text-mist/70">
+                      {fmtRecordedAt(s.recorded_at)}
+                    </td>
+                    <td className="px-4 py-2 font-mono text-[11px] text-mist/60">{s.session_id}</td>
+                    <td className="px-4 py-2"><EngagementStateBadge state={s.state} /></td>
+                    <td className="px-4 py-2 w-36"><ScoreBar score={s.score} /></td>
+                    <td className="px-4 py-2">
+                      {s.audio_context ? (
+                        <span className={`text-[11px] ${s.audio_visual_mismatch ? "text-amber-300 font-semibold" : "text-mist/70"}`}>
+                          {s.audio_context}
+                          {s.audio_visual_mismatch && " ⚠"}
+                        </span>
+                      ) : <span className="text-mist/40">—</span>}
+                    </td>
+                    <td className="px-4 py-2 font-mono text-[11px] text-mist/60">{s.zone_id ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function NotificationsTab({ profile }: { profile: StudentProfile }) {
   if (profile.notifications.length === 0) {
     return (
@@ -623,6 +775,7 @@ export function StudentProfileModal({ studentId, flash, onClose, onChanged }: Pr
               {tab === "attendance" && <AttendanceTab profile={profile} />}
               {tab === "bracelet" && <BraceletTab profile={profile} />}
               {tab === "notifications" && <NotificationsTab profile={profile} />}
+              {tab === "engagement" && <EngagementTab studentId={profile.student_id} profile={profile} />}
               {tab === "edit" && (
                 <EditTab form={editForm} setForm={setEditForm}
                   onSubmit={saveEdit} onDelete={removeStudent} busy={busy} />

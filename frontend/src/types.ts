@@ -281,6 +281,8 @@ export type StudentProfile = {
   unread_notifications: number;
 
   open_incidents_in_last_zone: number;
+
+  engagement_summary: EngagementSummary | null;
 };
 
 export type StudentUpdatePayload = {
@@ -290,4 +292,58 @@ export type StudentUpdatePayload = {
   parent_id?: string;
   photo_initial?: string;
   is_active?: boolean;
+};
+
+// ── Unit 15: Pedagogical Behavioral Intelligence ──────────────────────────────
+
+export type EngagementState = "attentive" | "engaged" | "distracted" | "drowsy" | "unknown";
+
+export type EngagementSummary = {
+  avg_score_7d: number;
+  dominant_state: EngagementState;
+  trend: "improving" | "stable" | "declining";
+  total_snapshots_7d: number;
+  mismatch_count_7d: number;
+};
+
+export type EngagementSnapshotRecord = {
+  student_id: string;
+  recorded_at: string;
+  state: EngagementState;
+  score: number;
+  session_id: string;
+  zone_id: string | null;
+  audio_context: string | null;
+  audio_visual_mismatch: boolean;
+};
+
+export type AgentTopEngaged = {
+  student_id: string;
+  score: number;
+  state: EngagementState;
+};
+
+export type AgentDisengagementFlag = {
+  student_id: string;
+  state: EngagementState;
+  score: number;
+  zone_id: string | null;
+  since: string;
+};
+
+export type AgentAVMismatch = {
+  student_id: string;
+  audio_context: string | null;
+  visual_state: EngagementState;
+  score: number;
+};
+
+export type AgentSessionInsights = {
+  session_id: string | null;
+  computed_at: string;
+  class_engagement_average: number;
+  top_engaged_students: AgentTopEngaged[];
+  disengagement_flags: AgentDisengagementFlag[];
+  audio_visual_mismatches: AgentAVMismatch[];
+  improvement_note: string | null;
 };

@@ -8,10 +8,13 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 
 from app.models import (
+    AgentFeedback,
     AttendanceStatus,
     Bracelet,
     CameraFeed,
     DailyAttendance,
+    EngagementSnapshot,
+    EngagementState,
     IncidentSeverity,
     NotificationMessage,
     ReportRecord,
@@ -41,6 +44,8 @@ notifications: list[NotificationMessage] = []
 visitors: list[VisitorRecord] = []
 transport_routes: list[TransportRoute] = []
 bracelets: list[Bracelet] = []
+engagement_snapshots: list[EngagementSnapshot] = []
+agent_feedback_log: list[AgentFeedback] = []
 
 
 def _utc(hour: int = 8, minute: int = 0, day_offset: int = 0) -> datetime:
@@ -342,6 +347,163 @@ def _seed_transport() -> None:
     )
 
 
+# ── Engagement Snapshots (Unit 15) ────────────────────────────────────────────
+
+# Pre-defined engagement trajectories per student across recent sessions.
+# Each tuple: (state, score, audio_context, audio_visual_mismatch)
+_STUDENT_SESSION_PROFILES: dict[str, list[tuple[EngagementState, float, str | None, bool]]] = {
+    "STU-2024-0847": [  # Ahmed — consistently engaged
+        (EngagementState.ENGAGED, 0.92, "speaking", False),
+        (EngagementState.ATTENTIVE, 0.78, "silent", False),
+        (EngagementState.ENGAGED, 0.88, "speaking", False),
+    ],
+    "STU-2024-0848": [  # Omar — attentive but occasionally distracted
+        (EngagementState.ATTENTIVE, 0.74, "silent", False),
+        (EngagementState.DISTRACTED, 0.28, "silent", False),
+        (EngagementState.ATTENTIVE, 0.71, "silent", False),
+    ],
+    "STU-2024-0849": [  # Sara — high engagement with audio-visual mismatch
+        (EngagementState.ENGAGED, 0.90, "speaking", False),
+        (EngagementState.DISTRACTED, 0.25, "speaking", True),  # speaking but distracted posture
+        (EngagementState.ENGAGED, 0.85, "speaking", False),
+    ],
+    "STU-2024-0850": [  # Nora — drowsy trend
+        (EngagementState.DROWSY, 0.18, "silent", False),
+        (EngagementState.DISTRACTED, 0.32, "silent", False),
+        (EngagementState.DROWSY, 0.14, "silent", False),
+    ],
+    "STU-2024-0851": [  # Khaled — improving
+        (EngagementState.DISTRACTED, 0.30, "silent", False),
+        (EngagementState.ATTENTIVE, 0.65, "silent", False),
+        (EngagementState.ENGAGED, 0.80, "speaking", False),
+    ],
+    "STU-2024-0852": [  # Layla — stable attentive
+        (EngagementState.ATTENTIVE, 0.72, "silent", False),
+        (EngagementState.ATTENTIVE, 0.75, "silent", False),
+        (EngagementState.ATTENTIVE, 0.70, "silent", False),
+    ],
+    "STU-2024-0853": [  # Youssef — very engaged
+        (EngagementState.ENGAGED, 0.95, "speaking", False),
+        (EngagementState.ENGAGED, 0.91, "speaking", False),
+        (EngagementState.ENGAGED, 0.93, "speaking", False),
+    ],
+    "STU-2024-0854": [  # Hessa — audio-visual mismatch pattern
+        (EngagementState.ATTENTIVE, 0.68, "silent", False),
+        (EngagementState.DISTRACTED, 0.29, "speaking", True),  # speaking but distracted
+        (EngagementState.ATTENTIVE, 0.65, "silent", False),
+    ],
+    "STU-2024-0855": [  # Faisal — disengaged
+        (EngagementState.DISTRACTED, 0.22, "silent", False),
+        (EngagementState.DROWSY, 0.12, "silent", False),
+        (EngagementState.DISTRACTED, 0.25, "silent", False),
+    ],
+    "STU-2024-0856": [  # Reem — engaged with context
+        (EngagementState.ENGAGED, 0.87, "speaking", False),
+        (EngagementState.ATTENTIVE, 0.76, "silent", False),
+        (EngagementState.ENGAGED, 0.82, "speaking", False),
+    ],
+}
+
+_SESSION_ZONES = [
+    "zone-classroom-1a",
+    "zone-classroom-1b",
+    "zone-classroom-2a",
+    "zone-classroom-2b",
+]
+
+
+def _seed_engagement_snapshots() -> None:
+    """Seed three sessions of engagement data across the last 3 days."""
+    now = datetime.now(timezone.utc)
+    session_specs = [
+        ("SES-TODAY-AM", 0, 8, 30),    # today 08:30
+        ("SES-YEST-AM", -1, 8, 30),    # yesterday 08:30
+        ("SES-2D-AM", -2, 9, 0),       # 2 days ago 09:00
+    ]
+
+    zone_list = _SESSION_ZONES
+    for session_id, day_offset, hour, minute in session_specs:
+        base_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=day_offset)
+        for idx, (sid, _, _, _, _, _) in enumerate(_STUDENT_DATA):
+            profile = _STUDENT_SESSION_PROFILES.get(sid, [])
+            # Pick the snapshot profile entry matching the session index (cycle through)
+            entry = profile[session_specs.index((session_id, day_offset, hour, minute)) % len(profile)]
+            state, score, audio_context, mismatch = entry
+            zone_id = zone_list[idx % len(zone_list)]
+            # Stagger snapshot times within session (one every 10 minutes)
+            snap_time = base_time + timedelta(minutes=10 * idx)
+            engagement_snapshots.append(
+                EngagementSnapshot(
+                    student_id=sid,
+                    recorded_at=snap_time,
+                    state=state,
+                    score=score,
+                    session_id=session_id,
+                    zone_id=zone_id,
+                    audio_context=audio_context,
+                    audio_visual_mismatch=mismatch,
+                )
+            )
+
+    # Add a few additional historical snapshots for trend analysis (7 days back)
+    for day_offset in range(-7, -2):
+        session_id = f"SES-HIST-{abs(day_offset)}"
+        base_time = now.replace(hour=8, minute=30, second=0, microsecond=0) + timedelta(days=day_offset)
+        for idx, (sid, _, _, _, _, _) in enumerate(_STUDENT_DATA):
+            profile = _STUDENT_SESSION_PROFILES.get(sid, [])
+            entry = profile[idx % len(profile)]
+            state, score, audio_context, mismatch = entry
+            engagement_snapshots.append(
+                EngagementSnapshot(
+                    student_id=sid,
+                    recorded_at=base_time + timedelta(minutes=5 * idx),
+                    state=state,
+                    score=score,
+                    session_id=session_id,
+                    zone_id=zone_list[idx % len(zone_list)],
+                    audio_context=audio_context,
+                    audio_visual_mismatch=mismatch,
+                )
+            )
+
+
+def _seed_agent_feedback() -> None:
+    """Seed a few teacher feedback entries to demonstrate the self-evaluation loop."""
+    now = datetime.now(timezone.utc)
+    feedback_entries = [
+        (
+            "FB-001", "SES-YEST-AM", "STU-2024-0850",
+            EngagementState.DROWSY, EngagementState.DROWSY,
+            "Confirmed — student appeared tired throughout morning session.",
+            -26,
+        ),
+        (
+            "FB-002", "SES-YEST-AM", "STU-2024-0849",
+            EngagementState.DISTRACTED, EngagementState.ENGAGED,
+            "Incorrect — student was actively asking questions.",
+            -25,
+        ),
+        (
+            "FB-003", "SES-2D-AM", "STU-2024-0847",
+            EngagementState.ENGAGED, EngagementState.ENGAGED,
+            "Accurate prediction.",
+            -50,
+        ),
+    ]
+    for fb_id, session_id, student_id, pred, confirmed, notes, hour_offset in feedback_entries:
+        agent_feedback_log.append(
+            AgentFeedback(
+                feedback_id=fb_id,
+                session_id=session_id,
+                student_id=student_id,
+                predicted_state=pred,
+                confirmed_state=confirmed,
+                teacher_notes=notes,
+                recorded_at=now + timedelta(hours=hour_offset),
+            )
+        )
+
+
 # ── Entry-point ───────────────────────────────────────────────────────────────
 
 
@@ -363,6 +525,8 @@ def populate() -> None:
     _seed_visitors()
     _seed_transport()
     _seed_bracelets()
+    _seed_engagement_snapshots()
+    _seed_agent_feedback()
 
 
 def get_school_metrics() -> SchoolMetrics:

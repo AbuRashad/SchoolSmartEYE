@@ -49,6 +49,14 @@ class ReportType(str, Enum):
     MINISTERIAL = "ministerial"
 
 
+class EngagementState(str, Enum):
+    ATTENTIVE = "attentive"
+    ENGAGED = "engaged"
+    DISTRACTED = "distracted"
+    DROWSY = "drowsy"
+    UNKNOWN = "unknown"
+
+
 # ── Core Domain Models ────────────────────────────────────────────────────────
 
 
@@ -201,3 +209,32 @@ class Bracelet:
     last_seen_at: Optional[datetime] = None
     firmware_version: str = "1.0.0"
     notes: str = ""
+
+
+@dataclass
+class EngagementSnapshot:
+    """A single per-student behavioral engagement reading captured by Unit 15.
+
+    Produced by pose estimation / audio analysis for each student during a
+    class session. Multiple snapshots per session build the behavioral timeline.
+    """
+    student_id: str
+    recorded_at: datetime
+    state: EngagementState
+    score: float          # 0.0 (fully disengaged) → 1.0 (fully engaged)
+    session_id: str
+    zone_id: Optional[str] = None
+    audio_context: Optional[str] = None      # e.g. "speaking", "silent", "disturbance"
+    audio_visual_mismatch: bool = False      # visual state contradicts audio context
+
+
+@dataclass
+class AgentFeedback:
+    """A teacher annotation confirming or correcting a Unit 15 prediction."""
+    feedback_id: str
+    session_id: str
+    student_id: str
+    predicted_state: EngagementState
+    confirmed_state: EngagementState
+    teacher_notes: str
+    recorded_at: datetime

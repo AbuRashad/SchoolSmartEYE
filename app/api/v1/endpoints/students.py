@@ -21,10 +21,26 @@ from app.models import (
     Student,
 )
 from app.services import seed_data
+from app.services.pedagogical_agent import PedagogicalAgentService
 
 router = APIRouter(tags=["control"])
 
 _lock = threading.Lock()
+
+# Lazy singleton for the pedagogical agent service (backed by seed_data stores)
+_agent: PedagogicalAgentService | None = None
+
+
+def _get_agent() -> PedagogicalAgentService:
+    global _agent  # noqa: PLW0603
+    if _agent is None:
+        from app.core.config import settings
+        _agent = PedagogicalAgentService(
+            snapshots=seed_data.engagement_snapshots,
+            feedback_log=seed_data.agent_feedback_log,
+            video_log_dir=settings.video_log_dir,
+        )
+    return _agent
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -97,6 +113,25 @@ class NotificationItem(BaseModel):
     read: bool
 
 
+class EngagementSummary(BaseModel):
+    avg_score_7d: float
+    dominant_state: str
+    trend: str
+    total_snapshots_7d: int
+    mismatch_count_7d: int
+
+
+class EngagementSnapshotOut(BaseModel):
+    student_id: str
+    recorded_at: str
+    state: str
+    score: float
+    session_id: str
+    zone_id: str | None
+    audio_context: str | None
+    audio_visual_mismatch: bool
+
+
 class StudentProfile(BaseModel):
     # Core
     student_id: str
@@ -128,6 +163,8 @@ class StudentProfile(BaseModel):
     unread_notifications: int
 
     open_incidents_in_last_zone: int
+
+    engagement_summary: EngagementSummary | None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -386,6 +423,14 @@ def student_profile(student_id: str) -> StudentProfile:
             if last_zone else 0
         )
 
+        # Engagement summary from Unit 15
+        eng_summary_obj = _get_agent().get_engagement_summary(student_id)
+        eng_summary = (
+            EngagementSummary(**eng_summary_obj.to_dict())
+            if eng_summary_obj is not None
+            else None
+        )
+
         return StudentProfile(
             student_id=student.student_id,
             name=student.name,
@@ -410,4 +455,43 @@ def student_profile(student_id: str) -> StudentProfile:
             notifications=ntf_items,
             unread_notifications=unread,
             open_incidents_in_last_zone=open_incidents,
+            engagement_summary=eng_summary,
         )
+
+
+# ── Behavioral History (Unit 15) ──────────────────────────────────────────────
+
+
+@router.get(
+    "/students/{student_id}/behavioral-history",
+    response_model=list[EngagementSnapshotOut],
+)
+def student_behavioral_history(
+    student_id: str,
+    days: int = 30,
+) -> list[EngagementSnapshotOut]:
+    """Return per-student engagement snapshots for the last N days (default 30),
+    newest first.  Powered by Unit 15 — Pedagogical Behavioral Intelligence Agent.
+    """
+    if days < 1 or days > 365:
+        raise HTTPException(status_code=400, detail="days must be between 1 and 365")
+
+    with _lock:
+        student = _find_student(student_id)
+        if student is None:
+            raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
+
+    snapshots = _get_agent().get_behavioral_history(student_id, days=days)
+    return [
+        EngagementSnapshotOut(
+            student_id=s.student_id,
+            recorded_at=s.recorded_at.isoformat(),
+            state=s.state.value,
+            score=s.score,
+            session_id=s.session_id,
+            zone_id=s.zone_id,
+            audio_context=s.audio_context,
+            audio_visual_mismatch=s.audio_visual_mismatch,
+        )
+        for s in snapshots
+    ]

@@ -15,7 +15,7 @@ import { SSIHistoryChart } from "./components/SSIHistoryChart";
 import { SSILivePanel } from "./components/SSILivePanel";
 import { UnitsGrid } from "./components/UnitsGrid";
 import { useSafetyDashboardSocket } from "./hooks/useSafetyDashboardSocket";
-import { useSSILive, useSSIHistory, useUnits, useAnalyticsOverview, useReportsList, useReportsStats, useStudentPortal } from "./hooks/useSSIData";
+import { useSSILive, useSSIHistory, useUnits, useAnalyticsOverview, useReportsList, useReportsStats, useStudentPortal, useAgentInsights } from "./hooks/useSSIData";
 import type { NavPage } from "./types";
 
 export default function App() {
@@ -28,6 +28,7 @@ export default function App() {
   const reports = useReportsList();
   const reportStats = useReportsStats();
   const studentData = useStudentPortal();
+  const { data: agentInsights } = useAgentInsights();
 
   return (
     <div className="min-h-screen bg-academic px-4 py-4 text-white lg:px-6 lg:py-6">
@@ -86,7 +87,7 @@ export default function App() {
 
               <RiskHeatmap cells={snapshot.heatmapCells} availableTimeSlots={snapshot.availableTimeSlots} />
 
-              <AIInsightsPanel ssi={snapshot.ssi} benchmark={snapshot.benchmark} alerts={snapshot.liveAlerts} />
+              <AIInsightsPanel ssi={snapshot.ssi} benchmark={snapshot.benchmark} alerts={snapshot.liveAlerts} agentInsights={agentInsights} />
             </>
           )}
 

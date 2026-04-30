@@ -1,4 +1,4 @@
-"""Units overview endpoint — provides health and metadata for all 14 system units."""
+"""Units overview endpoint — provides health and metadata for all 15 system units."""
 from __future__ import annotations
 
 from fastapi import APIRouter
@@ -17,6 +17,7 @@ from app.units.unit_11.module import UNIT_11_NAME
 from app.units.unit_12.module import UNIT_12_NAME
 from app.units.unit_13.module import UNIT_13_NAME
 from app.units.unit_14.module import UNIT_14_NAME
+from app.units.unit_15.module import UNIT_15_NAME
 
 router = APIRouter(prefix="/units", tags=["units"])
 
@@ -35,6 +36,7 @@ _UNIT_NAMES = [
     (12, UNIT_12_NAME, "Parent Portal"),
     (13, UNIT_13_NAME, "Institutional Self-Assessment"),
     (14, UNIT_14_NAME, "Arab Governance Layer"),
+    (15, UNIT_15_NAME, "Pedagogical Behavioral Intelligence"),
 ]
 
 _capture_unit = VideoCaptureUnit()
