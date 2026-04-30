@@ -99,7 +99,7 @@ class PedagogicalAgentService:
         self._lock = threading.Lock()
 
         # Cached per-student daily baselines: {student_id: {date_str: avg_score}}
-        self._baselines: dict[str, dict[str, float]] = defaultdict(dict)
+        self._baselines: dict[str, dict[str, float]] = {}
 
     # ── Recording ─────────────────────────────────────────────────────────────
 
@@ -330,7 +330,7 @@ class PedagogicalAgentService:
             }
 
         with self._lock:
-            self._baselines = result  # type: ignore[assignment]
+            self._baselines = result
 
         return result
 

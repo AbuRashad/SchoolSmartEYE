@@ -363,6 +363,16 @@ const TREND_CFG = {
   declining: { color: "text-critical",label: "↓ Declining" },
 } as const;
 
+const fmtRecordedAt = (iso: string): string => {
+  try {
+    return new Date(iso).toLocaleString([], {
+      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+};
+
 function EngagementStateBadge({ state }: { state: EngagementSnapshotRecord["state"] }) {
   const cfg = ENGAGEMENT_STATE_CFG[state] ?? ENGAGEMENT_STATE_CFG.unknown;
   return (
@@ -450,7 +460,7 @@ function EngagementTab({ studentId, profile }: { studentId: string; profile: Stu
                   <th className="px-4 py-2">Time</th>
                   <th className="px-4 py-2">Session</th>
                   <th className="px-4 py-2">State</th>
-                  <th className="px-4 py-2 w-36">Score</th>
+                  <th className="px-4 py-2">Score</th>
                   <th className="px-4 py-2">Audio</th>
                   <th className="px-4 py-2">Zone</th>
                 </tr>
@@ -462,7 +472,7 @@ function EngagementTab({ studentId, profile }: { studentId: string; profile: Stu
                     className={`border-t border-white/5 ${s.audio_visual_mismatch ? "bg-amber-400/5" : ""}`}
                   >
                     <td className="px-4 py-2 font-mono text-[11px] text-mist/70">
-                      {(() => { try { return new Date(s.recorded_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return s.recorded_at; } })()}
+                      {fmtRecordedAt(s.recorded_at)}
                     </td>
                     <td className="px-4 py-2 font-mono text-[11px] text-mist/60">{s.session_id}</td>
                     <td className="px-4 py-2"><EngagementStateBadge state={s.state} /></td>
