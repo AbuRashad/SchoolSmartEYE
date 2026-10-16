@@ -2,6 +2,12 @@
 
 A real-time school safety and monitoring platform built on **15 integrated AI-powered units**, with a FastAPI backend (SQLAlchemy persistence, JWT authentication with roles) and a React + Vite + Tailwind frontend.
 
+## 📜 Trust & Ethics
+
+[![Charter](https://img.shields.io/badge/Charter-v1.0-1f6feb?style=flat-square)](docs/CHARTER.md)
+[![Human-in-the-Loop](https://img.shields.io/badge/AI-Human--in--the--Loop-success?style=flat-square)](docs/CHARTER.md)
+[![Privacy First](https://img.shields.io/badge/Privacy-First-blue?style=flat-square)](docs/CHARTER.md)
+
 ---
 
 ## 🚀 Quick Start
