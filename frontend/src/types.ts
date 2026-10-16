@@ -49,7 +49,7 @@ export type SSIHistoryData = {
   period: string;
   benchmark: number;
   scores: SSIHistoryPoint[];
-  average: number;
+  average: number | null;
   trend: "improving" | "stable" | "declining";
 };
 
