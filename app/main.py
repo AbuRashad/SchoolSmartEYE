@@ -27,7 +27,7 @@ async def _nightly_harvesting_loop() -> None:
             from app.db.session import SessionLocal
             from app.services import agent_store
             with SessionLocal() as db:
-                agent = agent_store.build_agent(db)
+                agent = agent_store.build_agent(db, include_feedback=False)
             baselines = agent.compute_daily_baselines()
             logger.info(
                 "Daily knowledge harvesting complete: %d student baseline(s) updated",
