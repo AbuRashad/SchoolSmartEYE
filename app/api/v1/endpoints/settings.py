@@ -1,9 +1,10 @@
 """Runtime settings GET / PATCH endpoint used by the Control Panel."""
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app.api.deps import require_principal, require_teacher
 from app.core.runtime_settings import (
     RuntimeSettings,
     get_runtime_settings,
@@ -45,12 +46,12 @@ def _to_out(rt: RuntimeSettings) -> SettingsOut:
     )
 
 
-@router.get("", response_model=SettingsOut)
+@router.get("", response_model=SettingsOut, dependencies=[Depends(require_teacher)])
 def read_settings() -> SettingsOut:
     return _to_out(get_runtime_settings())
 
 
-@router.patch("", response_model=SettingsOut)
+@router.patch("", response_model=SettingsOut, dependencies=[Depends(require_principal)])
 def patch_settings(payload: SettingsUpdate) -> SettingsOut:
     updated = update_runtime_settings(**payload.model_dump(exclude_none=True))
     return _to_out(updated)

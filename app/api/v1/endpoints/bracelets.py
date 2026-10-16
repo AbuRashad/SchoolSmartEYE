@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_principal, require_teacher
 from app.db import models as orm
 from app.db.session import get_db
 from app.services import seed_data
@@ -133,13 +134,18 @@ def _mac_in_use(db: Session, mac: str, bracelet_id: str | None) -> bool:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
-@router.get("", response_model=list[BraceletOut])
+@router.get("", response_model=list[BraceletOut], dependencies=[Depends(require_teacher)])
 def list_bracelets(db: Session = Depends(get_db)) -> list[BraceletOut]:
     rows = db.scalars(select(orm.Bracelet).order_by(orm.Bracelet.bracelet_id)).all()
     return [_serialize(b) for b in rows]
 
 
-@router.post("", response_model=BraceletOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=BraceletOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_principal)],
+)
 def create_bracelet(payload: BraceletCreate, db: Session = Depends(get_db)) -> BraceletOut:
     if _find(db, payload.bracelet_id) is not None:
         raise HTTPException(
@@ -181,7 +187,9 @@ def create_bracelet(payload: BraceletCreate, db: Session = Depends(get_db)) -> B
     return _serialize(bracelet)
 
 
-@router.patch("/{bracelet_id}", response_model=BraceletOut)
+@router.patch(
+    "/{bracelet_id}", response_model=BraceletOut, dependencies=[Depends(require_principal)]
+)
 def update_bracelet(
     bracelet_id: str, payload: BraceletUpdate, db: Session = Depends(get_db)
 ) -> BraceletOut:
@@ -222,7 +230,11 @@ def update_bracelet(
     return _serialize(bracelet)
 
 
-@router.delete("/{bracelet_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{bracelet_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_principal)],
+)
 def delete_bracelet(bracelet_id: str, db: Session = Depends(get_db)) -> Response:
     bracelet = _find(db, bracelet_id)
     if bracelet is None:
@@ -232,7 +244,9 @@ def delete_bracelet(bracelet_id: str, db: Session = Depends(get_db)) -> Response
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{bracelet_id}/ping", response_model=BraceletOut)
+@router.post(
+    "/{bracelet_id}/ping", response_model=BraceletOut, dependencies=[Depends(require_principal)]
+)
 def ping_bracelet(
     bracelet_id: str, payload: BraceletPing, db: Session = Depends(get_db)
 ) -> BraceletOut:

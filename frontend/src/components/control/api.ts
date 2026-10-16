@@ -1,7 +1,9 @@
+import { authFetch } from "../../auth";
+
 export const BASE = "/api/v1";
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await authFetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...init,
   });

@@ -42,6 +42,7 @@ async def _nightly_harvesting_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Populate demo seed data and start live camera ingestion on startup."""
+    settings.validate_for_production()
     logger.info("Application startup initiated", extra={"app_env": settings.app_env})
     if settings.db_auto_create:
         init_db()
@@ -73,7 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

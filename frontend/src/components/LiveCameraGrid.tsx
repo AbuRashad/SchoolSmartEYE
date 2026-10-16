@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Camera, RefreshCw, AlertTriangle, CircleDot } from "lucide-react";
+import { authFetch, withAccessToken } from "../auth";
 import type { LiveCameraInfo } from "../types";
 
 const REFRESH_MS = 5000;
@@ -14,7 +15,7 @@ export function LiveCameraGrid() {
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      fetch("/api/v1/cameras")
+      authFetch("/api/v1/cameras")
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json() as Promise<LiveCameraInfo[]>;
@@ -113,7 +114,7 @@ function CameraTile({ cam, reloadKey }: { cam: LiveCameraInfo; reloadKey: number
         {isLive ? (
           <img
             key={`${cam.camera_id}-${reloadKey}`}
-            src={`/api/v1/cameras/${cam.camera_id}/stream.mjpg?cb=${reloadKey}`}
+            src={withAccessToken(`/api/v1/cameras/${cam.camera_id}/stream.mjpg?cb=${reloadKey}`)}
             alt={cam.label}
             className="h-full w-full object-contain"
             onError={() => setImgError(true)}

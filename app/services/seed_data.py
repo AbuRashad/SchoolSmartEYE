@@ -7,11 +7,14 @@ empty. Zones, cameras, incidents, reports, etc. remain in-memory demo data.
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import DEFAULT_DEMO_PASSWORDS, settings
+from app.core.security import hash_password
 from app.db import models as orm
 from app.db.session import SessionLocal
 from app.models import (
@@ -32,6 +35,8 @@ from app.models import (
     VisitorRecord,
     ZoneType,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ── In-memory stores ──────────────────────────────────────────────────────────
@@ -523,6 +528,32 @@ def seed_database(db: Session) -> bool:
     return True
 
 
+def seed_users(db: Session) -> bool:
+    """Create demo teacher / principal / ministry accounts when no users exist.
+
+    In production the accounts are NOT created while any password is still the
+    published demo default.
+    """
+    if not settings.seed_demo_users or db.scalar(select(func.count()).select_from(orm.User)):
+        return False
+    accounts = [
+        ("teacher", "Demo Teacher", settings.demo_teacher_password),
+        ("principal", "Demo Principal", settings.demo_principal_password),
+        ("ministry", "Demo Ministry Officer", settings.demo_ministry_password),
+    ]
+    if settings.is_production and any(pw == DEFAULT_DEMO_PASSWORDS[role] for role, _, pw in accounts):
+        logger.warning(
+            "Not seeding demo users: DEMO_*_PASSWORD still uses the published default in production."
+        )
+        return False
+    db.add_all(
+        orm.User(username=role, full_name=name, hashed_password=hash_password(pw), role=role)
+        for role, name, pw in accounts
+    )
+    db.commit()
+    return True
+
+
 def populate(db: Session | None = None) -> None:
     """Populate demo data.
 
@@ -541,11 +572,15 @@ def populate(db: Session | None = None) -> None:
         _seed_engagement_snapshots()
         _seed_agent_feedback()
 
+    def _seed(session: Session) -> None:
+        seed_database(session)
+        seed_users(session)
+
     if db is not None:
-        seed_database(db)
+        _seed(db)
         return
     with SessionLocal() as session:
-        seed_database(session)
+        _seed(session)
 
 
 def get_school_metrics(db: Session) -> SchoolMetrics:

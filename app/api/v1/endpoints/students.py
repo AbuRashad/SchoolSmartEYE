@@ -13,6 +13,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_principal, require_teacher
 from app.db import models as orm
 from app.db.session import get_db
 from app.models import (
@@ -187,13 +188,18 @@ def _find_student(db: Session, student_id: str) -> orm.Student | None:
 # ── Students ──────────────────────────────────────────────────────────────────
 
 
-@router.get("/students", response_model=list[StudentOut])
+@router.get("/students", response_model=list[StudentOut], dependencies=[Depends(require_teacher)])
 def list_students(db: Session = Depends(get_db)) -> list[StudentOut]:
     rows = db.scalars(select(orm.Student).order_by(orm.Student.student_id)).all()
     return [_serialize(s) for s in rows]
 
 
-@router.post("/students", response_model=StudentOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/students",
+    response_model=StudentOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_principal)],
+)
 def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> StudentOut:
     if _find_student(db, payload.student_id) is not None:
         raise HTTPException(
@@ -222,7 +228,9 @@ def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> Stu
     return _serialize(student)
 
 
-@router.patch("/students/{student_id}", response_model=StudentOut)
+@router.patch(
+    "/students/{student_id}", response_model=StudentOut, dependencies=[Depends(require_principal)]
+)
 def update_student(
     student_id: str, payload: StudentUpdate, db: Session = Depends(get_db)
 ) -> StudentOut:
@@ -235,7 +243,11 @@ def update_student(
     return _serialize(student)
 
 
-@router.delete("/students/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/students/{student_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_principal)],
+)
 def delete_student(student_id: str, db: Session = Depends(get_db)) -> Response:
     student = _find_student(db, student_id)
     if student is None:
@@ -249,7 +261,7 @@ def delete_student(student_id: str, db: Session = Depends(get_db)) -> Response:
 # ── Zones (read-only) ─────────────────────────────────────────────────────────
 
 
-@router.get("/zones", response_model=list[ZoneOut])
+@router.get("/zones", response_model=list[ZoneOut], dependencies=[Depends(require_teacher)])
 def list_zones() -> list[ZoneOut]:
     return [
         ZoneOut(
@@ -345,7 +357,11 @@ def _safety_status_for(student: orm.Student, last_zone: str | None) -> str:
     return SafetyStatus.SAFE.value
 
 
-@router.get("/students/{student_id}/profile", response_model=StudentProfile)
+@router.get(
+    "/students/{student_id}/profile",
+    response_model=StudentProfile,
+    dependencies=[Depends(require_teacher)],
+)
 def student_profile(student_id: str, db: Session = Depends(get_db)) -> StudentProfile:
     student = _find_student(db, student_id)
     if student is None:
@@ -468,6 +484,7 @@ def student_profile(student_id: str, db: Session = Depends(get_db)) -> StudentPr
 @router.get(
     "/students/{student_id}/behavioral-history",
     response_model=list[EngagementSnapshotOut],
+    dependencies=[Depends(require_teacher)],
 )
 def student_behavioral_history(
     student_id: str,
