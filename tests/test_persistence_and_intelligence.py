@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from app.db import models as orm
-from app.services import attendance_risk, seed_data, ssi_history
+from app.services import agent_store, attendance_risk, seed_data, ssi_history
 
 API = "/api/v1"
 
@@ -48,9 +48,24 @@ def test_ssi_history_trend_and_anomaly(db_session_factory) -> None:
     assert [a["ssi"] for a in summary["anomalies"]] == [20.0]
 
 
-def test_ssi_history_insufficient_data(db_session_factory) -> None:
+def test_ssi_history_insufficient_data(db_session_factory, anon_client) -> None:
     with db_session_factory() as db:
-        assert ssi_history.summarize(db)["trend"] == "insufficient_data"
+        summary = ssi_history.summarize(db)
+    assert summary["trend"] == "insufficient_data"
+    assert summary["average"] is None and summary["scores"] == []
+    response = anon_client.get(f"{API}/ssi/history").json()
+    assert response["average"] is None and response["scores"] == []
+
+
+def test_ssi_trend_uses_elapsed_calendar_days() -> None:
+    daily = [
+        ("2026-10-01", 80.0),
+        ("2026-10-11", 80.2),
+        ("2026-10-21", 80.4),
+    ]
+    trend = ssi_history.compute_trend(daily)
+    assert trend["slope_per_day"] == pytest.approx(0.02)
+    assert trend["direction"] == "stable"
 
 
 def test_ssi_endpoints_use_stored_history(anon_client, db_session_factory) -> None:
@@ -78,6 +93,35 @@ def test_attendance_risk_scoring(db_session_factory) -> None:
     assert bad["risk_level"] == "high"
     assert bad["consecutive_absences"] == 5 and bad["factors"]
     assert attendance_risk.score_records([])["risk_level"] == "low"
+
+    outside_window = [rec(offset, "absent") for offset in range(15, 21)]
+    outside_window += [rec(offset, "present") for offset in range(14)]
+    score = attendance_risk.score_records(outside_window, window_days=14)
+    assert score["risk_level"] == "low"
+    assert score["records"] == 14 and score["consecutive_absences"] == 0
+
+
+def test_agent_can_be_built_without_loading_feedback(db_session_factory, monkeypatch) -> None:
+    monkeypatch.setattr(agent_store, "load_feedback", lambda db: pytest.fail("feedback was loaded"))
+    with db_session_factory() as db:
+        agent = agent_store.build_agent(db, include_feedback=False)
+    assert agent._feedback_log == []
+
+
+def test_feedback_submission_and_baselines_skip_feedback_history(
+    anon_client, auth_headers, seeded, monkeypatch
+) -> None:
+    monkeypatch.setattr(agent_store, "load_feedback", lambda db: pytest.fail("feedback was loaded"))
+    payload = {
+        "session_id": "SES-NO-HISTORY",
+        "student_id": "STU-2024-0847",
+        "predicted_state": "distracted",
+        "confirmed_state": "engaged",
+    }
+    assert anon_client.post(
+        f"{API}/agent/feedback", json=payload, headers=auth_headers("teacher")
+    ).status_code == 201
+    assert anon_client.get(f"{API}/agent/baselines").status_code == 200
 
 
 def test_risk_endpoints_require_teacher_and_rank(anon_client, client, seeded) -> None:
