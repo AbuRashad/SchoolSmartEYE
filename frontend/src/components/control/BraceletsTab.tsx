@@ -7,9 +7,12 @@ import type {
   ZoneRecord,
 } from "../../types";
 import { api } from "./api";
+import { useAuth } from "../../AuthContext";
 import { Field, inputCls, type Flash } from "./ui";
 
 export function BraceletsTab({ flash }: { flash: Flash }) {
+  const { can } = useAuth();
+  const canManage = can("principal");
   const [bracelets, setBracelets] = useState<BraceletRecord[]>([]);
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [zones, setZones] = useState<ZoneRecord[]>([]);
@@ -116,7 +119,7 @@ export function BraceletsTab({ flash }: { flash: Flash }) {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
+    <div className={`grid gap-4 ${canManage ? "lg:grid-cols-[1fr_420px]" : ""}`}>
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-mist/60">
@@ -188,7 +191,7 @@ export function BraceletsTab({ flash }: { flash: Flash }) {
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex justify-end gap-1">
+                      {canManage && <div className="flex justify-end gap-1">
                         <button
                           type="button"
                           onClick={() => pingOne(b.bracelet_id)}
@@ -207,7 +210,7 @@ export function BraceletsTab({ flash }: { flash: Flash }) {
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                      </div>
+                      </div>}
                     </td>
                   </tr>
                 ))}
@@ -217,7 +220,7 @@ export function BraceletsTab({ flash }: { flash: Flash }) {
         )}
       </div>
 
-      <form
+      {canManage && <form
         onSubmit={submit}
         className="h-max space-y-3 rounded-2xl border border-white/10 bg-panel/60 p-5"
       >
@@ -301,7 +304,7 @@ export function BraceletsTab({ flash }: { flash: Flash }) {
         >
           <Plus className="h-4 w-4" /> Register Bracelet
         </button>
-      </form>
+      </form>}
     </div>
   );
 }

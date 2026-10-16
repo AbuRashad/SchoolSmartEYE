@@ -7,18 +7,20 @@ to `/{bracelet_id}/ping` to update battery & last-seen-zone.
 from __future__ import annotations
 
 import re
-import threading
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from app.models import Bracelet
+from app.api.deps import require_principal, require_teacher
+from app.db import models as orm
+from app.db.session import get_db
 from app.services import seed_data
 
 router = APIRouter(prefix="/bracelets", tags=["control"])
-
-_lock = threading.Lock()
 
 _MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$")
 
@@ -84,13 +86,8 @@ class BraceletPing(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _find(bracelet_id: str) -> Bracelet | None:
-    return next((b for b in seed_data.bracelets if b.bracelet_id == bracelet_id), None)
-
-
-def _student_name(student_id: str) -> str | None:
-    s = next((s for s in seed_data.students if s.student_id == student_id), None)
-    return s.name if s else None
+def _find(db: Session, bracelet_id: str) -> orm.Bracelet | None:
+    return db.get(orm.Bracelet, bracelet_id)
 
 
 def _low_battery_threshold() -> int:
@@ -99,12 +96,12 @@ def _low_battery_threshold() -> int:
     return get_runtime_settings().bracelet_low_battery_percent
 
 
-def _serialize(b: Bracelet) -> BraceletOut:
+def _serialize(b: orm.Bracelet) -> BraceletOut:
     threshold = _low_battery_threshold()
     return BraceletOut(
         bracelet_id=b.bracelet_id,
         student_id=b.student_id,
-        student_name=_student_name(b.student_id),
+        student_name=b.student.name if b.student else None,
         mac_address=b.mac_address,
         battery_level=b.battery_level,
         is_active=b.is_active,
@@ -116,117 +113,157 @@ def _serialize(b: Bracelet) -> BraceletOut:
     )
 
 
-def _student_exists(student_id: str) -> bool:
-    return any(s.student_id == student_id for s in seed_data.students)
+def _student_exists(db: Session, student_id: str) -> bool:
+    return db.get(orm.Student, student_id) is not None
+
+
+def _student_has_other_bracelet(db: Session, student_id: str, bracelet_id: str | None) -> bool:
+    stmt = select(orm.Bracelet.bracelet_id).where(orm.Bracelet.student_id == student_id)
+    if bracelet_id is not None:
+        stmt = stmt.where(orm.Bracelet.bracelet_id != bracelet_id)
+    return db.scalar(stmt) is not None
+
+
+def _mac_in_use(db: Session, mac: str, bracelet_id: str | None) -> bool:
+    stmt = select(orm.Bracelet.bracelet_id).where(orm.Bracelet.mac_address == mac)
+    if bracelet_id is not None:
+        stmt = stmt.where(orm.Bracelet.bracelet_id != bracelet_id)
+    return db.scalar(stmt) is not None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
-@router.get("", response_model=list[BraceletOut])
-def list_bracelets() -> list[BraceletOut]:
-    with _lock:
-        return [_serialize(b) for b in seed_data.bracelets]
+@router.get("", response_model=list[BraceletOut], dependencies=[Depends(require_teacher)])
+def list_bracelets(db: Session = Depends(get_db)) -> list[BraceletOut]:
+    rows = db.scalars(select(orm.Bracelet).order_by(orm.Bracelet.bracelet_id)).all()
+    return [_serialize(b) for b in rows]
 
 
-@router.post("", response_model=BraceletOut, status_code=status.HTTP_201_CREATED)
-def create_bracelet(payload: BraceletCreate) -> BraceletOut:
-    with _lock:
-        if _find(payload.bracelet_id) is not None:
+@router.post(
+    "",
+    response_model=BraceletOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_principal)],
+)
+def create_bracelet(payload: BraceletCreate, db: Session = Depends(get_db)) -> BraceletOut:
+    if _find(db, payload.bracelet_id) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Bracelet {payload.bracelet_id!r} already exists",
+        )
+    if not _student_exists(db, payload.student_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Student {payload.student_id!r} does not exist — add the student first",
+        )
+    # Enforce uniqueness of student_id (1 bracelet per student) and MAC
+    if _student_has_other_bracelet(db, payload.student_id, None):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Student {payload.student_id!r} already has a bracelet assigned",
+        )
+    if _mac_in_use(db, payload.mac_address, None):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"MAC address {payload.mac_address!r} is already registered",
+        )
+
+    bracelet = orm.Bracelet(
+        bracelet_id=payload.bracelet_id,
+        student_id=payload.student_id,
+        mac_address=payload.mac_address,
+        battery_level=payload.battery_level,
+        is_active=payload.is_active,
+        firmware_version=payload.firmware_version,
+        notes=payload.notes,
+    )
+    db.add(bracelet)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Bracelet conflicts with an existing record") from None
+    return _serialize(bracelet)
+
+
+@router.patch(
+    "/{bracelet_id}", response_model=BraceletOut, dependencies=[Depends(require_principal)]
+)
+def update_bracelet(
+    bracelet_id: str, payload: BraceletUpdate, db: Session = Depends(get_db)
+) -> BraceletOut:
+    bracelet = _find(db, bracelet_id)
+    if bracelet is None:
+        raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
+
+    if payload.student_id is not None and payload.student_id != bracelet.student_id:
+        if not _student_exists(db, payload.student_id):
+            raise HTTPException(status_code=400, detail=f"Student {payload.student_id!r} does not exist")
+        if _student_has_other_bracelet(db, payload.student_id, bracelet_id):
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Bracelet {payload.bracelet_id!r} already exists",
-            )
-        if not _student_exists(payload.student_id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Student {payload.student_id!r} does not exist — add the student first",
-            )
-        # Enforce uniqueness of student_id (1 bracelet per student) and MAC
-        if any(b.student_id == payload.student_id for b in seed_data.bracelets):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
+                status_code=409,
                 detail=f"Student {payload.student_id!r} already has a bracelet assigned",
             )
-        if any(b.mac_address == payload.mac_address for b in seed_data.bracelets):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"MAC address {payload.mac_address!r} is already registered",
-            )
+        bracelet.student_id = payload.student_id
 
-        bracelet = Bracelet(
-            bracelet_id=payload.bracelet_id,
-            student_id=payload.student_id,
-            mac_address=payload.mac_address,
-            battery_level=payload.battery_level,
-            is_active=payload.is_active,
-            firmware_version=payload.firmware_version,
-            notes=payload.notes,
-        )
-        seed_data.bracelets.append(bracelet)
-        return _serialize(bracelet)
+    if payload.mac_address is not None and payload.mac_address != bracelet.mac_address:
+        if _mac_in_use(db, payload.mac_address, bracelet_id):
+            raise HTTPException(status_code=409, detail="MAC address already in use")
+        bracelet.mac_address = payload.mac_address
 
+    if payload.battery_level is not None:
+        bracelet.battery_level = payload.battery_level
+    if payload.firmware_version is not None:
+        bracelet.firmware_version = payload.firmware_version
+    if payload.notes is not None:
+        bracelet.notes = payload.notes
+    if payload.is_active is not None:
+        bracelet.is_active = payload.is_active
 
-@router.patch("/{bracelet_id}", response_model=BraceletOut)
-def update_bracelet(bracelet_id: str, payload: BraceletUpdate) -> BraceletOut:
-    with _lock:
-        bracelet = _find(bracelet_id)
-        if bracelet is None:
-            raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
-
-        if payload.student_id is not None and payload.student_id != bracelet.student_id:
-            if not _student_exists(payload.student_id):
-                raise HTTPException(status_code=400, detail=f"Student {payload.student_id!r} does not exist")
-            if any(b.student_id == payload.student_id and b.bracelet_id != bracelet_id for b in seed_data.bracelets):
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Student {payload.student_id!r} already has a bracelet assigned",
-                )
-            bracelet.student_id = payload.student_id
-
-        if payload.mac_address is not None and payload.mac_address != bracelet.mac_address:
-            if any(b.mac_address == payload.mac_address and b.bracelet_id != bracelet_id for b in seed_data.bracelets):
-                raise HTTPException(status_code=409, detail="MAC address already in use")
-            bracelet.mac_address = payload.mac_address
-
-        if payload.battery_level is not None:
-            bracelet.battery_level = payload.battery_level
-        if payload.firmware_version is not None:
-            bracelet.firmware_version = payload.firmware_version
-        if payload.notes is not None:
-            bracelet.notes = payload.notes
-        if payload.is_active is not None:
-            bracelet.is_active = payload.is_active
-
-        return _serialize(bracelet)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Bracelet conflicts with an existing record") from None
+    db.refresh(bracelet)
+    return _serialize(bracelet)
 
 
-@router.delete("/{bracelet_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_bracelet(bracelet_id: str) -> Response:
-    with _lock:
-        bracelet = _find(bracelet_id)
-        if bracelet is None:
-            raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
-        seed_data.bracelets.remove(bracelet)
+@router.delete(
+    "/{bracelet_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_principal)],
+)
+def delete_bracelet(bracelet_id: str, db: Session = Depends(get_db)) -> Response:
+    bracelet = _find(db, bracelet_id)
+    if bracelet is None:
+        raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
+    db.delete(bracelet)
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{bracelet_id}/ping", response_model=BraceletOut)
-def ping_bracelet(bracelet_id: str, payload: BraceletPing) -> BraceletOut:
+@router.post(
+    "/{bracelet_id}/ping", response_model=BraceletOut, dependencies=[Depends(require_principal)]
+)
+def ping_bracelet(
+    bracelet_id: str, payload: BraceletPing, db: Session = Depends(get_db)
+) -> BraceletOut:
     """Simulate a BLE/LoRa gateway heartbeat for this bracelet.
 
     Updates `last_seen_zone`, `last_seen_at`, and optionally `battery_level`.
     A real-world gateway would POST this payload whenever it observes the tag.
     """
-    with _lock:
-        bracelet = _find(bracelet_id)
-        if bracelet is None:
-            raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
-        # Zone must exist (light validation)
-        if not any(z.zone_id == payload.zone_id for z in seed_data.zones):
-            raise HTTPException(status_code=400, detail=f"Zone {payload.zone_id!r} does not exist")
-        bracelet.last_seen_zone = payload.zone_id
-        bracelet.last_seen_at = datetime.now(timezone.utc)
-        if payload.battery_level is not None:
-            bracelet.battery_level = payload.battery_level
-        return _serialize(bracelet)
+    bracelet = _find(db, bracelet_id)
+    if bracelet is None:
+        raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
+    # Zone must exist (light validation)
+    if not any(z.zone_id == payload.zone_id for z in seed_data.zones):
+        raise HTTPException(status_code=400, detail=f"Zone {payload.zone_id!r} does not exist")
+    bracelet.last_seen_zone = payload.zone_id
+    bracelet.last_seen_at = datetime.now(timezone.utc)
+    if payload.battery_level is not None:
+        bracelet.battery_level = payload.battery_level
+    db.commit()
+    return _serialize(bracelet)

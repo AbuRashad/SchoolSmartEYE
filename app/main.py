@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.db import init_db
 from app.services import seed_data
 from app.services.camera_ingestion import ingestion_service
 
@@ -41,9 +42,12 @@ async def _nightly_harvesting_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Populate demo seed data and start live camera ingestion on startup."""
+    settings.validate_for_production()
     logger.info("Application startup initiated", extra={"app_env": settings.app_env})
+    if settings.db_auto_create:
+        init_db()
     seed_data.populate()
-    logger.info("Seed data population complete")
+    logger.info("Database ready; demo seed data populated where tables were empty")
 
     # Live camera ingestion — only activates if cameras_sources_file exists.
     loaded = ingestion_service.load_from_file(settings.camera_sources_file)
@@ -70,7 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,49 +1,53 @@
 """Demo seed data for SchoolSmartEYE — realistic Arab school monitoring context.
 
 Populated on startup so the system has meaningful data to display immediately.
-All storage is in-memory; no database dependency required.
+Students, bracelets, attendance records and notifications (and demo user
+accounts) live in the SQL database and are only inserted when the tables are
+empty. Zones, cameras, incidents, reports, etc. remain in-memory demo data.
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta, timezone
 
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.core.config import DEFAULT_DEMO_PASSWORDS, settings
+from app.core.security import hash_password
+from app.db import models as orm
+from app.db.session import SessionLocal
 from app.models import (
     AgentFeedback,
     AttendanceStatus,
-    Bracelet,
     CameraFeed,
-    DailyAttendance,
     EngagementSnapshot,
     EngagementState,
     IncidentSeverity,
-    NotificationMessage,
     ReportRecord,
     ReportType,
     SafetyIncident,
     SafetyStatus,
     SchoolMetrics,
     SchoolZone,
-    Student,
     Teacher,
     TransportRoute,
     VisitorRecord,
     ZoneType,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # ── In-memory stores ──────────────────────────────────────────────────────────
 
-students: list[Student] = []
 teachers: list[Teacher] = []
 zones: list[SchoolZone] = []
 cameras: list[CameraFeed] = []
-attendance_records: list[DailyAttendance] = []
 incidents: list[SafetyIncident] = []
 reports: list[ReportRecord] = []
-notifications: list[NotificationMessage] = []
 visitors: list[VisitorRecord] = []
 transport_routes: list[TransportRoute] = []
-bracelets: list[Bracelet] = []
 engagement_snapshots: list[EngagementSnapshot] = []
 agent_feedback_log: list[AgentFeedback] = []
 
@@ -136,17 +140,21 @@ _STUDENT_DATA = [
 ]
 
 
-def _seed_students() -> None:
-    students.extend(
-        Student(sid, name, grade, cls, pid, initial)
+def _seed_students(db: Session) -> None:
+    db.add_all(
+        orm.Student(
+            student_id=sid, name=name, grade=grade, class_section=cls,
+            parent_id=pid, photo_initial=initial, is_active=True,
+        )
         for sid, name, grade, cls, pid, initial in _STUDENT_DATA
     )
+    db.flush()
 
 
 # ── Attendance ─────────────────────────────────────────────────────────────────
 
 
-def _seed_attendance() -> None:
+def _seed_attendance(db: Session) -> None:
     today = _today()
     # Mark all students present today (with realistic arrival times)
     arrival_times = [
@@ -167,11 +175,11 @@ def _seed_attendance() -> None:
             hour=int(hm[0]), minute=int(hm[1]), second=0, microsecond=0
         )
         status = AttendanceStatus.PRESENT if i != 3 else AttendanceStatus.LATE
-        attendance_records.append(
-            DailyAttendance(
+        db.add(
+            orm.AttendanceRecord(
                 student_id=sid,
                 date=today,
-                status=status,
+                status=status.value,
                 arrival_time=arrival,
                 last_seen_zone=arrival_times[i][1],
             )
@@ -182,9 +190,7 @@ def _seed_attendance() -> None:
         past_date = today + timedelta(days=day_offset)
         for j, (sid, _, _, _, _, _) in enumerate(_STUDENT_DATA):
             status = AttendanceStatus.ABSENT if (j + abs(day_offset)) % 7 == 0 else AttendanceStatus.PRESENT
-            attendance_records.append(
-                DailyAttendance(student_id=sid, date=past_date, status=status)
-            )
+            db.add(orm.AttendanceRecord(student_id=sid, date=past_date, status=status.value))
 
 
 # ── Incidents ─────────────────────────────────────────────────────────────────
@@ -243,7 +249,7 @@ def _seed_reports() -> None:
 # ── Notifications ─────────────────────────────────────────────────────────────
 
 
-def _seed_notifications() -> None:
+def _seed_notifications(db: Session) -> None:
     now = datetime.now(timezone.utc)
     notification_data = [
         ("NTF-001", "P001", "STU-2024-0847", "Ahmed arrived at school at 07:42 AM", "attendance", -8),
@@ -252,8 +258,8 @@ def _seed_notifications() -> None:
         ("NTF-004", "P001", "STU-2024-0847", "Lunch break started. Ahmed in cafeteria zone.", "attendance", -1),
     ]
     for ntf_id, parent_id, student_id, message, ntf_type, hour_offset in notification_data:
-        notifications.append(
-            NotificationMessage(
+        db.add(
+            orm.Notification(
                 notification_id=ntf_id,
                 parent_id=parent_id,
                 student_id=student_id,
@@ -293,7 +299,7 @@ def _seed_visitors() -> None:
 # ── Transport Routes ──────────────────────────────────────────────────────────
 
 
-def _seed_bracelets() -> None:
+def _seed_bracelets(db: Session) -> None:
     now = datetime.now(timezone.utc)
     bracelet_data = [
         ("BR-0001", "STU-2024-0847", "AA:BB:CC:00:00:01", 92, "zone-classroom-1a"),
@@ -303,8 +309,8 @@ def _seed_bracelets() -> None:
         ("BR-0005", "STU-2024-0852", "AA:BB:CC:00:00:05", 88, "zone-classroom-2a"),
     ]
     for bid, sid, mac, battery, zone in bracelet_data:
-        bracelets.append(
-            Bracelet(
+        db.add(
+            orm.Bracelet(
                 bracelet_id=bid,
                 student_id=sid,
                 mac_address=mac,
@@ -507,32 +513,89 @@ def _seed_agent_feedback() -> None:
 # ── Entry-point ───────────────────────────────────────────────────────────────
 
 
-def populate() -> None:
-    """Populate all in-memory stores with demo data.
+def seed_database(db: Session) -> bool:
+    """Insert demo students/attendance/notifications/bracelets if no students exist.
 
-    Idempotent — calling multiple times will not duplicate data.
+    Returns True when data was inserted. Safe to call repeatedly.
     """
-    if students:  # already seeded
+    if db.scalar(select(func.count()).select_from(orm.Student)):
+        return False
+    _seed_students(db)
+    _seed_attendance(db)
+    _seed_notifications(db)
+    _seed_bracelets(db)
+    db.commit()
+    return True
+
+
+def seed_users(db: Session) -> bool:
+    """Create demo teacher / principal / ministry accounts when no users exist.
+
+    In production the accounts are NOT created while any password is still the
+    published demo default.
+    """
+    if not settings.seed_demo_users or db.scalar(select(func.count()).select_from(orm.User)):
+        return False
+    accounts = [
+        ("teacher", "Demo Teacher", settings.demo_teacher_password),
+        ("principal", "Demo Principal", settings.demo_principal_password),
+        ("ministry", "Demo Ministry Officer", settings.demo_ministry_password),
+    ]
+    if settings.is_production and any(pw == DEFAULT_DEMO_PASSWORDS[role] for role, _, pw in accounts):
+        logger.warning(
+            "Not seeding demo users: DEMO_*_PASSWORD still uses the published default in production."
+        )
+        return False
+    db.add_all(
+        orm.User(username=role, full_name=name, hashed_password=hash_password(pw), role=role)
+        for role, name, pw in accounts
+    )
+    db.commit()
+    return True
+
+
+def populate(db: Session | None = None) -> None:
+    """Populate demo data.
+
+    In-memory demo stores are filled once per process; database tables are
+    filled only when empty. Idempotent — calling multiple times will not
+    duplicate data.
+    """
+    if not zones:  # in-memory demo data not yet loaded
+        _seed_zones()
+        _seed_cameras()
+        _seed_teachers()
+        _seed_incidents()
+        _seed_reports()
+        _seed_visitors()
+        _seed_transport()
+        _seed_engagement_snapshots()
+        _seed_agent_feedback()
+
+    def _seed(session: Session) -> None:
+        seed_database(session)
+        seed_users(session)
+
+    if db is not None:
+        _seed(db)
         return
-    _seed_zones()
-    _seed_cameras()
-    _seed_teachers()
-    _seed_students()
-    _seed_attendance()
-    _seed_incidents()
-    _seed_reports()
-    _seed_notifications()
-    _seed_visitors()
-    _seed_transport()
-    _seed_bracelets()
-    _seed_engagement_snapshots()
-    _seed_agent_feedback()
+    with SessionLocal() as session:
+        _seed(session)
 
 
-def get_school_metrics() -> SchoolMetrics:
+def get_school_metrics(db: Session) -> SchoolMetrics:
     """Return a live snapshot of aggregated school metrics."""
-    present = sum(1 for r in attendance_records if r.date == _today() and r.status == AttendanceStatus.PRESENT)
-    total = len([s for s in students if s.is_active])
+    present = db.scalar(
+        select(func.count())
+        .select_from(orm.AttendanceRecord)
+        .where(
+            orm.AttendanceRecord.date == _today(),
+            orm.AttendanceRecord.status == AttendanceStatus.PRESENT.value,
+        )
+    ) or 0
+    total = db.scalar(
+        select(func.count()).select_from(orm.Student).where(orm.Student.is_active.is_(True))
+    ) or 0
     open_incidents = sum(1 for i in incidents if not i.resolved)
     active_cameras = sum(1 for c in cameras if c.is_active)
     return SchoolMetrics(

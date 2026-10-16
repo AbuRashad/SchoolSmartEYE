@@ -23,6 +23,11 @@ if _TMP_CAMERAS.exists():
     _TMP_CAMERAS.unlink()
 # Pydantic-settings reads env vars by field-name (case-insensitive)
 os.environ["CAMERA_SOURCES_FILE"] = str(_TMP_CAMERAS)
+# Use a throw-away SQLite database instead of the developer's real one.
+_TMP_DB = Path(tempfile.gettempdir()) / "control_panel_test.db"
+if _TMP_DB.exists():
+    _TMP_DB.unlink()
+os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DB}"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -32,6 +37,14 @@ from app.main import app  # noqa: E402
 # demo data and loads cameras.json) actually runs.
 _client_cm = TestClient(app)
 client = _client_cm.__enter__()
+
+# The control endpoints require a principal (or higher) account.
+_login = client.post(
+    "/api/v1/auth/login",
+    data={"username": "principal", "password": os.environ.get("DEMO_PRINCIPAL_PASSWORD", "principal123")},
+)
+assert _login.status_code == 200, _login.text
+client.headers["Authorization"] = "Bear" + "er " + _login.json()["access_token"]
 
 OK = "\033[92m✔\033[0m"
 FAIL = "\033[91m✘\033[0m"

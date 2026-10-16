@@ -231,6 +231,8 @@ export type AttendanceDay = {
   last_seen_zone_label: string | null;
 };
 
+export type StudentProfileAttendanceDay = AttendanceDay;
+
 export type BraceletSummary = {
   bracelet_id: string;
   mac_address: string;

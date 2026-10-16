@@ -11,9 +11,12 @@ from __future__ import annotations
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from app.db import models as orm
+from app.db.session import get_db
 from app.models import EngagementState
 from app.services import seed_data
 from app.services.pedagogical_agent import PedagogicalAgentService
@@ -69,7 +72,7 @@ def get_session_insights(session_id: Optional[str] = None) -> dict[str, object]:
 
 
 @router.post("/feedback", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)
-def submit_feedback(payload: FeedbackPayload) -> FeedbackResponse:
+def submit_feedback(payload: FeedbackPayload, db: Session = Depends(get_db)) -> FeedbackResponse:
     """Accept a teacher annotation confirming or correcting a Unit 15 prediction.
 
     Each submission is logged in memory and appended to
@@ -77,7 +80,7 @@ def submit_feedback(payload: FeedbackPayload) -> FeedbackResponse:
     """
     agent = _get_agent()
     # Verify student exists
-    student = next((s for s in seed_data.students if s.student_id == payload.student_id), None)
+    student = db.get(orm.Student, payload.student_id)
     if student is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

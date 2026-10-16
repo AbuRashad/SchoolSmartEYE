@@ -1,15 +1,17 @@
 import {
-  Activity, LineChart, ShieldCheck, FileBarChart2, BellRing, LayoutGrid, BarChart3, Camera, Settings,
+  Activity, LineChart, ShieldCheck, FileBarChart2, BellRing, LayoutGrid, BarChart3, Camera, Settings, LogOut,
 } from "lucide-react";
+import { useAuth } from "../AuthContext";
+import type { Role } from "../auth";
 import type { NavPage } from "../types";
 
-const navigation: { label: string; icon: typeof Activity; page: NavPage }[] = [
+const navigation: { label: string; icon: typeof Activity; page: NavPage; minRole?: Role }[] = [
   { label: "Real-time Monitoring", icon: Activity, page: "dashboard" },
   { label: "Live Cameras", icon: Camera, page: "cameras" },
   { label: "SSI Deep Analysis", icon: LineChart, page: "ssi" },
   { label: "System Units", icon: LayoutGrid, page: "units" },
   { label: "Analytics Overview", icon: BarChart3, page: "analytics" },
-  { label: "Ministerial Reports", icon: FileBarChart2, page: "reports" },
+  { label: "Ministerial Reports", icon: FileBarChart2, page: "reports", minRole: "ministry" },
   { label: "Parent Portal", icon: BellRing, page: "portal" },
   { label: "Control Panel", icon: Settings, page: "control" },
 ];
@@ -22,6 +24,8 @@ type SidebarProps = {
 };
 
 export function Sidebar({ schoolName, status, activePage, onNavigate }: SidebarProps) {
+  const { user, logout, can } = useAuth();
+  const visibleNavigation = navigation.filter((item) => !item.minRole || can(item.minRole));
   const statusTone =
     status === "connected" ? "bg-safe" : status === "reconnecting" ? "bg-warning" : "bg-critical";
 
@@ -48,7 +52,7 @@ export function Sidebar({ schoolName, status, activePage, onNavigate }: SidebarP
         </div>
 
         <nav className="space-y-2">
-          {navigation.map((item, index) => {
+          {visibleNavigation.map((item, index) => {
             const Icon = item.icon;
             const isActive = activePage === item.page;
             return (
@@ -73,11 +77,29 @@ export function Sidebar({ schoolName, status, activePage, onNavigate }: SidebarP
         </nav>
       </div>
 
+      <div className="space-y-4">
+      {user && (
+        <div className="flex items-center justify-between gap-3 rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-white">{user.full_name || user.username}</p>
+            <p className="text-xs capitalize text-mist/60">{user.role}</p>
+          </div>
+          <button
+            type="button"
+            onClick={logout}
+            title="Sign out"
+            className="rounded-xl border border-white/10 bg-white/5 p-2 text-mist/80 transition hover:bg-white/10 hover:text-white"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
         <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Arab Governance (Unit 14)</p>
         <p className="mt-3 text-sm text-mist/75">
           All data is anonymized, TTL-enforced (72h), and RBAC-controlled per the Arab Data Governance Model.
         </p>
+      </div>
       </div>
     </aside>
   );

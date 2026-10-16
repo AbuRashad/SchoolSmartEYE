@@ -15,10 +15,13 @@ import asyncio
 import logging
 from typing import AsyncIterator
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.api.deps import require_principal, require_teacher, require_teacher_stream, role_of
+from app.core.governance_layer import SCOPE_LEVEL, Role
+from app.db.models import User
 from app.services.camera_ingestion import CameraSource, ingestion_service
 from app.units.unit_01.module import StreamStatus
 
@@ -82,17 +85,27 @@ def _info_for(camera_id: str) -> CameraInfo | None:
 
 
 @router.get("", response_model=list[CameraInfo])
-def list_cameras() -> list[CameraInfo]:
-    """List all registered live cameras with current status."""
+def list_cameras(user: User = Depends(require_teacher)) -> list[CameraInfo]:
+    """List all registered live cameras with current status.
+
+    `source_url` may embed credentials, so it is only revealed to principal+.
+    """
+    role = role_of(user)
+    can_see_source = role is not None and SCOPE_LEVEL[role] >= SCOPE_LEVEL[Role.PRINCIPAL]
     out: list[CameraInfo] = []
     for src in ingestion_service.list_sources():
         info = _info_for(src.camera_id)
         if info is not None:
-            out.append(info)
+            out.append(info if can_see_source else info.model_copy(update={"source_url": "hidden"}))
     return out
 
 
-@router.post("", response_model=CameraInfo, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=CameraInfo,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_principal)],
+)
 def register_camera(payload: CameraCreate) -> CameraInfo:
     """Register a new live camera and start streaming from it."""
     source = CameraSource(
@@ -109,14 +122,20 @@ def register_camera(payload: CameraCreate) -> CameraInfo:
     return info
 
 
-@router.delete("/{camera_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{camera_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_principal)],
+)
 def unregister_camera(camera_id: str) -> Response:
     if not ingestion_service.unregister(camera_id):
         raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{camera_id}/start", response_model=CameraInfo)
+@router.post(
+    "/{camera_id}/start", response_model=CameraInfo, dependencies=[Depends(require_principal)]
+)
 def start_camera(camera_id: str) -> CameraInfo:
     worker = ingestion_service.get_worker(camera_id)
     if worker is None:
@@ -127,7 +146,9 @@ def start_camera(camera_id: str) -> CameraInfo:
     return info
 
 
-@router.post("/{camera_id}/stop", response_model=CameraInfo)
+@router.post(
+    "/{camera_id}/stop", response_model=CameraInfo, dependencies=[Depends(require_principal)]
+)
 def stop_camera(camera_id: str) -> CameraInfo:
     worker = ingestion_service.get_worker(camera_id)
     if worker is None:
@@ -144,6 +165,7 @@ def stop_camera(camera_id: str) -> CameraInfo:
 @router.get(
     "/{camera_id}/snapshot.jpg",
     responses={200: {"content": {"image/jpeg": {}}}, 404: {}, 503: {}},
+    dependencies=[Depends(require_teacher_stream)],
 )
 def snapshot(camera_id: str) -> Response:
     """Return the latest JPEG frame from the camera (one-shot)."""
@@ -192,6 +214,7 @@ async def _mjpeg_generator(camera_id: str) -> AsyncIterator[bytes]:
 @router.get(
     "/{camera_id}/stream.mjpg",
     responses={200: {"content": {"multipart/x-mixed-replace": {}}}, 404: {}},
+    dependencies=[Depends(require_teacher_stream)],
 )
 def stream_mjpeg(camera_id: str) -> StreamingResponse:
     """Live MJPEG multipart stream — drop straight into an `<img>` tag."""
