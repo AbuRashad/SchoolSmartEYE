@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db
+from app.services import ssi_history
 from app.services.dashboard_service import DashboardService
 
 
@@ -46,8 +50,10 @@ manager = DashboardConnectionManager()
 
 
 @router.get("/summary")
-def dashboard_summary() -> dict[str, object]:
-    return service.get_summary()
+def dashboard_summary(db: Session = Depends(get_db)) -> dict[str, object]:
+    summary = service.get_summary()
+    summary["ssiTrend"] = ssi_history.summarize(db, 30)["trend"]
+    return summary
 
 
 @router.get("/alerts")

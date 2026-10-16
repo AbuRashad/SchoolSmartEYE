@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -114,3 +115,79 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(256))
     role: Mapped[str] = mapped_column(String(16))  # teacher | principal | ministry
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class Zone(Base):
+    __tablename__ = "zones"
+
+    zone_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    label: Mapped[str] = mapped_column(String(128))
+    zone_type: Mapped[str] = mapped_column(String(32))
+    capacity: Mapped[int] = mapped_column(Integer, default=0)
+    floor: Mapped[int] = mapped_column(Integer, default=1)
+    grid_x: Mapped[int] = mapped_column(Integer, default=0)
+    grid_y: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Camera(Base):
+    __tablename__ = "cameras"
+
+    camera_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    zone_id: Mapped[str] = mapped_column(ForeignKey("zones.zone_id"), index=True)
+    label: Mapped[str] = mapped_column(String(128))
+    width: Mapped[int] = mapped_column(Integer, default=1280)
+    height: Mapped[int] = mapped_column(Integer, default=720)
+    fps: Mapped[int] = mapped_column(Integer, default=25)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class Incident(Base):
+    __tablename__ = "incidents"
+
+    incident_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    zone_id: Mapped[str] = mapped_column(ForeignKey("zones.zone_id"), index=True)
+    severity: Mapped[str] = mapped_column(String(16))
+    description: Mapped[str] = mapped_column(String(512))
+    detected_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    acknowledged_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class SSISnapshot(Base):
+    """One School Safety Index measurement; the basis for trends and anomalies."""
+
+    __tablename__ = "ssi_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    recorded_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    ssi: Mapped[float] = mapped_column(Float)
+    anomaly_coefficient: Mapped[float | None] = mapped_column(Float, nullable=True)
+    coherence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    attendance_discrepancy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    predicted_density: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(32), default="live")
+
+
+class Drill(Base):
+    __tablename__ = "drills"
+
+    drill_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    drill_type: Mapped[str] = mapped_column(String(32))
+    scheduled_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    response_time_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    notes: Mapped[str] = mapped_column(String(512), default="")
+
+
+class AgentFeedbackRecord(Base):
+    __tablename__ = "agent_feedback"
+
+    feedback_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(128), index=True)
+    student_id: Mapped[str] = mapped_column(String(64), index=True)
+    predicted_state: Mapped[str] = mapped_column(String(32))
+    confirmed_state: Mapped[str] = mapped_column(String(32))
+    teacher_notes: Mapped[str] = mapped_column(String(1024), default="")
+    recorded_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)

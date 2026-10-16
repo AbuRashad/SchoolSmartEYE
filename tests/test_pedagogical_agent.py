@@ -332,6 +332,13 @@ def _reset_seed(monkeypatch: pytest.MonkeyPatch) -> None:
     seed_data.populate()
 
 
+def _teacher_headers() -> dict[str, str]:
+    from app.core import security
+    from tests.conftest import bearer
+
+    return bearer(security.create_access_token("teacher", "teacher"))
+
+
 @pytest.mark.anyio
 async def test_get_agent_insights_returns_session_data() -> None:
     transport = ASGITransport(app=app)
@@ -366,7 +373,7 @@ async def test_post_agent_feedback_created() -> None:
         "confirmed_state": "engaged",
         "teacher_notes": "Accurate prediction",
     }
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=_teacher_headers()) as client:
         r = await client.post("/api/v1/agent/feedback", json=payload)
     assert r.status_code == 201
     data = r.json()
@@ -384,7 +391,7 @@ async def test_post_agent_feedback_unknown_student_returns_404() -> None:
         "predicted_state": "engaged",
         "confirmed_state": "attentive",
     }
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=_teacher_headers()) as client:
         r = await client.post("/api/v1/agent/feedback", json=payload)
     assert r.status_code == 404
 

@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from app.db import models as orm
-from app.models import IncidentSeverity, SafetyIncident
 from app.services import seed_data
 
 API = "/api/v1"
@@ -14,16 +13,10 @@ SID = "STU-E2E-1"
 
 
 @pytest.fixture()
-def zone():
+def zone(db_session_factory):
     seed_data.populate()
-    return seed_data.zones[0]
-
-
-@pytest.fixture()
-def incident_cleanup():
-    before = list(seed_data.incidents)
-    yield
-    seed_data.incidents[:] = before
+    with db_session_factory() as db:
+        return db.get(orm.Zone, "zone-main-gate")
 
 
 def _create_student(client) -> None:
@@ -57,7 +50,7 @@ def test_crud_and_error_paths(client, zone) -> None:
     assert client.delete(f"{API}/students/{SID}").status_code == 404
 
 
-def test_profile_aggregates_all_sections(client, zone, db_session_factory, incident_cleanup) -> None:
+def test_profile_aggregates_all_sections(client, zone, db_session_factory) -> None:
     _create_student(client)
     client.patch(f"{API}/students/{SID}", json={"grade": "Grade 10"})
     today = datetime.now(timezone.utc).date()
@@ -89,10 +82,12 @@ def test_profile_aggregates_all_sections(client, zone, db_session_factory, incid
         ])
         db.commit()
 
-    seed_data.incidents.append(SafetyIncident(
-        incident_id="INC-E2E-1", zone_id=zone.zone_id, severity=IncidentSeverity.CRITICAL,
-        description="Test", detected_at=now, resolved=False,
-    ))
+    with db_session_factory() as db:
+        db.add(orm.Incident(
+            incident_id="INC-E2E-1", zone_id=zone.zone_id, severity="critical",
+            description="Test", detected_at=now, resolved=False,
+        ))
+        db.commit()
 
     d = client.get(f"{API}/students/{SID}/profile").json()
     assert d["grade"] == "Grade 10"

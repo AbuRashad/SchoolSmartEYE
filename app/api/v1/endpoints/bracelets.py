@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_principal, require_teacher
 from app.db import models as orm
 from app.db.session import get_db
-from app.services import seed_data
 
 router = APIRouter(prefix="/bracelets", tags=["control"])
 
@@ -259,7 +258,7 @@ def ping_bracelet(
     if bracelet is None:
         raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
     # Zone must exist (light validation)
-    if not any(z.zone_id == payload.zone_id for z in seed_data.zones):
+    if db.get(orm.Zone, payload.zone_id) is None:
         raise HTTPException(status_code=400, detail=f"Zone {payload.zone_id!r} does not exist")
     bracelet.last_seen_zone = payload.zone_id
     bracelet.last_seen_at = datetime.now(timezone.utc)

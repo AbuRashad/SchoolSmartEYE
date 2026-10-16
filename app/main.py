@@ -24,12 +24,10 @@ async def _nightly_harvesting_loop() -> None:
         await asyncio.sleep(_HARVEST_INTERVAL_SECONDS)
         try:
             # Import lazily to avoid circular import at module level
-            from app.services.pedagogical_agent import PedagogicalAgentService
-            agent = PedagogicalAgentService(
-                snapshots=seed_data.engagement_snapshots,
-                feedback_log=seed_data.agent_feedback_log,
-                video_log_dir=settings.video_log_dir,
-            )
+            from app.db.session import SessionLocal
+            from app.services import agent_store
+            with SessionLocal() as db:
+                agent = agent_store.build_agent(db)
             baselines = agent.compute_daily_baselines()
             logger.info(
                 "Daily knowledge harvesting complete: %d student baseline(s) updated",
