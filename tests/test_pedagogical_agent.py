@@ -14,6 +14,7 @@ Covers:
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import Mock
 
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -21,6 +22,7 @@ from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.models import AgentFeedback, EngagementSnapshot, EngagementState
 from app.services import seed_data
+from app.services import agent_store
 from app.services.pedagogical_agent import (
     PedagogicalAgentService,
     StudentEngagementSummary,
@@ -43,6 +45,16 @@ def _make_service(
         snapshots=snapshots if snapshots is not None else [],
         feedback_log=feedback if feedback is not None else [],
     )
+
+
+def test_build_agent_can_skip_persisted_feedback(monkeypatch: pytest.MonkeyPatch) -> None:
+    load_feedback = Mock(side_effect=AssertionError("feedback should not be loaded"))
+    monkeypatch.setattr(agent_store, "load_feedback", load_feedback)
+
+    agent = agent_store.build_agent(Mock(), include_feedback=False)
+
+    load_feedback.assert_not_called()
+    assert agent._feedback_log == []
 
 
 # ── Unit tests — PedagogicalAgentService ─────────────────────────────────────

@@ -27,11 +27,11 @@ def load_feedback(db: Session) -> list[AgentFeedback]:
     ]
 
 
-def build_agent(db: Session) -> PedagogicalAgentService:
+def build_agent(db: Session, *, include_feedback: bool = True) -> PedagogicalAgentService:
     """A service whose feedback history is the persisted feedback table."""
     return PedagogicalAgentService(
         snapshots=seed_data.engagement_snapshots,
-        feedback_log=load_feedback(db),
+        feedback_log=load_feedback(db) if include_feedback else [],
         video_log_dir=settings.video_log_dir,
     )
 
