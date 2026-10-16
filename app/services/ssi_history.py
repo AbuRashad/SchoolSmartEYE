@@ -1,7 +1,7 @@
 """Persisted School Safety Index history: recording, trends and anomaly detection."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from statistics import fmean, pstdev
 
 from sqlalchemy import select
@@ -61,15 +61,16 @@ def get_history(db: Session, days: int = 30) -> list[orm.SSISnapshot]:
     )
 
 
-def _slope(values: list[float]) -> float:
-    """Least-squares slope per step."""
-    n = len(values)
+def _slope(daily: list[tuple[str, float]]) -> float:
+    """Least-squares SSI slope per calendar day."""
+    n = len(daily)
     if n < 2:
         return 0.0
-    mean_x = (n - 1) / 2
-    mean_y = fmean(values)
-    den = sum((i - mean_x) ** 2 for i in range(n))
-    return sum((i - mean_x) * (v - mean_y) for i, v in enumerate(values)) / den
+    days = [(date.fromisoformat(day).toordinal(), value) for day, value in daily]
+    mean_x = fmean(day for day, _ in days)
+    mean_y = fmean(value for _, value in days)
+    den = sum((day - mean_x) ** 2 for day, _ in days)
+    return sum((day - mean_x) * (value - mean_y) for day, value in days) / den
 
 
 def daily_series(snapshots: list[orm.SSISnapshot]) -> list[tuple[str, float]]:
@@ -84,7 +85,7 @@ def compute_trend(daily: list[tuple[str, float]]) -> dict[str, object]:
     values = [v for _, v in daily]
     if len(values) < 3:
         return {"direction": "insufficient_data", "slope_per_day": 0.0, "points": len(values)}
-    slope = _slope(values)
+    slope = _slope(daily)
     if slope > TREND_SLOPE_THRESHOLD:
         direction = "improving"
     elif slope < -TREND_SLOPE_THRESHOLD:

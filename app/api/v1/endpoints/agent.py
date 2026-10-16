@@ -72,7 +72,7 @@ def submit_feedback(payload: FeedbackPayload, db: Session = Depends(get_db)) -> 
     Each submission is stored in the database and appended to
     `<video_log_dir>/agent_performance.jsonl` for audit and offline analysis.
     """
-    agent = agent_store.build_agent(db)
+    agent = agent_store.build_agent(db, include_feedback=False)
     # Verify student exists
     student = db.get(orm.Student, payload.student_id)
     if student is None:
@@ -111,7 +111,7 @@ def get_feedback_metrics(db: Session = Depends(get_db)) -> dict[str, object]:
 @router.get("/baselines")
 def get_baselines(db: Session = Depends(get_db)) -> dict[str, object]:
     """Return the most recent nightly-computed per-student daily engagement baselines."""
-    baselines = agent_store.build_agent(db).compute_daily_baselines()
+    baselines = agent_store.build_agent(db, include_feedback=False).compute_daily_baselines()
     return {"baselines": baselines, "total_students": len(baselines)}
 
 

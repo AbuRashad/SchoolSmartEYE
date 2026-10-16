@@ -49,8 +49,8 @@ export type SSIHistoryData = {
   period: string;
   benchmark: number;
   scores: SSIHistoryPoint[];
-  average: number;
-  trend: "improving" | "stable" | "declining";
+  average: number | null;
+  trend: "improving" | "stable" | "declining" | "insufficient_data";
 };
 
 export type DensityForecast = {
