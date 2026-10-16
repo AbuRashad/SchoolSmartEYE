@@ -1,22 +1,22 @@
 # ── Frontend Dockerfile ───────────────────────────────────────────────────────
 FROM node:20-slim AS builder
 
-WORKDIR /frontend
+WORKDIR /workspace
 
-COPY package.json ./
-COPY package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/package.json
+RUN npm ci
 
-COPY . .
-RUN npm run build
+COPY frontend ./frontend
+RUN npm run build --workspace frontend
 
 # ── Production stage (nginx) ──────────────────────────────────────────────────
 FROM nginx:stable-alpine AS runtime
 
-COPY --from=builder /frontend/dist /usr/share/nginx/html
+COPY --from=builder /workspace/frontend/dist /usr/share/nginx/html
 
 # Nginx config: proxy /api/* to the backend service
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
