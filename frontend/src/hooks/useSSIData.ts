@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fetchJson } from "../auth";
 import type { SSILiveData, SSIHistoryData, UnitInfo, AnalyticsOverview, ReportItem, ReportStats, StudentPortalData, AgentSessionInsights, EngagementSnapshotRecord } from "../types";
 
 const BASE = "/api/v1";
@@ -8,9 +9,8 @@ export function useSSILive() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${BASE}/ssi/live`)
-      .then((r) => r.json())
-      .then((d) => setData(d as SSILiveData))
+    fetchJson<SSILiveData>(`${BASE}/ssi/live`)
+      .then((d) => setData(d))
       .catch(() => setError("SSI live endpoint unavailable."));
   }, []);
 
@@ -21,9 +21,8 @@ export function useSSIHistory() {
   const [data, setData] = useState<SSIHistoryData | null>(null);
 
   useEffect(() => {
-    fetch(`${BASE}/ssi/history`)
-      .then((r) => r.json())
-      .then((d) => setData(d as SSIHistoryData))
+    fetchJson<SSIHistoryData>(`${BASE}/ssi/history`)
+      .then((d) => setData(d))
       .catch(() => null);
   }, []);
 
@@ -34,9 +33,8 @@ export function useUnits() {
   const [units, setUnits] = useState<UnitInfo[]>([]);
 
   useEffect(() => {
-    fetch(`${BASE}/units`)
-      .then((r) => r.json())
-      .then((d) => setUnits(d as UnitInfo[]))
+    fetchJson<UnitInfo[]>(`${BASE}/units`)
+      .then((d) => setUnits(d))
       .catch(() => null);
   }, []);
 
@@ -48,9 +46,8 @@ export function useAnalyticsOverview() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${BASE}/analytics/overview`)
-      .then((r) => r.json())
-      .then((d) => setData(d as AnalyticsOverview))
+    fetchJson<AnalyticsOverview>(`${BASE}/analytics/overview`)
+      .then((d) => setData(d))
       .catch(() => setError("Analytics endpoint unavailable."));
   }, []);
 
@@ -61,9 +58,8 @@ export function useReportsList() {
   const [data, setData] = useState<ReportItem[]>([]);
 
   useEffect(() => {
-    fetch(`${BASE}/reports/list`)
-      .then((r) => r.json())
-      .then((d) => setData(d as ReportItem[]))
+    fetchJson<ReportItem[]>(`${BASE}/reports/list`)
+      .then((d) => setData(d))
       .catch(() => null);
   }, []);
 
@@ -74,9 +70,8 @@ export function useReportsStats() {
   const [data, setData] = useState<ReportStats | null>(null);
 
   useEffect(() => {
-    fetch(`${BASE}/reports/stats`)
-      .then((r) => r.json())
-      .then((d) => setData(d as ReportStats))
+    fetchJson<ReportStats>(`${BASE}/reports/stats`)
+      .then((d) => setData(d))
       .catch(() => null);
   }, []);
 
@@ -87,9 +82,8 @@ export function useStudentPortal() {
   const [data, setData] = useState<StudentPortalData | null>(null);
 
   useEffect(() => {
-    fetch(`${BASE}/portal/student`)
-      .then((r) => r.json())
-      .then((d) => setData(d as StudentPortalData))
+    fetchJson<StudentPortalData>(`${BASE}/portal/student`)
+      .then((d) => setData(d))
       .catch(() => null);
   }, []);
 
@@ -101,9 +95,8 @@ export function useAgentInsights() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${BASE}/agent/insights`)
-      .then((r) => r.json())
-      .then((d) => setData(d as AgentSessionInsights))
+    fetchJson<AgentSessionInsights>(`${BASE}/agent/insights`)
+      .then((d) => setData(d))
       .catch(() => setError("Agent insights endpoint unavailable."));
   }, []);
 
@@ -118,9 +111,8 @@ export function useStudentBehavioralHistory(studentId: string, days = 30) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`${BASE}/students/${encodeURIComponent(studentId)}/behavioral-history?days=${days}`)
-      .then((r) => r.json())
-      .then((d) => setData(d as EngagementSnapshotRecord[]))
+    fetchJson<EngagementSnapshotRecord[]>(`${BASE}/students/${encodeURIComponent(studentId)}/behavioral-history?days=${days}`)
+      .then((d) => setData(d))
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
   }, [studentId, days]);

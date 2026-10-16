@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { AuthProvider, useAuth } from "./AuthContext";
+import { LoginScreen } from "./components/LoginScreen";
 import { Users, Activity, Calendar, Camera } from "lucide-react";
 import { AIInsightsPanel } from "./components/AIInsightsPanel";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
@@ -19,7 +21,25 @@ import { useSSILive, useSSIHistory, useUnits, useAnalyticsOverview, useReportsLi
 import type { NavPage } from "./types";
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+function AuthGate() {
+  const { user } = useAuth();
+  return user ? <AppShell /> : <LoginScreen />;
+}
+
+function AppShell() {
+  const { can } = useAuth();
   const [page, setPage] = useState<NavPage>("dashboard");
+  // Never leave a user on a page their role cannot use.
+  useEffect(() => {
+    if (page === "reports" && !can("ministry")) setPage("dashboard");
+  }, [page, can]);
   const snapshot = useSafetyDashboardSocket();
   const { data: ssiLive } = useSSILive();
   const ssiHistory = useSSIHistory();
@@ -159,7 +179,7 @@ export default function App() {
           )}
 
           {/* ─── REPORTS PAGE ────────────────────────────────── */}
-          {page === "reports" && (
+          {page === "reports" && can("ministry") && (
             <>
               <section className="rounded-[2rem] border border-white/10 bg-panel/70 px-6 py-5 shadow-panel">
                 <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Reports</p>

@@ -4,8 +4,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import numpy as np
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
 
+from app.db.session import get_db
+from app.services import ssi_history
 from app.services.school_safety_index import compute_school_safety_index_with_forecast
 from app.services.crowd_density_forecasting import CrowdDensityForecaster, DensityObservation
 
@@ -31,7 +34,7 @@ _forecaster.fit(_observations)
 
 
 @router.get("/live")
-def ssi_live() -> dict[str, object]:
+def ssi_live(db: Session = Depends(get_db)) -> dict[str, object]:
     """Compute real-time SSI from current sensor signals."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -48,6 +51,15 @@ def ssi_live() -> dict[str, object]:
         location="main-campus",
         current_time=now,
         coherence_represents_alignment=True,
+    )
+
+    ssi_history.record_if_due(
+        db,
+        ssi,
+        anomaly_coefficient=anomaly_coefficient,
+        coherence_score=coherence_score,
+        attendance_discrepancy=attendance_discrepancy,
+        predicted_density=density_pred.predicted_density,
     )
 
     return {
@@ -76,19 +88,12 @@ def ssi_live() -> dict[str, object]:
 
 
 @router.get("/history")
-def ssi_history() -> dict[str, object]:
-    """Return simulated 30-day SSI history for trend analysis."""
-    rng = np.random.default_rng(7)
-    base = 78.0
-    scores = []
-    for day in range(30):
-        val = float(np.clip(base + day * 0.15 + rng.normal(0, 3.5), 45, 100))
-        scores.append({"day": day + 1, "ssi": round(val, 2)})
+def ssi_history_endpoint(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)) -> dict[str, object]:
+    """Stored SSI history with computed trend and anomaly days."""
+    summary = ssi_history.summarize(db, days)
     return {
         "school": "Smart School Safety System",
-        "period": "last_30_days",
+        "period": f"last_{days}_days",
         "benchmark": 75,
-        "scores": scores,
-        "average": round(float(np.mean([s["ssi"] for s in scores])), 2),
-        "trend": "improving",
+        **summary,
     }

@@ -1,31 +1,30 @@
 """Students & zones CRUD used by the Control Panel.
 
-All storage is the in-memory list in `app.services.seed_data`. Mutations are
-guarded by a module-level lock because FastAPI may serve concurrent requests
-from multiple threads.
+Students, bracelets, attendance and notifications are stored in the SQL
+database (see `app.db`); zones and incidents are still in-memory demo data.
 """
 from __future__ import annotations
 
-import threading
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
+from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
+from app.api.deps import require_principal, require_teacher
+from app.db import models as orm
+from app.db.session import get_db
 from app.models import (
     AttendanceStatus,
-    Bracelet,
-    DailyAttendance,
     IncidentSeverity,
     SafetyStatus,
-    Student,
 )
 from app.services import seed_data
 from app.services.pedagogical_agent import PedagogicalAgentService
 
 router = APIRouter(tags=["control"])
-
-_lock = threading.Lock()
 
 # Lazy singleton for the pedagogical agent service (backed by seed_data stores)
 _agent: PedagogicalAgentService | None = None
@@ -37,7 +36,7 @@ def _get_agent() -> PedagogicalAgentService:
         from app.core.config import settings
         _agent = PedagogicalAgentService(
             snapshots=seed_data.engagement_snapshots,
-            feedback_log=seed_data.agent_feedback_log,
+            feedback_log=[],  # profile only reads engagement snapshots
             video_log_dir=settings.video_log_dir,
         )
     return _agent
@@ -170,7 +169,7 @@ class StudentProfile(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _serialize(s: Student) -> StudentOut:
+def _serialize(s: orm.Student) -> StudentOut:
     return StudentOut(
         student_id=s.student_id,
         name=s.name,
@@ -182,108 +181,114 @@ def _serialize(s: Student) -> StudentOut:
     )
 
 
-def _find_student(student_id: str) -> Student | None:
-    return next((s for s in seed_data.students if s.student_id == student_id), None)
+def _find_student(db: Session, student_id: str) -> orm.Student | None:
+    return db.get(orm.Student, student_id)
 
 
 # ── Students ──────────────────────────────────────────────────────────────────
 
 
-@router.get("/students", response_model=list[StudentOut])
-def list_students() -> list[StudentOut]:
-    with _lock:
-        return [_serialize(s) for s in seed_data.students]
+@router.get("/students", response_model=list[StudentOut], dependencies=[Depends(require_teacher)])
+def list_students(db: Session = Depends(get_db)) -> list[StudentOut]:
+    rows = db.scalars(select(orm.Student).order_by(orm.Student.student_id)).all()
+    return [_serialize(s) for s in rows]
 
 
-@router.post("/students", response_model=StudentOut, status_code=status.HTTP_201_CREATED)
-def create_student(payload: StudentCreate) -> StudentOut:
-    with _lock:
-        if _find_student(payload.student_id) is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Student {payload.student_id!r} already exists",
-            )
-        initial = payload.photo_initial or (payload.name[:1].upper() if payload.name else "?")
-        student = Student(
-            student_id=payload.student_id,
-            name=payload.name,
-            grade=payload.grade,
-            class_section=payload.class_section,
-            parent_id=payload.parent_id,
-            photo_initial=initial,
-            is_active=payload.is_active,
+@router.post(
+    "/students",
+    response_model=StudentOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_principal)],
+)
+def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> StudentOut:
+    if _find_student(db, payload.student_id) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Student {payload.student_id!r} already exists",
         )
-        seed_data.students.append(student)
-        return _serialize(student)
+    initial = payload.photo_initial or (payload.name[:1].upper() if payload.name else "?")
+    student = orm.Student(
+        student_id=payload.student_id,
+        name=payload.name,
+        grade=payload.grade,
+        class_section=payload.class_section,
+        parent_id=payload.parent_id,
+        photo_initial=initial,
+        is_active=payload.is_active,
+    )
+    db.add(student)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Student {payload.student_id!r} already exists",
+        ) from None
+    return _serialize(student)
 
 
-@router.patch("/students/{student_id}", response_model=StudentOut)
-def update_student(student_id: str, payload: StudentUpdate) -> StudentOut:
-    with _lock:
-        student = _find_student(student_id)
-        if student is None:
-            raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
-        if payload.name is not None:
-            student.name = payload.name
-        if payload.grade is not None:
-            student.grade = payload.grade
-        if payload.class_section is not None:
-            student.class_section = payload.class_section
-        if payload.parent_id is not None:
-            student.parent_id = payload.parent_id
-        if payload.photo_initial is not None:
-            student.photo_initial = payload.photo_initial
-        if payload.is_active is not None:
-            student.is_active = payload.is_active
-        return _serialize(student)
+@router.patch(
+    "/students/{student_id}", response_model=StudentOut, dependencies=[Depends(require_principal)]
+)
+def update_student(
+    student_id: str, payload: StudentUpdate, db: Session = Depends(get_db)
+) -> StudentOut:
+    student = _find_student(db, student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
+    for field, value in payload.model_dump(exclude_none=True).items():
+        setattr(student, field, value)
+    db.commit()
+    return _serialize(student)
 
 
-@router.delete("/students/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_student(student_id: str) -> Response:
-    with _lock:
-        student = _find_student(student_id)
-        if student is None:
-            raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
-        seed_data.students.remove(student)
-        # Cascade: detach bracelets referencing this student
-        for br in list(seed_data.bracelets):
-            if br.student_id == student_id:
-                seed_data.bracelets.remove(br)
+@router.delete(
+    "/students/{student_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_principal)],
+)
+def delete_student(student_id: str, db: Session = Depends(get_db)) -> Response:
+    student = _find_student(db, student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
+    # Cascade: the student's bracelet and attendance records are removed too
+    db.delete(student)
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── Zones (read-only) ─────────────────────────────────────────────────────────
 
 
-@router.get("/zones", response_model=list[ZoneOut])
-def list_zones() -> list[ZoneOut]:
+@router.get("/zones", response_model=list[ZoneOut], dependencies=[Depends(require_teacher)])
+def list_zones(db: Session = Depends(get_db)) -> list[ZoneOut]:
     return [
         ZoneOut(
             zone_id=z.zone_id,
             label=z.label,
-            zone_type=z.zone_type.value,
+            zone_type=z.zone_type,
             capacity=z.capacity,
             floor=z.floor,
         )
-        for z in seed_data.zones
+        for z in db.scalars(select(orm.Zone).order_by(orm.Zone.grid_x, orm.Zone.grid_y))
     ]
 
 
 # ── Aggregated Student Profile ────────────────────────────────────────────────
 
 
-def _zone_label(zone_id: str | None) -> str | None:
+_PRESENT_STATUSES = (AttendanceStatus.PRESENT.value, AttendanceStatus.LATE.value)
+
+
+def _zone_label(db: Session, zone_id: str | None) -> str | None:
     if not zone_id:
         return None
-    zone = next((z for z in seed_data.zones if z.zone_id == zone_id), None)
+    zone = db.get(orm.Zone, zone_id)
     return zone.label if zone else zone_id
 
 
-def _find_bracelet(student_id: str) -> Bracelet | None:
-    return next((b for b in seed_data.bracelets if b.student_id == student_id), None)
-
-
-def _bracelet_summary(bracelet: Bracelet | None) -> BraceletSummary | None:
+def _bracelet_summary(db: Session, bracelet: orm.Bracelet | None) -> BraceletSummary | None:
     if bracelet is None:
         return None
     from app.core.runtime_settings import get_runtime_settings
@@ -294,7 +299,7 @@ def _bracelet_summary(bracelet: Bracelet | None) -> BraceletSummary | None:
         battery_level=bracelet.battery_level,
         is_active=bracelet.is_active,
         last_seen_zone=bracelet.last_seen_zone,
-        last_seen_zone_label=_zone_label(bracelet.last_seen_zone),
+        last_seen_zone_label=_zone_label(db, bracelet.last_seen_zone),
         last_seen_at=bracelet.last_seen_at.isoformat() if bracelet.last_seen_at else None,
         firmware_version=bracelet.firmware_version,
         notes=bracelet.notes,
@@ -302,7 +307,7 @@ def _bracelet_summary(bracelet: Bracelet | None) -> BraceletSummary | None:
     )
 
 
-def _to_attendance_day(rec: DailyAttendance | None, day: date) -> AttendanceDay:
+def _to_attendance_day(db: Session, rec: orm.AttendanceRecord | None, day: date) -> AttendanceDay:
     if rec is None:
         return AttendanceDay(
             date=day.isoformat(),
@@ -314,20 +319,20 @@ def _to_attendance_day(rec: DailyAttendance | None, day: date) -> AttendanceDay:
         )
     return AttendanceDay(
         date=day.isoformat(),
-        status=rec.status.value,
+        status=rec.status,
         arrival_time=rec.arrival_time.isoformat() if rec.arrival_time else None,
         departure_time=rec.departure_time.isoformat() if rec.departure_time else None,
         last_seen_zone=rec.last_seen_zone,
-        last_seen_zone_label=_zone_label(rec.last_seen_zone),
+        last_seen_zone_label=_zone_label(db, rec.last_seen_zone),
     )
 
 
-def _compute_streak(records_by_date: dict[date, DailyAttendance], today: date) -> int:
+def _compute_streak(records_by_date: dict[date, orm.AttendanceRecord], today: date) -> int:
     streak = 0
     cursor = today
     for _ in range(365):  # safety cap
         rec = records_by_date.get(cursor)
-        if rec and rec.status in (AttendanceStatus.PRESENT, AttendanceStatus.LATE):
+        if rec and rec.status in _PRESENT_STATUSES:
             streak += 1
             cursor = cursor - timedelta(days=1)
         else:
@@ -335,128 +340,147 @@ def _compute_streak(records_by_date: dict[date, DailyAttendance], today: date) -
     return streak
 
 
-def _safety_status_for(student: Student, last_zone: str | None) -> str:
+def _safety_status_for(db: Session, student: orm.Student, last_zone: str | None) -> str:
     if not student.is_active:
         return SafetyStatus.UNKNOWN.value
     if not last_zone:
         return SafetyStatus.UNKNOWN.value
     # Open incidents in same zone → degrade status
-    zone_incidents = [
-        i for i in seed_data.incidents
-        if i.zone_id == last_zone and not i.resolved
-    ]
-    if any(i.severity in (IncidentSeverity.CRITICAL, IncidentSeverity.HIGH) for i in zone_incidents):
+    zone_incidents = list(
+        db.scalars(
+            select(orm.Incident).where(orm.Incident.zone_id == last_zone, orm.Incident.resolved.is_(False))
+        )
+    )
+    if any(i.severity in (IncidentSeverity.CRITICAL.value, IncidentSeverity.HIGH.value) for i in zone_incidents):
         return SafetyStatus.CRITICAL.value
     if zone_incidents:
         return SafetyStatus.WARNING.value
     return SafetyStatus.SAFE.value
 
 
-@router.get("/students/{student_id}/profile", response_model=StudentProfile)
-def student_profile(student_id: str) -> StudentProfile:
-    with _lock:
-        student = _find_student(student_id)
-        if student is None:
-            raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
+@router.get(
+    "/students/{student_id}/profile",
+    response_model=StudentProfile,
+    dependencies=[Depends(require_teacher)],
+)
+def student_profile(student_id: str, db: Session = Depends(get_db)) -> StudentProfile:
+    student = _find_student(db, student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
 
-        today = datetime.now(timezone.utc).date()
+    today = datetime.now(timezone.utc).date()
 
-        # Index attendance by date for quick lookup
-        student_records = [r for r in seed_data.attendance_records if r.student_id == student_id]
-        records_by_date: dict[date, DailyAttendance] = {r.date: r for r in student_records}
+    # Index attendance by date for quick lookup
+    student_records = db.scalars(
+        select(orm.AttendanceRecord).where(
+            orm.AttendanceRecord.student_id == student_id,
+            orm.AttendanceRecord.date >= today - timedelta(days=365),
+        )
+    ).all()
+    records_by_date: dict[date, orm.AttendanceRecord] = {r.date: r for r in student_records}
 
-        # Today
-        today_rec = records_by_date.get(today)
-        today_status = today_rec.status.value if today_rec else AttendanceStatus.UNKNOWN.value
-        arrival_iso = today_rec.arrival_time.isoformat() if today_rec and today_rec.arrival_time else None
-        departure_iso = today_rec.departure_time.isoformat() if today_rec and today_rec.departure_time else None
-        last_zone = today_rec.last_seen_zone if today_rec else None
+    # Today
+    today_rec = records_by_date.get(today)
+    today_status = today_rec.status if today_rec else AttendanceStatus.UNKNOWN.value
+    arrival_iso = today_rec.arrival_time.isoformat() if today_rec and today_rec.arrival_time else None
+    departure_iso = today_rec.departure_time.isoformat() if today_rec and today_rec.departure_time else None
+    last_zone = today_rec.last_seen_zone if today_rec else None
 
-        # Fallback to bracelet last-seen if no attendance record today
-        bracelet = _find_bracelet(student_id)
-        if last_zone is None and bracelet is not None:
-            last_zone = bracelet.last_seen_zone
+    # Fallback to bracelet last-seen if no attendance record today
+    bracelet = student.bracelet
+    if last_zone is None and bracelet is not None:
+        last_zone = bracelet.last_seen_zone
 
-        # Weekly (last 7 days, oldest → newest)
-        weekly: list[AttendanceDay] = []
-        for offset in range(6, -1, -1):
-            d = today - timedelta(days=offset)
-            weekly.append(_to_attendance_day(records_by_date.get(d), d))
+    # Weekly (last 7 days, oldest → newest)
+    weekly: list[AttendanceDay] = []
+    for offset in range(6, -1, -1):
+        d = today - timedelta(days=offset)
+        weekly.append(_to_attendance_day(db, records_by_date.get(d), d))
 
-        # Last 30 days (newest → oldest)
-        recent: list[AttendanceDay] = []
-        present_count = 0
-        total_count = 0
-        for offset in range(0, 30):
-            d = today - timedelta(days=offset)
-            rec = records_by_date.get(d)
-            recent.append(_to_attendance_day(rec, d))
-            if rec is not None:
-                total_count += 1
-                if rec.status in (AttendanceStatus.PRESENT, AttendanceStatus.LATE):
-                    present_count += 1
+    # Last 30 days (newest → oldest)
+    recent: list[AttendanceDay] = []
+    present_count = 0
+    total_count = 0
+    for offset in range(0, 30):
+        d = today - timedelta(days=offset)
+        rec = records_by_date.get(d)
+        recent.append(_to_attendance_day(db, rec, d))
+        if rec is not None:
+            total_count += 1
+            if rec.status in _PRESENT_STATUSES:
+                present_count += 1
 
-        monthly_pct = round((present_count / total_count) * 100.0, 1) if total_count else 0.0
-        streak = _compute_streak(records_by_date, today)
+    monthly_pct = round((present_count / total_count) * 100.0, 1) if total_count else 0.0
+    streak = _compute_streak(records_by_date, today)
 
-        # Notifications for parent/student
-        ntfs = [
-            n for n in seed_data.notifications
-            if n.student_id == student_id or n.parent_id == student.parent_id
-        ]
-        ntfs_sorted = sorted(ntfs, key=lambda n: n.sent_at, reverse=True)[:20]
-        unread = sum(1 for n in ntfs_sorted if not n.read)
-        ntf_items = [
-            NotificationItem(
-                notification_id=n.notification_id,
-                message=n.message,
-                notification_type=n.notification_type,
-                sent_at=n.sent_at.isoformat(),
-                read=n.read,
+    # Notifications for parent/student
+    ntfs_sorted = db.scalars(
+        select(orm.Notification)
+        .where(
+            or_(
+                orm.Notification.student_id == student_id,
+                orm.Notification.parent_id == student.parent_id,
             )
-            for n in ntfs_sorted
-        ]
-
-        # Open incidents in last-seen zone
-        open_incidents = (
-            sum(1 for i in seed_data.incidents if i.zone_id == last_zone and not i.resolved)
-            if last_zone else 0
         )
-
-        # Engagement summary from Unit 15
-        eng_summary_obj = _get_agent().get_engagement_summary(student_id)
-        eng_summary = (
-            EngagementSummary(**eng_summary_obj.to_dict())
-            if eng_summary_obj is not None
-            else None
+        .order_by(orm.Notification.sent_at.desc())
+        .limit(20)
+    ).all()
+    unread = sum(1 for n in ntfs_sorted if not n.read)
+    ntf_items = [
+        NotificationItem(
+            notification_id=n.notification_id,
+            message=n.message,
+            notification_type=n.notification_type,
+            sent_at=n.sent_at.isoformat(),
+            read=n.read,
         )
+        for n in ntfs_sorted
+    ]
 
-        return StudentProfile(
-            student_id=student.student_id,
-            name=student.name,
-            grade=student.grade,
-            class_section=student.class_section,
-            parent_id=student.parent_id,
-            photo_initial=student.photo_initial,
-            is_active=student.is_active,
-            safety_status=_safety_status_for(student, last_zone),
-            today_status=today_status,
-            arrival_time=arrival_iso,
-            departure_time=departure_iso,
-            last_seen_zone=last_zone,
-            last_seen_zone_label=_zone_label(last_zone),
-            attendance_streak=streak,
-            monthly_attendance_pct=monthly_pct,
-            last_30_days_present=present_count,
-            last_30_days_total=total_count,
-            weekly_attendance=weekly,
-            recent_attendance=recent,
-            bracelet=_bracelet_summary(bracelet),
-            notifications=ntf_items,
-            unread_notifications=unread,
-            open_incidents_in_last_zone=open_incidents,
-            engagement_summary=eng_summary,
+    # Open incidents in last-seen zone
+    open_incidents = (
+        db.scalar(
+            select(func.count()).select_from(orm.Incident).where(
+                orm.Incident.zone_id == last_zone, orm.Incident.resolved.is_(False)
+            )
         )
+        if last_zone else 0
+    )
+
+    # Engagement summary from Unit 15
+    eng_summary_obj = _get_agent().get_engagement_summary(student_id)
+    eng_summary = (
+        EngagementSummary(**eng_summary_obj.to_dict())
+        if eng_summary_obj is not None
+        else None
+    )
+
+    return StudentProfile(
+        student_id=student.student_id,
+        name=student.name,
+        grade=student.grade,
+        class_section=student.class_section,
+        parent_id=student.parent_id,
+        photo_initial=student.photo_initial,
+        is_active=student.is_active,
+        safety_status=_safety_status_for(db, student, last_zone),
+        today_status=today_status,
+        arrival_time=arrival_iso,
+        departure_time=departure_iso,
+        last_seen_zone=last_zone,
+        last_seen_zone_label=_zone_label(db, last_zone),
+        attendance_streak=streak,
+        monthly_attendance_pct=monthly_pct,
+        last_30_days_present=present_count,
+        last_30_days_total=total_count,
+        weekly_attendance=weekly,
+        recent_attendance=recent,
+        bracelet=_bracelet_summary(db, bracelet),
+        notifications=ntf_items,
+        unread_notifications=unread,
+        open_incidents_in_last_zone=open_incidents,
+        engagement_summary=eng_summary,
+    )
 
 
 # ── Behavioral History (Unit 15) ──────────────────────────────────────────────
@@ -465,10 +489,12 @@ def student_profile(student_id: str) -> StudentProfile:
 @router.get(
     "/students/{student_id}/behavioral-history",
     response_model=list[EngagementSnapshotOut],
+    dependencies=[Depends(require_teacher)],
 )
 def student_behavioral_history(
     student_id: str,
     days: int = 30,
+    db: Session = Depends(get_db),
 ) -> list[EngagementSnapshotOut]:
     """Return per-student engagement snapshots for the last N days (default 30),
     newest first.  Powered by Unit 15 — Pedagogical Behavioral Intelligence Agent.
@@ -476,10 +502,8 @@ def student_behavioral_history(
     if days < 1 or days > 365:
         raise HTTPException(status_code=400, detail="days must be between 1 and 365")
 
-    with _lock:
-        student = _find_student(student_id)
-        if student is None:
-            raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
+    if _find_student(db, student_id) is None:
+        raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
 
     snapshots = _get_agent().get_behavioral_history(student_id, days=days)
     return [

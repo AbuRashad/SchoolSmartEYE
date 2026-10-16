@@ -332,6 +332,13 @@ def _reset_seed(monkeypatch: pytest.MonkeyPatch) -> None:
     seed_data.populate()
 
 
+def _teacher_headers() -> dict[str, str]:
+    from app.core import security
+    from tests.conftest import bearer
+
+    return bearer(security.create_access_token("teacher", "teacher"))
+
+
 @pytest.mark.anyio
 async def test_get_agent_insights_returns_session_data() -> None:
     transport = ASGITransport(app=app)
@@ -366,7 +373,7 @@ async def test_post_agent_feedback_created() -> None:
         "confirmed_state": "engaged",
         "teacher_notes": "Accurate prediction",
     }
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=_teacher_headers()) as client:
         r = await client.post("/api/v1/agent/feedback", json=payload)
     assert r.status_code == 201
     data = r.json()
@@ -384,7 +391,7 @@ async def test_post_agent_feedback_unknown_student_returns_404() -> None:
         "predicted_state": "engaged",
         "confirmed_state": "attentive",
     }
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=_teacher_headers()) as client:
         r = await client.post("/api/v1/agent/feedback", json=payload)
     assert r.status_code == 404
 
@@ -413,9 +420,9 @@ async def test_get_agent_baselines() -> None:
 
 
 @pytest.mark.anyio
-async def test_student_behavioral_history_returns_snapshots() -> None:
+async def test_student_behavioral_history_returns_snapshots(auth_headers) -> None:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=auth_headers("teacher")) as client:
         r = await client.get("/api/v1/students/STU-2024-0847/behavioral-history")
     assert r.status_code == 200
     data = r.json()
@@ -429,25 +436,25 @@ async def test_student_behavioral_history_returns_snapshots() -> None:
 
 
 @pytest.mark.anyio
-async def test_student_behavioral_history_unknown_student_returns_404() -> None:
+async def test_student_behavioral_history_unknown_student_returns_404(auth_headers) -> None:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=auth_headers("teacher")) as client:
         r = await client.get("/api/v1/students/STU-GHOST/behavioral-history")
     assert r.status_code == 404
 
 
 @pytest.mark.anyio
-async def test_student_behavioral_history_invalid_days_returns_400() -> None:
+async def test_student_behavioral_history_invalid_days_returns_400(auth_headers) -> None:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=auth_headers("teacher")) as client:
         r = await client.get("/api/v1/students/STU-2024-0847/behavioral-history?days=0")
     assert r.status_code == 400
 
 
 @pytest.mark.anyio
-async def test_student_profile_includes_engagement_summary() -> None:
+async def test_student_profile_includes_engagement_summary(auth_headers) -> None:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=auth_headers("teacher")) as client:
         r = await client.get("/api/v1/students/STU-2024-0847/profile")
     assert r.status_code == 200
     data = r.json()

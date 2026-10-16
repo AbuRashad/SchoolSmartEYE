@@ -5,37 +5,27 @@ Exposes:
   POST /agent/feedback          — teacher performance annotation
   GET  /agent/feedback/metrics  — self-evaluation metrics
   GET  /agent/baselines         — daily per-student engagement baselines
+  GET  /agent/recommendations/{student_id} — history/feedback-aware recommendations
+
+Feedback is persisted in the database. Writing feedback requires teacher+ access;
+read endpoints stay public for frontend compatibility.
 """
 from __future__ import annotations
 
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from app.db import models as orm
+from app.db.session import get_db
 from app.models import EngagementState
-from app.services import seed_data
-from app.services.pedagogical_agent import PedagogicalAgentService
-from app.core.config import settings
+from app.api.deps import require_teacher
+from app.services import agent_store
 
 router = APIRouter(prefix="/agent", tags=["agent"])
-
-# Module-level service instance backed by seed_data stores.
-# Initialised lazily on first request so seed_data.populate() has already run.
-_agent: Optional[PedagogicalAgentService] = None
-
-
-def _get_agent() -> PedagogicalAgentService:
-    global _agent  # noqa: PLW0603
-    if _agent is None:
-        _agent = PedagogicalAgentService(
-            snapshots=seed_data.engagement_snapshots,
-            feedback_log=seed_data.agent_feedback_log,
-            video_log_dir=settings.video_log_dir,
-        )
-    return _agent
-
 
 # ── Request / response schemas ────────────────────────────────────────────────
 
@@ -62,22 +52,29 @@ class FeedbackResponse(BaseModel):
 
 
 @router.get("/insights")
-def get_session_insights(session_id: Optional[str] = None) -> dict[str, object]:
+def get_session_insights(
+    session_id: Optional[str] = None, db: Session = Depends(get_db)
+) -> dict[str, object]:
     """Return AI session summary: top engaged students, disengagement flags, and
     audio-visual mismatches.  Optionally filter to a specific session_id."""
-    return _get_agent().get_session_insights(session_id=session_id)
+    return agent_store.build_agent(db).get_session_insights(session_id=session_id)
 
 
-@router.post("/feedback", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)
-def submit_feedback(payload: FeedbackPayload) -> FeedbackResponse:
+@router.post(
+    "/feedback",
+    response_model=FeedbackResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_teacher)],
+)
+def submit_feedback(payload: FeedbackPayload, db: Session = Depends(get_db)) -> FeedbackResponse:
     """Accept a teacher annotation confirming or correcting a Unit 15 prediction.
 
-    Each submission is logged in memory and appended to
+    Each submission is stored in the database and appended to
     `<video_log_dir>/agent_performance.jsonl` for audit and offline analysis.
     """
-    agent = _get_agent()
+    agent = agent_store.build_agent(db)
     # Verify student exists
-    student = next((s for s in seed_data.students if s.student_id == payload.student_id), None)
+    student = db.get(orm.Student, payload.student_id)
     if student is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -92,6 +89,7 @@ def submit_feedback(payload: FeedbackPayload) -> FeedbackResponse:
         confirmed_state=payload.confirmed_state,
         teacher_notes=payload.teacher_notes,
     )
+    agent_store.save_feedback(db, entry)
     return FeedbackResponse(
         feedback_id=entry.feedback_id,
         session_id=entry.session_id,
@@ -104,17 +102,25 @@ def submit_feedback(payload: FeedbackPayload) -> FeedbackResponse:
 
 
 @router.get("/feedback/metrics")
-def get_feedback_metrics() -> dict[str, object]:
+def get_feedback_metrics(db: Session = Depends(get_db)) -> dict[str, object]:
     """Return precision/recall-style accuracy metrics derived from teacher feedback."""
-    return _get_agent().compute_feedback_metrics()
+    agent = agent_store.build_agent(db)
+    return {**agent.compute_feedback_metrics(), "calibration": agent.get_feedback_calibration()}
 
 
 @router.get("/baselines")
-def get_baselines() -> dict[str, object]:
+def get_baselines(db: Session = Depends(get_db)) -> dict[str, object]:
     """Return the most recent nightly-computed per-student daily engagement baselines."""
-    agent = _get_agent()
-    baselines = agent.get_baselines()
-    # If baselines have not been computed yet (first run), compute them now.
-    if not baselines:
-        baselines = agent.compute_daily_baselines()
+    baselines = agent_store.build_agent(db).compute_daily_baselines()
     return {"baselines": baselines, "total_students": len(baselines)}
+
+
+@router.get("/recommendations/{student_id}")
+def get_recommendations(student_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Recommended actions for a student, informed by history and prior teacher feedback."""
+    if db.get(orm.Student, student_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Student {student_id!r} not found",
+        )
+    return agent_store.build_agent(db).get_recommendations(student_id)

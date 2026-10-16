@@ -15,6 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
 COPY app ./app
+COPY alembic.ini ./alembic.ini
+COPY migrations ./migrations
+
+# SQLite database lives here (mounted as a volume by docker-compose)
+RUN mkdir -p /data
 
 # Expose FastAPI port
 EXPOSE 8000

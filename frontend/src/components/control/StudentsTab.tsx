@@ -3,9 +3,12 @@ import { Plus, Trash2, RefreshCw, Users, Eye, Search, ChevronDown, ChevronUp } f
 import type { StudentCreatePayload, StudentRecord } from "../../types";
 import { api } from "./api";
 import { Field, inputCls, type Flash } from "./ui";
+import { useAuth } from "../../AuthContext";
 import { StudentProfileModal } from "./StudentProfileModal";
 
 export function StudentsTab({ flash }: { flash: Flash }) {
+  const { can } = useAuth();
+  const canManage = can("principal");
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -109,6 +112,8 @@ export function StudentsTab({ flash }: { flash: Flash }) {
     }
   };
 
+  const closeProfile = useCallback(() => setProfileId(null), []);
+
   const clearFilters = () => {
     setQuery("");
     setGradeFilter("");
@@ -185,18 +190,18 @@ export function StudentsTab({ flash }: { flash: Flash }) {
             >
               <RefreshCw className="h-4 w-4" />
             </button>
-            <button
+            {canManage && <button
               type="button"
               onClick={() => setOpenForm((o) => !o)}
               className="flex items-center gap-2 rounded-xl bg-cobalt px-3 py-2 text-sm font-semibold text-white transition hover:bg-cobalt/90"
             >
               {openForm ? <ChevronUp className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
               {openForm ? "Close" : "Add Student"}
-            </button>
+            </button>}
           </div>
 
           {/* Collapsible Add Form */}
-          {openForm && (
+          {canManage && openForm && (
             <form
               onSubmit={submit}
               className="mt-3 grid gap-3 rounded-xl border border-white/10 bg-black/20 p-4 md:grid-cols-3"
@@ -355,7 +360,7 @@ export function StudentsTab({ flash }: { flash: Flash }) {
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </button>
-                          <button
+                          {canManage && <button
                             type="button"
                             onClick={() => removeOne(s.student_id)}
                             disabled={busy}
@@ -363,7 +368,7 @@ export function StudentsTab({ flash }: { flash: Flash }) {
                             className="rounded-lg border border-critical/40 bg-critical/10 p-1.5 text-critical hover:bg-critical/20 disabled:opacity-50"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </button>}
                         </div>
                       </td>
                     </tr>
@@ -377,9 +382,10 @@ export function StudentsTab({ flash }: { flash: Flash }) {
 
       {profileId && (
         <StudentProfileModal
+          key={profileId}
           studentId={profileId}
           flash={flash}
-          onClose={() => setProfileId(null)}
+          onClose={closeProfile}
           onChanged={reload}
         />
       )}

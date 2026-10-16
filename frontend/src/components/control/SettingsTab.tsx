@@ -2,9 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Save, RefreshCw, SlidersHorizontal } from "lucide-react";
 import type { SystemSettings } from "../../types";
 import { api } from "./api";
+import { useAuth } from "../../AuthContext";
 import { Field, inputCls, type Flash } from "./ui";
 
 export function SettingsTab({ flash }: { flash: Flash }) {
+  const { can } = useAuth();
+  const canManage = can("principal");
   const [current, setCurrent] = useState<SystemSettings | null>(null);
   const [draft, setDraft] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +63,12 @@ export function SettingsTab({ flash }: { flash: Flash }) {
 
   return (
     <form onSubmit={save} className="space-y-5">
+      {!canManage && (
+        <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-mist/75">
+          Read-only: only principals and ministry users can change settings.
+        </p>
+      )}
+      <fieldset disabled={!canManage} className="min-w-0 space-y-5">
       <div className="rounded-2xl border border-white/10 bg-panel/60 p-5">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
           <SlidersHorizontal className="h-4 w-4 text-cobalt" /> Camera Ingestion
@@ -153,6 +162,8 @@ export function SettingsTab({ flash }: { flash: Flash }) {
         </div>
       </div>
 
+      </fieldset>
+
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
@@ -162,14 +173,14 @@ export function SettingsTab({ flash }: { flash: Flash }) {
         >
           <RefreshCw className="h-4 w-4" /> Revert
         </button>
-        <button
+        {canManage && <button
           type="submit"
           disabled={busy || !dirty}
           className="flex items-center gap-2 rounded-xl bg-cobalt px-5 py-2 text-sm font-semibold text-white transition hover:bg-cobalt/90 disabled:opacity-50"
         >
           <Save className="h-4 w-4" />
           {dirty ? "Save Changes" : "Saved"}
-        </button>
+        </button>}
       </div>
     </form>
   );

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   X, User, Calendar, Watch, Bell, Edit3, MapPin, Clock, TrendingUp,
   Shield, ShieldAlert, ShieldCheck, AlertTriangle, CheckCircle2, XCircle,
@@ -8,6 +8,7 @@ import type { AttendanceDay, StudentProfile, StudentUpdatePayload, EngagementSna
 import { api } from "./api";
 import { Field, inputCls, type Flash } from "./ui";
 import { useStudentBehavioralHistory } from "../../hooks/useSSIData";
+import { useAuth } from "../../AuthContext";
 
 type Tab = "overview" | "attendance" | "bracelet" | "notifications" | "engagement" | "edit";
 
@@ -594,8 +595,8 @@ function EditTab({
 // ── Header + TabBar ─────────────────────────────────────────────────────────
 
 function ProfileHeader({
-  profile, onToggleActive, busy,
-}: { profile: StudentProfile; onToggleActive: () => void; busy: boolean }) {
+  profile, onToggleActive, busy, canManage,
+}: { profile: StudentProfile; onToggleActive: () => void; busy: boolean; canManage: boolean }) {
   const initial = profile.photo_initial || profile.name.charAt(0).toUpperCase();
   return (
     <div className="border-b border-white/10 bg-gradient-to-r from-cobalt/10 via-transparent to-transparent px-6 py-5">
@@ -618,23 +619,23 @@ function ProfileHeader({
             <span>·</span><span className="font-mono text-[12px]">Parent {profile.parent_id}</span>
           </div>
         </div>
-        <button type="button" onClick={onToggleActive} disabled={busy}
+        {canManage && <button type="button" onClick={onToggleActive} disabled={busy}
           className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
             profile.is_active
               ? "border-amber-400/40 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20"
               : "border-safe/40 bg-safe/10 text-safe hover:bg-safe/20"
           }`}>
           {profile.is_active ? "Deactivate" : "Activate"}
-        </button>
+        </button>}
       </div>
     </div>
   );
 }
 
-function TabBar({ tab, setTab, unread }: { tab: Tab; setTab: (t: Tab) => void; unread: number }) {
+function TabBar({ tabs, tab, setTab, unread }: { tabs: typeof TABS; tab: Tab; setTab: (t: Tab) => void; unread: number }) {
   return (
     <div className="flex flex-wrap gap-1 border-b border-white/10 px-6 pt-3">
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const Icon = t.icon;
         const active = t.id === tab;
         return (
@@ -672,31 +673,51 @@ export function StudentProfileModal({ studentId, flash, onClose, onChanged }: Pr
   const [tab, setTab] = useState<Tab>("overview");
   const [busy, setBusy] = useState(false);
   const [editForm, setEditForm] = useState<StudentUpdatePayload>({});
+  const { can } = useAuth();
+  const canManage = can("principal");
+  const visibleTabs = canManage ? TABS : TABS.filter((t) => t.id !== "edit");
+
+  // Keep the latest callbacks in refs so `load` stays stable and never refetches
+  // (or fires toasts) just because the parent re-rendered.
+  const onCloseRef = useRef(onClose);
+  const flashRef = useRef(flash);
+  const onChangedRef = useRef(onChanged);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    flashRef.current = flash;
+    onChangedRef.current = onChanged;
+  });
+  // Ignore responses that arrive after a newer request or after unmount.
+  const requestId = useRef(0);
+  useEffect(() => () => { requestId.current += 1; }, []);
 
   const load = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
     try {
       const p = await api<StudentProfile>(`/students/${encodeURIComponent(studentId)}/profile`);
+      if (id !== requestId.current) return;
       setProfile(p);
       setEditForm({
         name: p.name, grade: p.grade, class_section: p.class_section,
         parent_id: p.parent_id, photo_initial: p.photo_initial, is_active: p.is_active,
       });
     } catch (e) {
-      flash("err", `Failed to load profile: ${(e as Error).message}`);
-      onClose();
+      if (id !== requestId.current) return;
+      flashRef.current("err", `Failed to load profile: ${(e as Error).message}`);
+      onCloseRef.current();
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, [studentId, flash, onClose]);
+  }, [studentId]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
+  }, []);
 
   const toggleActive = async () => {
     if (!profile) return;
@@ -768,15 +789,15 @@ export function StudentProfileModal({ studentId, flash, onClose, onChanged }: Pr
           </div>
         ) : (
           <>
-            <ProfileHeader profile={profile} onToggleActive={toggleActive} busy={busy} />
-            <TabBar tab={tab} setTab={setTab} unread={profile.unread_notifications} />
+            <ProfileHeader profile={profile} onToggleActive={toggleActive} busy={busy} canManage={canManage} />
+            <TabBar tabs={visibleTabs} tab={tab} setTab={setTab} unread={profile.unread_notifications} />
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {tab === "overview" && <OverviewTab profile={profile} />}
               {tab === "attendance" && <AttendanceTab profile={profile} />}
               {tab === "bracelet" && <BraceletTab profile={profile} />}
               {tab === "notifications" && <NotificationsTab profile={profile} />}
               {tab === "engagement" && <EngagementTab studentId={profile.student_id} profile={profile} />}
-              {tab === "edit" && (
+              {tab === "edit" && canManage && (
                 <EditTab form={editForm} setForm={setEditForm}
                   onSubmit={saveEdit} onDelete={removeStudent} busy={busy} />
               )}
