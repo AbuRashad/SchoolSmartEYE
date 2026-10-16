@@ -9,6 +9,14 @@ class Settings(BaseSettings):
     video_log_dir: str = Field(default="./video_logs")
     video_ttl_hours: int = Field(default=72)
 
+    # ── Database ──────────────────────────────────────────────────────────
+    # Any SQLAlchemy URL. SQLite by default; for PostgreSQL use e.g.
+    # postgresql+psycopg://USER:PASSWORD@localhost:5432/schoolsmarteye (needs a driver, e.g. psycopg).
+    database_url: str = Field(default="sqlite:///./schoolsmarteye.db")
+    # Create missing tables on startup. Set to false when schema is managed by
+    # Alembic (`alembic upgrade head`).
+    db_auto_create: bool = Field(default=True)
+
     # ── Live camera ingestion ─────────────────────────────────────────────
     # Path to a JSON file listing real cameras to auto-register on startup.
     # Format: [{"camera_id":"...","zone_id":"...","label":"...","source_url":"..."}]
