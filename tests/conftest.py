@@ -10,6 +10,10 @@ from app.db import init_db
 from app.db import session as db_session
 from app.db.base import Base
 
+from app.core.config import settings
+
+settings.jwt_secret_key = "test-secret-key-test-secret-key-0123456789"
+
 # bcrypt is deliberately slow; use the cheapest cost factor in tests.
 security.pwd_context.update(bcrypt__rounds=4)
 
