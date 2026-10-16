@@ -266,6 +266,7 @@ class PedagogicalAgentService:
 
         # Disengagement flags
         flagged = [s for s in latest.values() if s.state in _NEGATIVE_STATES]
+        calibration = self.get_feedback_calibration()
 
         # Audio-visual mismatches
         mismatches = [s for s in latest.values() if s.audio_visual_mismatch]
@@ -292,6 +293,7 @@ class PedagogicalAgentService:
                     "score": round(s.score, 3),
                     "zone_id": s.zone_id,
                     "since": s.recorded_at.isoformat(),
+                    "low_confidence": bool(calibration.get(s.state.value, {}).get("low_confidence")),
                 }
                 for s in flagged
             ],
@@ -305,6 +307,7 @@ class PedagogicalAgentService:
                 for s in mismatches
             ],
             "improvement_note": improvement_note,
+            "calibration": calibration,
         }
 
     # ── Daily knowledge harvesting ─────────────────────────────────────────────
@@ -363,6 +366,69 @@ class PedagogicalAgentService:
             "correct_predictions": correct,
             "accuracy": accuracy,
             "improvement_note": note,
+        }
+
+    def get_feedback_calibration(self, min_samples: int = 2) -> dict[str, dict[str, object]]:
+        """Per-predicted-state accuracy learned from teacher feedback.
+
+        A state is `low_confidence` once it has at least `min_samples` reviews
+        and teachers confirmed fewer than half of them.
+        """
+        with self._lock:
+            entries = list(self._feedback_log)
+        stats: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+        for e in entries:
+            stats[e.predicted_state.value][0] += 1
+            stats[e.predicted_state.value][1] += int(e.predicted_state == e.confirmed_state)
+        return {
+            state: {
+                "total": total,
+                "correct": correct,
+                "accuracy": round(correct / total, 4),
+                "low_confidence": total >= min_samples and correct / total < 0.5,
+            }
+            for state, (total, correct) in stats.items()
+        }
+
+    def get_recommendations(self, student_id: str) -> dict[str, object]:
+        """Recommend actions using persisted engagement history and prior feedback."""
+        summary = self.get_engagement_summary(student_id)
+        calibration = self.get_feedback_calibration()
+        with self._lock:
+            corrections = [
+                e for e in self._feedback_log
+                if e.student_id == student_id and e.predicted_state != e.confirmed_state
+            ]
+        recs: list[str] = []
+        confidence_notes: list[str] = []
+        if summary is None:
+            recs.append("No recent engagement data — collect more observations before intervening.")
+        else:
+            state = summary.dominant_state
+            low_conf = bool(calibration.get(state, {}).get("low_confidence"))
+            if low_conf:
+                confidence_notes.append(
+                    f"Predictions of '{state}' were often corrected by teachers; verify in person."
+                )
+            if state == EngagementState.DROWSY.value:
+                recs.append("Frequent drowsiness: check sleep/nutrition and consider a seat change.")
+            elif state == EngagementState.DISTRACTED.value:
+                recs.append("Frequent distraction: try shorter activities and move closer to the teacher.")
+            if summary.trend == "declining":
+                recs.append("Engagement is declining week-over-week: schedule a check-in.")
+            if summary.mismatch_count_7d >= 2:
+                recs.append("Repeated audio/visual mismatches: review the student's session recordings.")
+        if corrections:
+            confidence_notes.append(
+                f"Teachers corrected {len(corrections)} earlier prediction(s) for this student."
+            )
+        if not recs:
+            recs.append("No intervention needed; keep monitoring.")
+        return {
+            "student_id": student_id,
+            "recommendations": recs,
+            "confidence_notes": confidence_notes,
+            "engagement": summary.to_dict() if summary else None,
         }
 
     # ── Internal helpers ──────────────────────────────────────────────────────

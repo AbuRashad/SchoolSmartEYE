@@ -100,7 +100,7 @@ SchoolSmartEYE/
 
 ## 🗄️ Database
 
-Students, bracelets, attendance records, notifications and users are stored in a SQL database via **SQLAlchemy 2.x**. Zones, cameras, incidents, heatmaps and the Unit 15 engagement data are still in-memory demo data.
+Students, bracelets, attendance records, notifications, users, zones, cameras, incidents, SSI history, drills and agent feedback are stored in a SQL database via **SQLAlchemy 2.x**. Heatmaps and the Unit 15 engagement snapshots are still in-memory demo data.
 
 | Setting | Default | Notes |
 |---------|---------|-------|
@@ -154,7 +154,7 @@ Roles follow the RBAC hierarchy of the governance layer: **Teacher → Principal
 
 | Access level | Endpoints |
 |--------------|-----------|
-| Public       | `/health`, `/auth/login`, `/portal/*`, `/dashboard/*`, `/ssi/*`, `/units/*`, `/analytics/*`, `/agent/*` |
+| Public       | `/health`, `/auth/login`, `/portal/*`, `/dashboard/*`, `/ssi/*`, `/units/*`, `/analytics/*`, `/agent/*` (except `POST /agent/feedback`, teacher+) |
 | Teacher+     | Read students, profiles, zones, bracelets, settings, camera list and camera streams |
 | Principal+   | Create / update / delete students and bracelets, bracelet ping, change settings, register / delete / start / stop cameras |
 | Ministry     | `/reports/*` |
@@ -255,6 +255,9 @@ All paths are under `/api/v1`. See the [roles table](#-authentication--roles) fo
 | POST   | `/agent/feedback`        | Teacher confirmation / correction of a prediction    |
 | GET    | `/agent/feedback/metrics`| Self-evaluation metrics                              |
 | GET    | `/agent/baselines`       | Daily per-student engagement baselines               |
+| GET    | `/agent/recommendations/{student_id}` | Actions informed by history and prior feedback |
+| GET    | `/risk/attendance[/{student_id}]` | Teacher+: attendance early-warning risk scores |
+| GET    | `/ssi/history`           | Stored SSI history with trend and anomaly days       |
 
 Camera endpoints are listed in [Connecting Real School Cameras](#-connecting-real-school-cameras).
 
