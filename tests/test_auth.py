@@ -115,6 +115,8 @@ def test_demo_users_seeded_once(db_session_factory) -> None:
 def test_production_requires_non_default_secret() -> None:
     with pytest.raises(RuntimeError):
         Settings(app_env="production", jwt_secret_key=DEFAULT_JWT_SECRET).validate_for_production()
+    with pytest.raises(RuntimeError):
+        Settings(app_env="production", jwt_secret_key="short").validate_for_production()
     Settings(app_env="production", jwt_secret_key="x" * 32).validate_for_production()
     Settings(app_env="development", jwt_secret_key=DEFAULT_JWT_SECRET).validate_for_production()
 

@@ -72,6 +72,8 @@ class Settings(BaseSettings):
                 "JWT_SECRET_KEY is still the insecure default while APP_ENV=production. "
                 "Set a strong random JWT_SECRET_KEY (e.g. `openssl rand -hex 32`)."
             )
+        if self.is_production and len(self.jwt_secret_key) < 32:
+            raise RuntimeError("JWT_SECRET_KEY must be at least 32 characters in production.")
 
 
 settings = Settings()
