@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
 
 from app.db import models as orm
+from app.api.v1.endpoints.students import _zone_label
 from app.services import seed_data
 
 API = "/api/v1"
@@ -131,3 +133,11 @@ def test_profile_for_seeded_student_matches_frontend_contract(client, zone) -> N
     assert d["today_status"] == "present"
     assert d["bracelet"]["bracelet_id"] == "BR-0001"
     assert d["unread_notifications"] == 1  # only NTF-004 is unread
+
+
+def test_zone_labels_are_cached_in_the_session(zone, db_session_factory) -> None:
+    with db_session_factory() as db, patch.object(db, "scalars", wraps=db.scalars) as scalars:
+        assert _zone_label(db, zone.zone_id) == zone.label
+        assert _zone_label(db, zone.zone_id) == zone.label
+        assert _zone_label(db, "missing-zone") == "missing-zone"
+        assert scalars.call_count == 1

@@ -50,7 +50,7 @@ export type SSIHistoryData = {
   benchmark: number;
   scores: SSIHistoryPoint[];
   average: number | null;
-  trend: "improving" | "stable" | "declining";
+  trend: "improving" | "stable" | "declining" | "insufficient_data";
 };
 
 export type DensityForecast = {

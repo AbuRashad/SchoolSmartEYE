@@ -284,8 +284,13 @@ _PRESENT_STATUSES = (AttendanceStatus.PRESENT.value, AttendanceStatus.LATE.value
 def _zone_label(db: Session, zone_id: str | None) -> str | None:
     if not zone_id:
         return None
-    zone = db.get(orm.Zone, zone_id)
-    return zone.label if zone else zone_id
+    zone_labels = db.info.get("zone_label_map")
+    if zone_labels is None:
+        zone_labels = {
+            zone.zone_id: zone.label for zone in db.scalars(select(orm.Zone))
+        }
+        db.info["zone_label_map"] = zone_labels
+    return zone_labels.get(zone_id, zone_id)
 
 
 def _bracelet_summary(db: Session, bracelet: orm.Bracelet | None) -> BraceletSummary | None:

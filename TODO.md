@@ -1,4 +1,4 @@
-# Student Profile Page — Implementation TODO
+# Student Profile Page — Implementation Status
 
 ## Backend
 - [x] Add `GET /students/{student_id}/profile` endpoint in `app/api/v1/endpoints/students.py`

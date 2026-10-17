@@ -22,19 +22,21 @@ def _risk_level(score: float) -> str:
 
 def score_records(records: list[orm.AttendanceRecord], window_days: int = 14) -> dict[str, object]:
     """Score one student's records (any order). Score is in [0, 1]."""
-    recs = sorted(records, key=lambda r: r.date)
+    today = date.today()
+    since = today - timedelta(days=window_days - 1)
+    recs = sorted(
+        (r for r in records if since <= r.date <= today),
+        key=lambda r: r.date,
+    )
     if not recs:
         return {"risk_score": 0.0, "risk_level": "low", "factors": [], "records": 0}
-    cutoff = date.today() - timedelta(days=window_days)
-    recent = [r for r in recs if r.date > cutoff]
-    if not recent:
-        return {"risk_score": 0.0, "risk_level": "low", "factors": [], "records": 0}
+    recent = recs
     n = len(recent)
     absent_rate = sum(r.status == _ABSENT for r in recent) / n
     late_rate = sum(r.status == _LATE for r in recent) / n
 
     streak = 0
-    for r in reversed(recent):
+    for r in reversed(recs):
         if r.status != _ABSENT:
             break
         streak += 1

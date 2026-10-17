@@ -61,18 +61,16 @@ def get_history(db: Session, days: int = 30) -> list[orm.SSISnapshot]:
     )
 
 
-def _slope(values: list[float], xs: list[float] | None = None) -> float:
-    """Least-squares slope per unit of x (defaults to one step per value)."""
-    n = len(values)
+def _slope(daily: list[tuple[str, float]]) -> float:
+    """Least-squares SSI slope per calendar day."""
+    n = len(daily)
     if n < 2:
         return 0.0
-    xs = xs if xs is not None else list(range(n))
-    mean_x = fmean(xs)
-    mean_y = fmean(values)
-    den = sum((x - mean_x) ** 2 for x in xs)
-    if den == 0:
-        return 0.0
-    return sum((x - mean_x) * (v - mean_y) for x, v in zip(xs, values)) / den
+    days = [(date.fromisoformat(day).toordinal(), value) for day, value in daily]
+    mean_x = fmean(day for day, _ in days)
+    mean_y = fmean(value for _, value in days)
+    den = sum((day - mean_x) ** 2 for day, _ in days)
+    return sum((day - mean_x) * (value - mean_y) for day, value in days) / den
 
 
 def daily_series(snapshots: list[orm.SSISnapshot]) -> list[tuple[str, float]]:
@@ -87,8 +85,7 @@ def compute_trend(daily: list[tuple[str, float]]) -> dict[str, object]:
     values = [v for _, v in daily]
     if len(values) < 3:
         return {"direction": "insufficient_data", "slope_per_day": 0.0, "points": len(values)}
-    first = date.fromisoformat(daily[0][0])
-    slope = _slope(values, [(date.fromisoformat(d) - first).days for d, _ in daily])
+    slope = _slope(daily)
     if slope > TREND_SLOPE_THRESHOLD:
         direction = "improving"
     elif slope < -TREND_SLOPE_THRESHOLD:
