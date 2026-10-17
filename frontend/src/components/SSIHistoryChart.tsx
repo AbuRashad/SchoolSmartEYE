@@ -30,7 +30,9 @@ export function SSIHistoryChart({ scores, benchmark, average, trend }: SSIHistor
   const { polyline, dots, benchmarkY } = useMemo(() => {
     const minSSI = 40;
     const maxSSI = 100;
-    const toX = (i: number) => PAD.left + (i / (scores.length - 1)) * PLOT_W;
+    const toX = (i: number) => scores.length === 1
+      ? PAD.left + PLOT_W / 2
+      : PAD.left + (i / (scores.length - 1)) * PLOT_W;
     const toY = (v: number) => PAD.top + PLOT_H - ((v - minSSI) / (maxSSI - minSSI)) * PLOT_H;
 
     const pts = scores.map((s, i) => ({ x: toX(i), y: toY(s.ssi), ssi: s.ssi, day: s.day }));
