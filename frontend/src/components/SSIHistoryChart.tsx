@@ -64,7 +64,7 @@ export function SSIHistoryChart({ scores, benchmark, average, trend }: SSIHistor
         <div className="flex items-center gap-4">
           <div className="rounded-[1.2rem] border border-white/10 bg-white/5 px-4 py-2 text-center">
             <p className="text-[10px] uppercase tracking-[0.22em] text-mist/50">Average SSI</p>
-            <p className="mt-1 text-2xl font-semibold text-white">{average === null ? "No data" : average.toFixed(1)}</p>
+            <p className="mt-1 text-2xl font-semibold text-white">{average.toFixed(1)}</p>
           </div>
           <div className="rounded-[1.2rem] border border-white/10 bg-white/5 px-4 py-2 text-center">
             <p className="text-[10px] uppercase tracking-[0.22em] text-mist/50">Trend</p>
