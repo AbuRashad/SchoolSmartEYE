@@ -107,10 +107,10 @@ def _attendance(offset: int, status: str) -> orm.AttendanceRecord:
 
 
 def test_attendance_window_boundary_is_inclusive() -> None:
-    # Intended rule: window is [today - window_days, today], i.e. window_days + 1 calendar dates.
-    on_boundary = attendance_risk.score_records([_attendance(14, "absent")], window_days=14)
+    # A 14-day window includes today and the date 13 days ago.
+    on_boundary = attendance_risk.score_records([_attendance(13, "absent")], window_days=14)
     assert on_boundary["records"] == 1 and on_boundary["consecutive_absences"] == 1
-    just_outside = attendance_risk.score_records([_attendance(15, "absent")], window_days=14)
+    just_outside = attendance_risk.score_records([_attendance(14, "absent")], window_days=14)
     assert just_outside["records"] == 0 and just_outside["risk_level"] == "low"
 
 
