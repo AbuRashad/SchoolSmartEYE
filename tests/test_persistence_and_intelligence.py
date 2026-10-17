@@ -101,6 +101,40 @@ def test_attendance_risk_scoring(db_session_factory) -> None:
     assert score["records"] == 14 and score["consecutive_absences"] == 0
 
 
+def _attendance(offset: int, status: str) -> orm.AttendanceRecord:
+    return orm.AttendanceRecord(student_id="S", date=date.today() - timedelta(days=offset), status=status)
+
+
+def test_attendance_window_boundary_is_inclusive() -> None:
+    # Intended rule: window is [today - window_days, today], i.e. window_days + 1 calendar dates.
+    on_boundary = attendance_risk.score_records([_attendance(14, "absent")], window_days=14)
+    assert on_boundary["records"] == 1 and on_boundary["consecutive_absences"] == 1
+    just_outside = attendance_risk.score_records([_attendance(15, "absent")], window_days=14)
+    assert just_outside["records"] == 0 and just_outside["risk_level"] == "low"
+
+
+def test_attendance_sparse_gaps_are_ignored_by_streak_and_deterioration() -> None:
+    # Intended rule: only stored records count; missing dates are skipped, not treated as breaks.
+    records = [_attendance(o, "absent") for o in (0, 3, 6)] + [_attendance(o, "present") for o in (9, 12)]
+    score = attendance_risk.score_records(records)
+    assert score["records"] == 5
+    assert score["consecutive_absences"] == 3  # gaps between absences do not reset the streak
+    assert "absence rate rising versus earlier period" in score["factors"]  # older half 0% -> newer half 100%
+
+
+def test_ssi_daily_series_averages_same_day_snapshots() -> None:
+    def snap(day: int, hour: int, ssi: float) -> orm.SSISnapshot:
+        return orm.SSISnapshot(recorded_at=datetime(2026, 10, day, hour, tzinfo=timezone.utc), ssi=ssi)
+
+    # Intentional: each UTC day is one point (mean of its snapshots) so busy days don't dominate the trend.
+    daily = ssi_history.daily_series(
+        [snap(1, 1, 70.0), snap(1, 23, 90.0), snap(2, 12, 80.0), snap(3, 12, 80.0)]
+    )
+    assert daily == [("2026-10-01", 80.0), ("2026-10-02", 80.0), ("2026-10-03", 80.0)]
+    assert ssi_history.compute_trend(daily)["points"] == 3
+    assert ssi_history.compute_trend(daily)["direction"] == "stable"
+
+
 def test_agent_can_be_built_without_loading_feedback(db_session_factory, monkeypatch) -> None:
     monkeypatch.setattr(agent_store, "load_feedback", lambda db: pytest.fail("feedback was loaded"))
     with db_session_factory() as db:
