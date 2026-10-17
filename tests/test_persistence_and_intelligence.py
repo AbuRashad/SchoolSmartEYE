@@ -95,6 +95,7 @@ def test_attendance_risk_scoring(db_session_factory) -> None:
     assert attendance_risk.score_records([])["risk_level"] == "low"
 
     outside_window = [rec(offset, "absent") for offset in range(15, 21)]
+    outside_window.append(rec(14, "absent"))
     outside_window += [rec(offset, "present") for offset in range(14)]
     score = attendance_risk.score_records(outside_window, window_days=14)
     assert score["risk_level"] == "low"

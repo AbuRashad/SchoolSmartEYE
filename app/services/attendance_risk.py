@@ -23,7 +23,7 @@ def _risk_level(score: float) -> str:
 def score_records(records: list[orm.AttendanceRecord], window_days: int = 14) -> dict[str, object]:
     """Score one student's records (any order). Score is in [0, 1]."""
     today = date.today()
-    since = today - timedelta(days=window_days)
+    since = today - timedelta(days=window_days - 1)
     recs = sorted(
         (r for r in records if since <= r.date <= today),
         key=lambda r: r.date,
