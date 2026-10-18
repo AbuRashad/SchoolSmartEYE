@@ -84,7 +84,9 @@ export default function App() {
 
               <RiskHeatmap cells={snapshot.heatmapCells} availableTimeSlots={snapshot.availableTimeSlots} />
 
-              <AIInsightsPanel ssi={snapshot.ssi} benchmark={snapshot.benchmark} alerts={snapshot.liveAlerts} />
+              {snapshot.fetchedFromBackend && (
+                <AIInsightsPanel ssi={snapshot.ssi} benchmark={snapshot.benchmark} alerts={snapshot.liveAlerts} />
+              )}
             </>
           )}
 
