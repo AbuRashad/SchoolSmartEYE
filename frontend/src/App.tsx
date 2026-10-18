@@ -72,7 +72,7 @@ export default function App() {
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <MetricCard title="Total Students" value={analytics.total_students.toLocaleString()} subtitle="Enrolled & tracked" icon={Users} color="blue" trend="stable" trendValue="No change" />
                   <MetricCard title="Attendance Rate" value={`${analytics.attendance_rate.toFixed(1)}%`} subtitle="Today's attendance" icon={Calendar} color="green" trend="up" trendValue="+1.2%" />
-                  <MetricCard title="Active Cameras" value={analytics.active_cameras} subtitle={`of ${analytics.total_units * 2} cameras`} icon={Camera} color="blue" trend="stable" trendValue="Nominal" />
+                  <MetricCard title="Active Cameras" value={analytics.active_cameras} subtitle="Cameras online" icon={Camera} color="blue" trend="stable" trendValue="Nominal" />
                   <MetricCard title="System Uptime" value={`${analytics.uptime_percent.toFixed(1)}%`} subtitle="30-day SLA" icon={Activity} color="green" trend="up" trendValue="SLA OK" />
                 </div>
               )}
