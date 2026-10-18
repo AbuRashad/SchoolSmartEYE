@@ -56,10 +56,11 @@ export function ReportsDashboard({ reports, stats }: Props) {
                 {r.status === "ready" && (
                   <button
                     type="button"
-                    className="flex shrink-0 items-center gap-1.5 rounded-[1rem] border border-sky/30 bg-sky/10 px-3 py-2 text-xs font-medium text-sky transition hover:bg-sky/20"
+                    disabled
+                    className="flex shrink-0 items-center gap-1.5 rounded-[1rem] border border-sky/30 bg-sky/10 px-3 py-2 text-xs font-medium text-sky opacity-50 cursor-not-allowed"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    Export
+                    Export unavailable
                   </button>
                 )}
               </div>
