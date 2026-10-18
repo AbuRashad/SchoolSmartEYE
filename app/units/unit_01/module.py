@@ -25,6 +25,8 @@ class CameraStream:
     last_frame_at: datetime | None = None
     total_frames_captured: int = 0
     drop_count: int = 0
+    source_url: str | None = None
+    last_error: str | None = None
 
     @property
     def drop_rate(self) -> float:
@@ -36,13 +38,20 @@ class CameraStream:
     def mark_frame_received(self, at: datetime | None = None) -> None:
         self.last_frame_at = at or datetime.now(timezone.utc).replace(tzinfo=None)
         self.total_frames_captured += 1
-        if self.status == StreamStatus.OFFLINE:
-            self.status = StreamStatus.DEGRADED
+        self.last_error = None
+        # any successful frame promotes us back to ACTIVE
+        self.status = StreamStatus.ACTIVE
 
     def mark_frame_dropped(self) -> None:
         self.drop_count += 1
         if self.drop_rate > 0.3:
             self.status = StreamStatus.DEGRADED
+
+    def mark_disconnected(self, error: str | None = None) -> None:
+        """Mark the stream as offline (e.g. RTSP connection lost)."""
+        self.status = StreamStatus.OFFLINE
+        if error is not None:
+            self.last_error = error
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -55,6 +64,8 @@ class CameraStream:
             "last_frame_at": self.last_frame_at.isoformat() if self.last_frame_at else None,
             "total_frames_captured": self.total_frames_captured,
             "drop_rate": round(self.drop_rate, 4),
+            "source_url": self.source_url,
+            "last_error": self.last_error,
         }
 
 
@@ -71,6 +82,7 @@ class VideoCaptureUnit:
         zone_label: str,
         resolution: tuple[int, int] = (1280, 720),
         fps: int = 25,
+        source_url: str | None = None,
     ) -> CameraStream:
         stream = CameraStream(
             camera_id=camera_id,
@@ -78,9 +90,13 @@ class VideoCaptureUnit:
             zone_label=zone_label,
             resolution=resolution,
             fps=fps,
+            source_url=source_url,
         )
         self._streams[camera_id] = stream
         return stream
+
+    def unregister_stream(self, camera_id: str) -> bool:
+        return self._streams.pop(camera_id, None) is not None
 
     def get_stream(self, camera_id: str) -> CameraStream | None:
         return self._streams.get(camera_id)

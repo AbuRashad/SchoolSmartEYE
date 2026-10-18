@@ -1,7 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from datetime import datetime, timedelta
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+from app.api.deps import require_ministry
+
+router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(require_ministry)])
 
 
 @router.get("/list")

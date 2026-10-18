@@ -6,7 +6,7 @@ WORKDIR /app
 # Install system dependencies required by opencv-python-headless
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
-    libgl1-mesa-glx \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -15,6 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
 COPY app ./app
+COPY alembic.ini ./alembic.ini
+COPY migrations ./migrations
+
+# SQLite database lives here (mounted as a volume by docker-compose)
+RUN mkdir -p /data
 
 # Expose FastAPI port
 EXPOSE 8000

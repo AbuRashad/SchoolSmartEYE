@@ -4,7 +4,7 @@ import type { SSIHistoryPoint } from "../types";
 type SSIHistoryChartProps = {
   scores: SSIHistoryPoint[];
   benchmark: number;
-  average: number;
+  average: number | null;
   trend: string;
 };
 
@@ -30,7 +30,9 @@ export function SSIHistoryChart({ scores, benchmark, average, trend }: SSIHistor
   const { polyline, dots, benchmarkY } = useMemo(() => {
     const minSSI = 40;
     const maxSSI = 100;
-    const toX = (i: number) => PAD.left + (i / (scores.length - 1)) * PLOT_W;
+    const toX = (i: number) => scores.length === 1
+      ? PAD.left + PLOT_W / 2
+      : PAD.left + (i / (scores.length - 1)) * PLOT_W;
     const toY = (v: number) => PAD.top + PLOT_H - ((v - minSSI) / (maxSSI - minSSI)) * PLOT_H;
 
     const pts = scores.map((s, i) => ({ x: toX(i), y: toY(s.ssi), ssi: s.ssi, day: s.day }));
@@ -41,6 +43,16 @@ export function SSIHistoryChart({ scores, benchmark, average, trend }: SSIHistor
   }, [scores, benchmark]);
 
   const tc = trendColor(trend);
+
+  if (average === null) {
+    return (
+      <section className="rounded-[2rem] border border-white/10 bg-panel/90 p-6 text-center shadow-panel backdrop-blur">
+        <p className="text-xs uppercase tracking-[0.28em] text-mist/55">30-Day Trend</p>
+        <h2 className="mt-2 text-xl font-semibold text-white">School Safety Index History</h2>
+        <p className="mt-6 text-sm text-mist/60">No SSI history is available for this period.</p>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-[2rem] border border-white/10 bg-panel/90 p-6 shadow-panel backdrop-blur">

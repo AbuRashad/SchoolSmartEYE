@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { AuthProvider, useAuth } from "./AuthContext";
+import { LoginScreen } from "./components/LoginScreen";
 import { Users, Activity, Calendar, Camera } from "lucide-react";
 import { AIInsightsPanel } from "./components/AIInsightsPanel";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { KpiGauge } from "./components/KpiGauge";
 import { LiveAlertFeed } from "./components/LiveAlertFeed";
+import { LiveCameraGrid } from "./components/LiveCameraGrid";
 import { MetricCard } from "./components/MetricCard";
+import { ControlPanel } from "./components/ControlPanel";
 import { ParentPortalFull } from "./components/ParentPortalFull";
 import { ReportsDashboard } from "./components/ReportsDashboard";
 import { RiskHeatmap } from "./components/RiskHeatmap";
@@ -13,11 +17,29 @@ import { SSIHistoryChart } from "./components/SSIHistoryChart";
 import { SSILivePanel } from "./components/SSILivePanel";
 import { UnitsGrid } from "./components/UnitsGrid";
 import { useSafetyDashboardSocket } from "./hooks/useSafetyDashboardSocket";
-import { useSSILive, useSSIHistory, useUnits, useAnalyticsOverview, useReportsList, useReportsStats, useStudentPortal } from "./hooks/useSSIData";
+import { useSSILive, useSSIHistory, useUnits, useAnalyticsOverview, useReportsList, useReportsStats, useStudentPortal, useAgentInsights } from "./hooks/useSSIData";
 import type { NavPage } from "./types";
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+function AuthGate() {
+  const { user } = useAuth();
+  return user ? <AppShell /> : <LoginScreen />;
+}
+
+function AppShell() {
+  const { can } = useAuth();
   const [page, setPage] = useState<NavPage>("dashboard");
+  // Never leave a user on a page their role cannot use.
+  useEffect(() => {
+    if (page === "reports" && !can("ministry")) setPage("dashboard");
+  }, [page, can]);
   const snapshot = useSafetyDashboardSocket();
   const { data: ssiLive } = useSSILive();
   const ssiHistory = useSSIHistory();
@@ -26,6 +48,7 @@ export default function App() {
   const reports = useReportsList();
   const reportStats = useReportsStats();
   const studentData = useStudentPortal();
+  const { data: agentInsights } = useAgentInsights();
 
   return (
     <div className="min-h-screen bg-academic px-4 py-4 text-white lg:px-6 lg:py-6">
@@ -85,7 +108,7 @@ export default function App() {
               <RiskHeatmap cells={snapshot.heatmapCells} availableTimeSlots={snapshot.availableTimeSlots} />
 
               {snapshot.fetchedFromBackend && (
-                <AIInsightsPanel ssi={snapshot.ssi} benchmark={snapshot.benchmark} alerts={snapshot.liveAlerts} />
+                <AIInsightsPanel ssi={snapshot.ssi} benchmark={snapshot.benchmark} alerts={snapshot.liveAlerts} agentInsights={agentInsights} />
               )}
             </>
           )}
@@ -158,7 +181,7 @@ export default function App() {
           )}
 
           {/* ─── REPORTS PAGE ────────────────────────────────── */}
-          {page === "reports" && (
+          {page === "reports" && can("ministry") && (
             <>
               <section className="rounded-[2rem] border border-white/10 bg-panel/70 px-6 py-5 shadow-panel">
                 <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Reports</p>
@@ -168,6 +191,21 @@ export default function App() {
                 </p>
               </section>
               <ReportsDashboard reports={reports} stats={reportStats} />
+            </>
+          )}
+
+          {/* ─── LIVE CAMERAS PAGE ───────────────────────────── */}
+          {page === "cameras" && (
+            <>
+              <section className="rounded-[2rem] border border-white/10 bg-panel/70 px-6 py-5 shadow-panel">
+                <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Live Cameras</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white">Real Camera Feeds — Unit 01</h2>
+                <p className="mt-2 text-sm text-mist/75">
+                  Live RTSP / HTTP / USB camera streams from across the campus. All faces are blurred in real time by the
+                  Arab Data Governance Layer (Unit 14) before any frame is shown or stored.
+                </p>
+              </section>
+              <LiveCameraGrid />
             </>
           )}
 
@@ -184,6 +222,9 @@ export default function App() {
               <ParentPortalFull data={studentData} />
             </>
           )}
+
+          {/* ─── CONTROL PANEL PAGE ──────────────────────────── */}
+          {page === "control" && <ControlPanel />}
         </main>
       </div>
     </div>

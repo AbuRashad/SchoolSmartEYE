@@ -8,7 +8,19 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - APP_ENV=production
+      # Use APP_ENV=production only together with a real JWT_SECRET_KEY (>= 32 chars)
+      # and non-default DEMO_*_PASSWORD values; the backend refuses to start otherwise.
+      - APP_ENV=${APP_ENV:-development}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////data/schoolsmarteye.db}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      - DEMO_TEACHER_PASSWORD=${DEMO_TEACHER_PASSWORD:-teacher123}
+      - DEMO_PRINCIPAL_PASSWORD=${DEMO_PRINCIPAL_PASSWORD:-principal123}
+      - DEMO_MINISTRY_PASSWORD=${DEMO_MINISTRY_PASSWORD:-ministry123}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    volumes:
+      - db_data:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
@@ -20,8 +32,8 @@ services:
   # ── React + Nginx Frontend ──────────────────────────────────────────────────
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./frontend/Dockerfile
     container_name: schoolsmartEYE-frontend
     ports:
       - "3000:80"
@@ -29,3 +41,6 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  db_data:

@@ -1,44 +1,53 @@
 """Demo seed data for SchoolSmartEYE — realistic Arab school monitoring context.
 
 Populated on startup so the system has meaningful data to display immediately.
-All storage is in-memory; no database dependency required.
+Students, bracelets, attendance records and notifications (and demo user
+accounts) live in the SQL database and are only inserted when the tables are
+empty. Zones, cameras, incidents, SSI history, drills and agent feedback are
+seeded the same way. Reports, visitors, etc. remain in-memory demo data.
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta, timezone
 
+import numpy as np
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.core.config import DEFAULT_DEMO_PASSWORDS, settings
+from app.core.security import hash_password
+from app.db import models as orm
+from app.db.session import SessionLocal
 from app.models import (
+    AgentFeedback,
     AttendanceStatus,
     CameraFeed,
-    DailyAttendance,
+    EngagementSnapshot,
+    EngagementState,
     IncidentSeverity,
-    NotificationMessage,
     ReportRecord,
     ReportType,
     SafetyIncident,
     SafetyStatus,
     SchoolMetrics,
     SchoolZone,
-    Student,
     Teacher,
     TransportRoute,
     VisitorRecord,
     ZoneType,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # ── In-memory stores ──────────────────────────────────────────────────────────
 
-students: list[Student] = []
 teachers: list[Teacher] = []
-zones: list[SchoolZone] = []
-cameras: list[CameraFeed] = []
-attendance_records: list[DailyAttendance] = []
-incidents: list[SafetyIncident] = []
 reports: list[ReportRecord] = []
-notifications: list[NotificationMessage] = []
 visitors: list[VisitorRecord] = []
 transport_routes: list[TransportRoute] = []
+engagement_snapshots: list[EngagementSnapshot] = []
 
 
 def _utc(hour: int = 8, minute: int = 0, day_offset: int = 0) -> datetime:
@@ -53,8 +62,8 @@ def _today() -> date:
 # ── Zones ─────────────────────────────────────────────────────────────────────
 
 
-def _seed_zones() -> None:
-    zones.extend(
+def _seed_zones(db: Session) -> None:
+    zone_defs = (
         [
             SchoolZone("zone-main-gate", "Main Gate", ZoneType.ENTRANCE, capacity=50, floor=0, coordinates=(0, 0)),
             SchoolZone("zone-corridor-a", "Corridor A", ZoneType.CORRIDOR, capacity=80, floor=1, coordinates=(1, 0)),
@@ -70,12 +79,20 @@ def _seed_zones() -> None:
             SchoolZone("zone-parking", "Bus Parking Zone", ZoneType.PARKING, capacity=100, floor=0, coordinates=(0, 3)),
         ]
     )
+    db.add_all(
+        orm.Zone(
+            zone_id=z.zone_id, label=z.label, zone_type=z.zone_type.value,
+            capacity=z.capacity, floor=z.floor, grid_x=z.coordinates[0], grid_y=z.coordinates[1],
+        )
+        for z in zone_defs
+    )
+    db.flush()
 
 
 # ── Cameras ───────────────────────────────────────────────────────────────────
 
 
-def _seed_cameras() -> None:
+def _seed_cameras(db: Session) -> None:
     camera_specs = [
         ("cam-01", "zone-main-gate", "Main Gate — Entry"),
         ("cam-02", "zone-main-gate", "Main Gate — Exit"),
@@ -90,10 +107,11 @@ def _seed_cameras() -> None:
         ("cam-11", "zone-playground", "Playground"),
         ("cam-12", "zone-library", "Library / Learning Commons"),
     ]
-    cameras.extend(
-        CameraFeed(cid, zid, label, resolution=(1280, 720), fps=25, is_active=True)
+    db.add_all(
+        orm.Camera(camera_id=cid, zone_id=zid, label=label, width=1280, height=720, fps=25, is_active=True)
         for cid, zid, label in camera_specs
     )
+    db.flush()
 
 
 # ── Teachers ──────────────────────────────────────────────────────────────────
@@ -129,17 +147,21 @@ _STUDENT_DATA = [
 ]
 
 
-def _seed_students() -> None:
-    students.extend(
-        Student(sid, name, grade, cls, pid, initial)
+def _seed_students(db: Session) -> None:
+    db.add_all(
+        orm.Student(
+            student_id=sid, name=name, grade=grade, class_section=cls,
+            parent_id=pid, photo_initial=initial, is_active=True,
+        )
         for sid, name, grade, cls, pid, initial in _STUDENT_DATA
     )
+    db.flush()
 
 
 # ── Attendance ─────────────────────────────────────────────────────────────────
 
 
-def _seed_attendance() -> None:
+def _seed_attendance(db: Session) -> None:
     today = _today()
     # Mark all students present today (with realistic arrival times)
     arrival_times = [
@@ -160,11 +182,11 @@ def _seed_attendance() -> None:
             hour=int(hm[0]), minute=int(hm[1]), second=0, microsecond=0
         )
         status = AttendanceStatus.PRESENT if i != 3 else AttendanceStatus.LATE
-        attendance_records.append(
-            DailyAttendance(
+        db.add(
+            orm.AttendanceRecord(
                 student_id=sid,
                 date=today,
-                status=status,
+                status=status.value,
                 arrival_time=arrival,
                 last_seen_zone=arrival_times[i][1],
             )
@@ -175,15 +197,13 @@ def _seed_attendance() -> None:
         past_date = today + timedelta(days=day_offset)
         for j, (sid, _, _, _, _, _) in enumerate(_STUDENT_DATA):
             status = AttendanceStatus.ABSENT if (j + abs(day_offset)) % 7 == 0 else AttendanceStatus.PRESENT
-            attendance_records.append(
-                DailyAttendance(student_id=sid, date=past_date, status=status)
-            )
+            db.add(orm.AttendanceRecord(student_id=sid, date=past_date, status=status.value))
 
 
 # ── Incidents ─────────────────────────────────────────────────────────────────
 
 
-def _seed_incidents() -> None:
+def _seed_incidents(db: Session) -> None:
     now = datetime.now(timezone.utc)
     incident_data = [
         ("INC-001", "zone-corridor-a", IncidentSeverity.HIGH, "Behavioral anomaly: sudden crowd surge detected near stairwell", -2),
@@ -195,11 +215,11 @@ def _seed_incidents() -> None:
     for inc_id, zone_id, severity, desc, day_offset in incident_data:
         detected_at = now + timedelta(hours=day_offset * 8)
         resolved = day_offset < 0
-        incidents.append(
-            SafetyIncident(
+        db.add(
+            orm.Incident(
                 incident_id=inc_id,
                 zone_id=zone_id,
-                severity=severity,
+                severity=severity.value,
                 description=desc,
                 detected_at=detected_at,
                 resolved=resolved,
@@ -236,7 +256,7 @@ def _seed_reports() -> None:
 # ── Notifications ─────────────────────────────────────────────────────────────
 
 
-def _seed_notifications() -> None:
+def _seed_notifications(db: Session) -> None:
     now = datetime.now(timezone.utc)
     notification_data = [
         ("NTF-001", "P001", "STU-2024-0847", "Ahmed arrived at school at 07:42 AM", "attendance", -8),
@@ -245,8 +265,8 @@ def _seed_notifications() -> None:
         ("NTF-004", "P001", "STU-2024-0847", "Lunch break started. Ahmed in cafeteria zone.", "attendance", -1),
     ]
     for ntf_id, parent_id, student_id, message, ntf_type, hour_offset in notification_data:
-        notifications.append(
-            NotificationMessage(
+        db.add(
+            orm.Notification(
                 notification_id=ntf_id,
                 parent_id=parent_id,
                 student_id=student_id,
@@ -286,6 +306,29 @@ def _seed_visitors() -> None:
 # ── Transport Routes ──────────────────────────────────────────────────────────
 
 
+def _seed_bracelets(db: Session) -> None:
+    now = datetime.now(timezone.utc)
+    bracelet_data = [
+        ("BR-0001", "STU-2024-0847", "AA:BB:CC:00:00:01", 92, "zone-classroom-1a"),
+        ("BR-0002", "STU-2024-0848", "AA:BB:CC:00:00:02", 78, "zone-classroom-1a"),
+        ("BR-0003", "STU-2024-0849", "AA:BB:CC:00:00:03", 64, "zone-corridor-a"),
+        ("BR-0004", "STU-2024-0850", "AA:BB:CC:00:00:04", 41, "zone-classroom-1b"),
+        ("BR-0005", "STU-2024-0852", "AA:BB:CC:00:00:05", 88, "zone-classroom-2a"),
+    ]
+    for bid, sid, mac, battery, zone in bracelet_data:
+        db.add(
+            orm.Bracelet(
+                bracelet_id=bid,
+                student_id=sid,
+                mac_address=mac,
+                battery_level=battery,
+                last_seen_zone=zone,
+                last_seen_at=now,
+                firmware_version="1.2.0",
+            )
+        )
+
+
 def _seed_transport() -> None:
     transport_routes.extend(
         [
@@ -317,34 +360,293 @@ def _seed_transport() -> None:
     )
 
 
+# ── Engagement Snapshots (Unit 15) ────────────────────────────────────────────
+
+# Pre-defined engagement trajectories per student across recent sessions.
+# Each tuple: (state, score, audio_context, audio_visual_mismatch)
+_STUDENT_SESSION_PROFILES: dict[str, list[tuple[EngagementState, float, str | None, bool]]] = {
+    "STU-2024-0847": [  # Ahmed — consistently engaged
+        (EngagementState.ENGAGED, 0.92, "speaking", False),
+        (EngagementState.ATTENTIVE, 0.78, "silent", False),
+        (EngagementState.ENGAGED, 0.88, "speaking", False),
+    ],
+    "STU-2024-0848": [  # Omar — attentive but occasionally distracted
+        (EngagementState.ATTENTIVE, 0.74, "silent", False),
+        (EngagementState.DISTRACTED, 0.28, "silent", False),
+        (EngagementState.ATTENTIVE, 0.71, "silent", False),
+    ],
+    "STU-2024-0849": [  # Sara — high engagement with audio-visual mismatch
+        (EngagementState.ENGAGED, 0.90, "speaking", False),
+        (EngagementState.DISTRACTED, 0.25, "speaking", True),  # speaking but distracted posture
+        (EngagementState.ENGAGED, 0.85, "speaking", False),
+    ],
+    "STU-2024-0850": [  # Nora — drowsy trend
+        (EngagementState.DROWSY, 0.18, "silent", False),
+        (EngagementState.DISTRACTED, 0.32, "silent", False),
+        (EngagementState.DROWSY, 0.14, "silent", False),
+    ],
+    "STU-2024-0851": [  # Khaled — improving
+        (EngagementState.DISTRACTED, 0.30, "silent", False),
+        (EngagementState.ATTENTIVE, 0.65, "silent", False),
+        (EngagementState.ENGAGED, 0.80, "speaking", False),
+    ],
+    "STU-2024-0852": [  # Layla — stable attentive
+        (EngagementState.ATTENTIVE, 0.72, "silent", False),
+        (EngagementState.ATTENTIVE, 0.75, "silent", False),
+        (EngagementState.ATTENTIVE, 0.70, "silent", False),
+    ],
+    "STU-2024-0853": [  # Youssef — very engaged
+        (EngagementState.ENGAGED, 0.95, "speaking", False),
+        (EngagementState.ENGAGED, 0.91, "speaking", False),
+        (EngagementState.ENGAGED, 0.93, "speaking", False),
+    ],
+    "STU-2024-0854": [  # Hessa — audio-visual mismatch pattern
+        (EngagementState.ATTENTIVE, 0.68, "silent", False),
+        (EngagementState.DISTRACTED, 0.29, "speaking", True),  # speaking but distracted
+        (EngagementState.ATTENTIVE, 0.65, "silent", False),
+    ],
+    "STU-2024-0855": [  # Faisal — disengaged
+        (EngagementState.DISTRACTED, 0.22, "silent", False),
+        (EngagementState.DROWSY, 0.12, "silent", False),
+        (EngagementState.DISTRACTED, 0.25, "silent", False),
+    ],
+    "STU-2024-0856": [  # Reem — engaged with context
+        (EngagementState.ENGAGED, 0.87, "speaking", False),
+        (EngagementState.ATTENTIVE, 0.76, "silent", False),
+        (EngagementState.ENGAGED, 0.82, "speaking", False),
+    ],
+}
+
+_SESSION_ZONES = [
+    "zone-classroom-1a",
+    "zone-classroom-1b",
+    "zone-classroom-2a",
+    "zone-classroom-2b",
+]
+
+
+def _seed_engagement_snapshots() -> None:
+    """Seed three sessions of engagement data across the last 3 days."""
+    now = datetime.now(timezone.utc)
+    session_specs = [
+        ("SES-TODAY-AM", 0, 8, 30),    # today 08:30
+        ("SES-YEST-AM", -1, 8, 30),    # yesterday 08:30
+        ("SES-2D-AM", -2, 9, 0),       # 2 days ago 09:00
+    ]
+
+    zone_list = _SESSION_ZONES
+    for session_id, day_offset, hour, minute in session_specs:
+        base_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=day_offset)
+        for idx, (sid, _, _, _, _, _) in enumerate(_STUDENT_DATA):
+            profile = _STUDENT_SESSION_PROFILES.get(sid, [])
+            # Pick the snapshot profile entry matching the session index (cycle through)
+            entry = profile[session_specs.index((session_id, day_offset, hour, minute)) % len(profile)]
+            state, score, audio_context, mismatch = entry
+            zone_id = zone_list[idx % len(zone_list)]
+            # Stagger snapshot times within session (one every 10 minutes)
+            snap_time = base_time + timedelta(minutes=10 * idx)
+            engagement_snapshots.append(
+                EngagementSnapshot(
+                    student_id=sid,
+                    recorded_at=snap_time,
+                    state=state,
+                    score=score,
+                    session_id=session_id,
+                    zone_id=zone_id,
+                    audio_context=audio_context,
+                    audio_visual_mismatch=mismatch,
+                )
+            )
+
+    # Add a few additional historical snapshots for trend analysis (7 days back)
+    for day_offset in range(-7, -2):
+        session_id = f"SES-HIST-{abs(day_offset)}"
+        base_time = now.replace(hour=8, minute=30, second=0, microsecond=0) + timedelta(days=day_offset)
+        for idx, (sid, _, _, _, _, _) in enumerate(_STUDENT_DATA):
+            profile = _STUDENT_SESSION_PROFILES.get(sid, [])
+            entry = profile[idx % len(profile)]
+            state, score, audio_context, mismatch = entry
+            engagement_snapshots.append(
+                EngagementSnapshot(
+                    student_id=sid,
+                    recorded_at=base_time + timedelta(minutes=5 * idx),
+                    state=state,
+                    score=score,
+                    session_id=session_id,
+                    zone_id=zone_list[idx % len(zone_list)],
+                    audio_context=audio_context,
+                    audio_visual_mismatch=mismatch,
+                )
+            )
+
+
+def _seed_agent_feedback(db: Session) -> None:
+    """Seed a few teacher feedback entries to demonstrate the self-evaluation loop."""
+    now = datetime.now(timezone.utc)
+    feedback_entries = [
+        (
+            "FB-001", "SES-YEST-AM", "STU-2024-0850",
+            EngagementState.DROWSY, EngagementState.DROWSY,
+            "Confirmed — student appeared tired throughout morning session.",
+            -26,
+        ),
+        (
+            "FB-002", "SES-YEST-AM", "STU-2024-0849",
+            EngagementState.DISTRACTED, EngagementState.ENGAGED,
+            "Incorrect — student was actively asking questions.",
+            -25,
+        ),
+        (
+            "FB-003", "SES-2D-AM", "STU-2024-0847",
+            EngagementState.ENGAGED, EngagementState.ENGAGED,
+            "Accurate prediction.",
+            -50,
+        ),
+    ]
+    for fb_id, session_id, student_id, pred, confirmed, notes, hour_offset in feedback_entries:
+        db.add(
+            orm.AgentFeedbackRecord(
+                feedback_id=fb_id,
+                session_id=session_id,
+                student_id=student_id,
+                predicted_state=pred.value,
+                confirmed_state=confirmed.value,
+                teacher_notes=notes,
+                recorded_at=now + timedelta(hours=hour_offset),
+            )
+        )
+
+
 # ── Entry-point ───────────────────────────────────────────────────────────────
 
 
-def populate() -> None:
-    """Populate all in-memory stores with demo data.
+def seed_database(db: Session) -> bool:
+    """Insert demo students/attendance/notifications/bracelets if no students exist.
 
-    Idempotent — calling multiple times will not duplicate data.
+    Returns True when data was inserted. Safe to call repeatedly.
     """
-    if students:  # already seeded
+    if db.scalar(select(func.count()).select_from(orm.Student)):
+        return False
+    _seed_students(db)
+    _seed_attendance(db)
+    _seed_notifications(db)
+    _seed_bracelets(db)
+    db.commit()
+    return True
+
+
+def seed_operational(db: Session) -> bool:
+    """Insert demo zones/cameras/incidents/feedback/SSI history/drills when empty.
+
+    Returns True when data was inserted. Safe to call repeatedly.
+    """
+    if db.scalar(select(func.count()).select_from(orm.Zone)):
+        return False
+    _seed_zones(db)
+    _seed_cameras(db)
+    _seed_incidents(db)
+    _seed_agent_feedback(db)
+    _seed_ssi_history(db)
+    _seed_drills(db)
+    db.commit()
+    return True
+
+
+def _seed_ssi_history(db: Session) -> None:
+    """30 days of deterministic SSI history so trends work out of the box."""
+    rng = np.random.default_rng(7)
+    now = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
+    for day in range(30):
+        val = float(np.clip(78.0 + day * 0.15 + rng.normal(0, 3.5), 45, 100))
+        db.add(orm.SSISnapshot(recorded_at=now - timedelta(days=29 - day), ssi=round(val, 2), source="seed"))
+
+
+def _seed_drills(db: Session) -> None:
+    now = datetime.now(timezone.utc)
+    specs = [
+        ("DRL-001", "fire", -21, True, 95.0),
+        ("DRL-002", "lockdown", -10, True, 140.0),
+        ("DRL-003", "evacuation", 7, False, None),
+    ]
+    for drill_id, kind, offset, done, resp in specs:
+        when = now + timedelta(days=offset)
+        db.add(orm.Drill(
+            drill_id=drill_id, drill_type=kind, scheduled_at=when, completed=done,
+            completed_at=when if done else None, response_time_seconds=resp,
+        ))
+
+
+def seed_users(db: Session) -> bool:
+    """Create demo teacher / principal / ministry accounts when no users exist.
+
+    In production the accounts are NOT created while any password is still the
+    published demo default.
+    """
+    if not settings.seed_demo_users or db.scalar(select(func.count()).select_from(orm.User)):
+        return False
+    accounts = [
+        ("teacher", "Demo Teacher", settings.demo_teacher_password),
+        ("principal", "Demo Principal", settings.demo_principal_password),
+        ("ministry", "Demo Ministry Officer", settings.demo_ministry_password),
+    ]
+    if settings.is_production and any(pw == DEFAULT_DEMO_PASSWORDS[role] for role, _, pw in accounts):
+        logger.warning(
+            "Not seeding demo users: DEMO_*_PASSWORD still uses the published default in production."
+        )
+        return False
+    db.add_all(
+        orm.User(username=role, full_name=name, hashed_password=hash_password(pw), role=role)
+        for role, name, pw in accounts
+    )
+    db.commit()
+    return True
+
+
+def populate(db: Session | None = None) -> None:
+    """Populate demo data.
+
+    In-memory demo stores are filled once per process; database tables are
+    filled only when empty. Idempotent — calling multiple times will not
+    duplicate data.
+    """
+    if not teachers:  # in-memory demo data not yet loaded
+        _seed_teachers()
+        _seed_reports()
+        _seed_visitors()
+        _seed_transport()
+        _seed_engagement_snapshots()
+
+    def _seed(session: Session) -> None:
+        seed_database(session)
+        seed_operational(session)
+        seed_users(session)
+
+    if db is not None:
+        _seed(db)
         return
-    _seed_zones()
-    _seed_cameras()
-    _seed_teachers()
-    _seed_students()
-    _seed_attendance()
-    _seed_incidents()
-    _seed_reports()
-    _seed_notifications()
-    _seed_visitors()
-    _seed_transport()
+    with SessionLocal() as session:
+        _seed(session)
 
 
-def get_school_metrics() -> SchoolMetrics:
+def get_school_metrics(db: Session) -> SchoolMetrics:
     """Return a live snapshot of aggregated school metrics."""
-    present = sum(1 for r in attendance_records if r.date == _today() and r.status == AttendanceStatus.PRESENT)
-    total = len([s for s in students if s.is_active])
-    open_incidents = sum(1 for i in incidents if not i.resolved)
-    active_cameras = sum(1 for c in cameras if c.is_active)
+    present = db.scalar(
+        select(func.count())
+        .select_from(orm.AttendanceRecord)
+        .where(
+            orm.AttendanceRecord.date == _today(),
+            orm.AttendanceRecord.status == AttendanceStatus.PRESENT.value,
+        )
+    ) or 0
+    total = db.scalar(
+        select(func.count()).select_from(orm.Student).where(orm.Student.is_active.is_(True))
+    ) or 0
+    open_incidents = db.scalar(
+        select(func.count()).select_from(orm.Incident).where(orm.Incident.resolved.is_(False))
+    ) or 0
+    active_cameras = db.scalar(
+        select(func.count()).select_from(orm.Camera).where(orm.Camera.is_active.is_(True))
+    ) or 0
     return SchoolMetrics(
         computed_at=datetime.now(timezone.utc),
         total_students=total,

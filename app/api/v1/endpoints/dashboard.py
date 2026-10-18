@@ -1,7 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db
+from app.services import ssi_history
 from app.services.dashboard_service import DashboardService
 
 
@@ -25,10 +30,16 @@ class DashboardConnectionManager:
 
     async def broadcast_snapshot(self) -> None:
         stale_connections: list[WebSocket] = []
+        snapshot = service.get_snapshot()
         for connection in self.active_connections:
             try:
-                await connection.send_json(service.get_snapshot())
-            except Exception:
+                if connection.client_state is WebSocketState.CONNECTED:
+                    await connection.send_json(snapshot)
+                else:
+                    stale_connections.append(connection)
+            except RuntimeError:
+                stale_connections.append(connection)
+            except WebSocketDisconnect:
                 stale_connections.append(connection)
 
         for connection in stale_connections:
@@ -39,8 +50,10 @@ manager = DashboardConnectionManager()
 
 
 @router.get("/summary")
-def dashboard_summary() -> dict[str, object]:
-    return service.get_summary()
+def dashboard_summary(db: Session = Depends(get_db)) -> dict[str, object]:
+    summary = service.get_summary()
+    summary["ssiTrend"] = ssi_history.summarize(db, 30)["trend"]
+    return summary
 
 
 @router.get("/alerts")
@@ -74,5 +87,6 @@ async def dashboard_ws(websocket: WebSocket) -> None:
                 await websocket.close()
                 break
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
         return
+    finally:
+        manager.disconnect(websocket)

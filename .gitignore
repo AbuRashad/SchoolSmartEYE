@@ -1,12 +1,25 @@
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*.egg-info/
 .venv/
 venv/
-node_modules/
-dist/
-.env
-*.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Local databases
+*.db
+*.sqlite3
+
+# Runtime data
+video_logs/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Secrets / local config
+.env
+cameras.json

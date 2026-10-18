@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -6,20 +8,71 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import settings
+from app.db import init_db
 from app.services import seed_data
+from app.services.camera_ingestion import ingestion_service
+
+
+logger = logging.getLogger(__name__)
+
+_HARVEST_INTERVAL_SECONDS = 24 * 60 * 60  # 24 hours
+
+
+async def _nightly_harvesting_loop() -> None:
+    """Background task: recompute per-student engagement baselines once per day."""
+    while True:
+        await asyncio.sleep(_HARVEST_INTERVAL_SECONDS)
+        try:
+            # Import lazily to avoid circular import at module level
+            from app.db.session import SessionLocal
+            from app.services import agent_store
+            with SessionLocal() as db:
+                agent = agent_store.build_agent(db, include_feedback=False)
+            baselines = agent.compute_daily_baselines()
+            logger.info(
+                "Daily knowledge harvesting complete: %d student baseline(s) updated",
+                len(baselines),
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("Daily knowledge harvesting failed")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Populate demo seed data once on startup."""
+    """Populate demo seed data and start live camera ingestion on startup."""
+    settings.validate_for_production()
+    logger.info("Application startup initiated", extra={"app_env": settings.app_env})
+    if settings.db_auto_create:
+        init_db()
     seed_data.populate()
-    yield
+    logger.info("Database ready; demo seed data populated where tables were empty")
+
+    # Live camera ingestion — only activates if cameras_sources_file exists.
+    loaded = ingestion_service.load_from_file(settings.camera_sources_file)
+    if loaded:
+        logger.info("Live camera ingestion active: %d camera(s)", loaded)
+    else:
+        logger.info(
+            "No live cameras configured (looked for %s). Running in demo mode.",
+            settings.camera_sources_file,
+        )
+
+    # Start nightly engagement baseline harvesting task (Unit 15)
+    harvest_task = asyncio.create_task(_nightly_harvesting_loop())
+    logger.info("Unit 15 nightly harvesting task scheduled (interval: 24h)")
+
+    try:
+        yield
+    finally:
+        harvest_task.cancel()
+        ingestion_service.stop_all()
+        logger.info("Application shutdown complete")
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

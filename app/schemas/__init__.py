@@ -108,8 +108,8 @@ class SSIHistoryResponse(BaseModel):
     period: str
     benchmark: int
     scores: list[SSIHistoryPointSchema]
-    average: float
-    trend: Literal["improving", "stable", "declining"]
+    average: float | None
+    trend: Literal["improving", "stable", "declining", "insufficient_data"]
 
 
 # ── Units ─────────────────────────────────────────────────────────────────────
