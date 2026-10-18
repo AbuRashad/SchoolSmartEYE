@@ -110,7 +110,7 @@ export function SSILivePanel({ data }: Props) {
             const b = data.inputs.anomaly_coefficient;
             const c = 1 - data.inputs.coherence_score;
             const a = data.inputs.attendance_discrepancy;
-            const p = data.inputs.predictive_risk_level;
+            const p = Math.max(0, Math.min(1, data.inputs.predictive_risk_level));
             const composite = (b * 0.35 + c * 0.25 + a * 0.2 + p * 0.2);
             const matrixItems = [
               { label: "Behavioral Risk", value: b, desc: "Anomaly coeff." },
