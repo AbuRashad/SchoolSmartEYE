@@ -42,7 +42,7 @@ export function AnalyticsDashboard({ data }: Props) {
         <MetricCard
           title="Active Cameras"
           value={data.active_cameras}
-          subtitle={`of ${data.total_units * 2} total cameras`}
+          subtitle="Cameras online"
           icon={Camera}
           color="blue"
           trend="stable"
