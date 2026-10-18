@@ -61,7 +61,7 @@ function buildInsights(
     insights.push({
       icon: AlertOctagon,
       title: "Active Warning Signals",
-      recommendation: "Multiple warning-level alerts detected. Pre-position staff near high-density zones. Crowd forecasting (Unit 07) predicts elevated density in Learning Commons within 15 minutes.",
+      recommendation: "Warning-level alerts detected. Review the active alert feed and verify conditions in the flagged zones before deciding on a response.",
       priority: "high",
     });
   }
@@ -106,14 +106,6 @@ function buildInsights(
         priority: avgPct >= 75 ? "info" : "medium",
       });
     }
-  } else {
-    // Fallback static insights when agent data is not yet available
-    insights.push({
-      icon: TrendingUp,
-      title: "Predictive Crowd Pattern",
-      recommendation: "AI model forecasts a 12% density increase in Learning Commons between 11:30–12:00 (lunch transition). Pre-positioning 2 additional supervisors is recommended to maintain SSI above benchmark.",
-      priority: "medium",
-    });
   }
 
   insights.push({

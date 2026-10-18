@@ -16,7 +16,9 @@ const disconnectedSnapshot: DashboardSnapshot = {
 
 type BackendResponse = Partial<DashboardSnapshot>;
 
-export function useSafetyDashboardSocket(url = "ws://127.0.0.1:8000/api/v1/dashboard/ws") {
+export function useSafetyDashboardSocket(
+  url = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/v1/dashboard/ws`,
+) {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>(disconnectedSnapshot);
 
   useEffect(() => {
