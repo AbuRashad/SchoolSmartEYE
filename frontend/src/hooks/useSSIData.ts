@@ -49,7 +49,10 @@ export function useAnalyticsOverview() {
 
   useEffect(() => {
     fetch(`${BASE}/analytics/overview`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Request failed");
+        return r.json();
+      })
       .then((d) => setData(d as AnalyticsOverview))
       .catch(() => setError("Analytics endpoint unavailable."));
   }, []);
@@ -62,7 +65,10 @@ export function useReportsList() {
 
   useEffect(() => {
     fetch(`${BASE}/reports/list`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Request failed");
+        return r.json();
+      })
       .then((d) => setData(d as ReportItem[]))
       .catch(() => null);
   }, []);
@@ -75,7 +81,10 @@ export function useReportsStats() {
 
   useEffect(() => {
     fetch(`${BASE}/reports/stats`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Request failed");
+        return r.json();
+      })
       .then((d) => setData(d as ReportStats))
       .catch(() => null);
   }, []);
@@ -88,7 +97,10 @@ export function useStudentPortal() {
 
   useEffect(() => {
     fetch(`${BASE}/portal/student`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Request failed");
+        return r.json();
+      })
       .then((d) => setData(d as StudentPortalData))
       .catch(() => null);
   }, []);
