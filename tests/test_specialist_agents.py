@@ -18,6 +18,10 @@ def test_specialists_produce_distinct_domain_outputs():
     assert stages["operations"]["flags"]
     assert stages["evidence"]["summary"].startswith("Attached")
     assert stages["ethics_review"]["warnings"]
+    assert stages["ethics_review"]["reviewed_stages"] == [
+        "analytics", "safety", "academic", "operations", "evidence"
+    ]
+    assert "Cross-reviewed" in stages["ethics_review"]["summary"]
     assert result["requires_human_review"] is True
     assert result["autonomous_action_taken"] is False
 

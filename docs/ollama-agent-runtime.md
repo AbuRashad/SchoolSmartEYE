@@ -1,6 +1,6 @@
 # Optional specialist-agent LLM runtime
 
-The six specialist agents always produce deterministic findings and evidence. An optional Ollama chat call may rewrite each stage's short summary; it cannot alter flags, recommendations, evidence, confidence, or trigger actions. If the provider is disabled, unconfigured, times out, returns invalid content, or errors, the deterministic summary is retained. Human review remains mandatory.
+The six specialist stages always produce deterministic findings and evidence. An optional Ollama chat call produces a separate advisory summary; it does not replace the deterministic summary or alter flags, recommendations, evidence, confidence, or trigger actions. The ethics-review stage receives the five preceding deterministic stage outputs and records which stages it cross-reviewed. If the provider is disabled, unconfigured, times out, returns invalid content, or errors, deterministic output remains available. Human review remains mandatory.
 
 ## Environment
 

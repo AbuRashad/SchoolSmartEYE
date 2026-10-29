@@ -70,9 +70,15 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         for key, value in sorted(safe.items())
     ]
     stages = [
-        analytics_agent(safe), safety_agent(safe), academic_agent(safe),
-        operations_agent(safe), evidence_agent(evidence), ethics_review_agent(safe, evidence),
+        analytics_agent(safe),
+        safety_agent(safe),
+        academic_agent(safe),
+        operations_agent(safe),
+        evidence_agent(evidence),
     ]
+    # The ethics reviewer receives the prior specialists' deterministic outputs
+    # as an explicit handoff; it audits completeness but does not rewrite findings.
+    stages.append(ethics_review_agent(safe, evidence, prior_stages=stages.copy()))
 
     llm_used = False
     if ollama_enabled() and safe:
