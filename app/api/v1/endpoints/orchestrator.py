@@ -26,7 +26,7 @@ class EvidenceItem(BaseModel):
 
 
 class AgentStage(BaseModel):
-    name: Literal["analytics", "safety", "education", "ethics_review"]
+    name: Literal["analytics", "safety", "academic", "operations", "evidence", "ethics_review"]
     kind: Literal["deterministic"]
     status: Literal["completed", "limited"]
     summary: str | None = None
