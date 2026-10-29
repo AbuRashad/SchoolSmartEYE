@@ -4,7 +4,7 @@ from app.services import llm_agent_runtime
 def test_provider_is_disabled_by_default(monkeypatch):
     monkeypatch.delenv("SCHOOLSMARTEYE_LLM_PROVIDER", raising=False)
     summary, used = llm_agent_runtime.generate_specialist_summary(
-        "safety", "Review", {"attendance_rate": 95}, "deterministic summary"
+        "safety", {"attendance_rate": 95}, "deterministic summary"
     )
     assert summary == "deterministic summary"
     assert used is False
@@ -14,7 +14,7 @@ def test_missing_model_falls_back_without_network(monkeypatch):
     monkeypatch.setenv("SCHOOLSMARTEYE_LLM_PROVIDER", "ollama")
     monkeypatch.delenv("OLLAMA_MODEL", raising=False)
     summary, used = llm_agent_runtime.generate_specialist_summary(
-        "safety", "Review", {"attendance_rate": 95}, "deterministic summary"
+        "safety", {"attendance_rate": 95}, "deterministic summary"
     )
     assert summary == "deterministic summary"
     assert used is False
@@ -27,7 +27,7 @@ def test_orchestrator_marks_llm_only_when_summary_provider_succeeds(monkeypatch)
     monkeypatch.setattr(
         agent_orchestrator,
         "generate_specialist_summary",
-        lambda agent_name, task, metrics, fallback_summary: (fallback_summary + " reviewed", True),
+        lambda agent_name, metrics, fallback_summary: (fallback_summary + " reviewed", True),
     )
     result = agent_orchestrator.run_orchestration("Review signals", {"attendance_rate": 95})
     assert result["provider"] == "ollama"
@@ -36,9 +36,7 @@ def test_orchestrator_marks_llm_only_when_summary_provider_succeeds(monkeypatch)
     assert result["autonomous_action_taken"] is False
 
 
-def test_provider_failure_is_not_logged_and_falls_back(monkeypatch):
-    from app.services import llm_agent_runtime
-
+def test_provider_failure_falls_back(monkeypatch):
     monkeypatch.setenv("SCHOOLSMARTEYE_LLM_PROVIDER", "ollama")
     monkeypatch.setenv("OLLAMA_MODEL", "test-model")
 
@@ -54,7 +52,44 @@ def test_provider_failure_is_not_logged_and_falls_back(monkeypatch):
 
     monkeypatch.setattr(llm_agent_runtime.httpx, "Client", BrokenClient)
     summary, used = llm_agent_runtime.generate_specialist_summary(
-        "safety", "Review", {"attendance_rate": 95}, "deterministic summary"
+        "safety", {"attendance_rate": 95}, "deterministic summary"
     )
     assert summary == "deterministic summary"
     assert used is False
+
+
+def test_free_form_task_is_not_sent_to_provider(monkeypatch):
+    from app.services import agent_orchestrator
+
+    monkeypatch.setenv("SCHOOLSMARTEYE_LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_MODEL", "test-model")
+    captured = []
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+        def json(self):
+            return {"message": {"content": "Validated aggregate summary."}}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def post(self, url, headers=None, json=None):
+            captured.append(json)
+            return FakeResponse()
+
+    monkeypatch.setattr(llm_agent_runtime.httpx, "Client", FakeClient)
+    private_text = "Review this student: PRIVATE-STUDENT-IDENTIFIER"
+    result = agent_orchestrator.run_orchestration(
+        private_text, {"attendance_rate": 95}
+    )
+
+    assert result["provider"] == "ollama"
+    assert captured
+    serialized = str(captured)
+    assert "PRIVATE-STUDENT-IDENTIFIER" not in serialized
+    assert all("task" not in message.get("content", "") for request in captured for message in request["messages"] if message["role"] == "user")

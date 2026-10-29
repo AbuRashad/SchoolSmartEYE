@@ -1,4 +1,4 @@
-"""Bounded multi-agent orchestration for SchoolSmartEYE.
+""""Bounded multi-agent orchestration for SchoolSmartEYE.
 
 Specialists receive validated aggregate metrics only. Optional LLM summaries are
 advisory; deterministic findings and evidence remain authoritative. Human review
@@ -88,7 +88,6 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         for stage in stages:
             summary, used = generate_specialist_summary(
                 agent_name=stage["name"],
-                task=normalized_task,
                 metrics=safe,
                 fallback_summary=stage.get("summary") or "No summary available.",
             )
