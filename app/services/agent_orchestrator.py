@@ -81,8 +81,13 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
                 agent_name=stage["name"], metrics=safe,
                 fallback_summary=stage.get("summary") or "No summary available.",
             )
-            stage["summary"] = summary
-            stage["kind"] = "llm_assisted" if used else "deterministic"
+            # Preserve deterministic findings as the authoritative summary.
+            # LLM output is exposed separately as advisory text only.
+            if used:
+                stage["advisory_summary"] = summary
+                stage["kind"] = "llm_assisted"
+            else:
+                stage["kind"] = "deterministic"
             llm_used = llm_used or used
 
     return {
