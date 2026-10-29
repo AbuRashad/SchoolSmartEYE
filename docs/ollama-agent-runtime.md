@@ -17,7 +17,7 @@ OLLAMA_API_KEY=
 - Set it to `ollama` and provide `OLLAMA_MODEL` to enable optional summaries.
 - For Ollama Cloud, use the Cloud API base URL and API key from your Ollama account. For a self-hosted Ollama server, set `OLLAMA_BASE_URL` to that server and keep it private.
 - Never commit real API keys or paste them into source code. The API key is sent only in the authorization header and is never logged.
-- Requests contain only allowlisted, validated aggregate numeric metrics and the task text. Do not add student-level records or identifiers.
+- Provider requests contain only the specialist label and allowlisted, validated aggregate numeric metrics. The free-form task text is intentionally not sent to the model, because it could contain student identifiers or other sensitive details.
 - Calls have a 12-second timeout and do not follow redirects. A provider failure falls back to deterministic output.
 
 ## Limitations
