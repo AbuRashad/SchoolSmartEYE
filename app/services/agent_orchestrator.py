@@ -23,6 +23,29 @@ _ALLOWED_METRICS = {
     "patrol_efficiency",
     "compliance_score",
 }
+# Plausible domain bounds prevent malformed numeric values from becoming evidence.
+# Density is a normalized ratio (0..1); *_percent / rates are percentages (0..100).
+_METRIC_BOUNDS: dict[str, tuple[float, float]] = {
+    "attendance_rate": (0, 100),
+    "total_students": (0, float("inf")),
+    "active_cameras": (0, float("inf")),
+    "total_units": (0, float("inf")),
+    "incidents_today": (0, float("inf")),
+    "incidents_week": (0, float("inf")),
+    "avg_crowd_density": (0, 1),
+    "uptime_percent": (0, 100),
+    "alerts_resolved_today": (0, float("inf")),
+    "patrol_efficiency": (0, 100),
+    "compliance_score": (0, 100),
+}
+_INTEGER_METRICS = {
+    "total_students",
+    "active_cameras",
+    "total_units",
+    "incidents_today",
+    "incidents_week",
+    "alerts_resolved_today",
+}
 _MAX_TASK_LENGTH = 500
 
 
@@ -34,6 +57,11 @@ def _safe_metrics(metrics: dict[str, Any]) -> dict[str, int | float]:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             continue
         if value != value or value in (float("inf"), float("-inf")):
+            continue
+        minimum, maximum = _METRIC_BOUNDS[key]
+        if not minimum <= value <= maximum:
+            continue
+        if key in _INTEGER_METRICS and value % 1 != 0:
             continue
         safe[key] = value
     return safe
@@ -86,6 +114,7 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         "The repository's current analytics overview contains demo/static values; verify source freshness before operational use.",
         "Aggregate metrics cannot establish individual responsibility or explain causes.",
         "No student-level records or identifiers were passed into the orchestration pipeline.",
+        "Metrics outside expected domain bounds are excluded from evidence.",
     ]
     if not safe:
         warnings.append("No usable metrics were supplied; conclusions are unavailable.")
