@@ -32,6 +32,9 @@ def test_orchestrator_marks_llm_only_when_summary_provider_succeeds(monkeypatch)
     result = agent_orchestrator.run_orchestration("Review signals", {"attendance_rate": 95})
     assert result["provider"] == "ollama"
     assert all(stage["kind"] == "llm_assisted" for stage in result["stages"])
+    safety = next(stage for stage in result["stages"] if stage["name"] == "safety")
+    assert safety["summary"] == "Raised 0 aggregate safety review flag(s)."
+    assert safety["advisory_summary"] == "Raised 0 aggregate safety review flag(s). reviewed"
     assert result["requires_human_review"] is True
     assert result["autonomous_action_taken"] is False
 

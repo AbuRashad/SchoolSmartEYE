@@ -30,6 +30,7 @@ class AgentStage(BaseModel):
     kind: Literal["deterministic", "llm_assisted"]
     status: Literal["completed", "limited"]
     summary: str | None = None
+    advisory_summary: str | None = None
     flags: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
