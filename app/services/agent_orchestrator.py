@@ -61,7 +61,7 @@ def _safe_metrics(metrics: dict[str, Any]) -> dict[str, int | float]:
         minimum, maximum = _METRIC_BOUNDS[key]
         if not minimum <= value <= maximum:
             continue
-        if key in _INTEGER_METRICS and not float(value).is_integer():
+        if key in _INTEGER_METRICS and value % 1 != 0:
             continue
         safe[key] = value
     return safe
