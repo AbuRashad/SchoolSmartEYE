@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { DashboardSnapshot } from "../types";
+import { authFetch, getToken } from "../auth";
 
 const disconnectedSnapshot: DashboardSnapshot = {
   schoolName: "Smart School Safety System",
@@ -27,9 +28,9 @@ export function useSafetyDashboardSocket(
     async function fetchDashboardState() {
       try {
         const [summaryResponse, alertsResponse, heatmapResponse] = await Promise.all([
-          fetch("/api/v1/dashboard/summary"),
-          fetch("/api/v1/dashboard/alerts"),
-          fetch("/api/v1/dashboard/heatmap"),
+          authFetch("/api/v1/dashboard/summary"),
+          authFetch("/api/v1/dashboard/alerts"),
+          authFetch("/api/v1/dashboard/heatmap"),
         ]);
 
         if (!summaryResponse.ok || !alertsResponse.ok || !heatmapResponse.ok) {
@@ -77,7 +78,10 @@ export function useSafetyDashboardSocket(
 
     let socket: WebSocket | null = null;
     try {
-      socket = new WebSocket(url);
+      const token = getToken();
+      if (!token) throw new Error("Authentication required");
+      const separator = url.includes("?") ? "&" : "?";
+      socket = new WebSocket(`${url}${separator}access_token=${encodeURIComponent(token)}`);
 
       socket.onopen = () => {
         setSnapshot((current) => ({ ...current, websocketStatus: "connected", backendError: undefined }));
