@@ -29,3 +29,11 @@ def test_teacher_can_read_protected_dashboard_and_demo_data(client: TestClient):
     ):
         response = client.get(path)
         assert response.status_code == 200, f"{path} returned {response.status_code}"
+
+
+def test_analytics_overview_identifies_placeholder_metrics(client: TestClient):
+    response = client.get("/api/v1/analytics/overview")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["data_status"] == "demo"
+    assert "not live school data" in payload["data_notice"]

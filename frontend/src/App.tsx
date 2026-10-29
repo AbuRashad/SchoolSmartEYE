@@ -61,6 +61,17 @@ function AppShell() {
         />
 
         <main className="grid gap-4 content-start">
+          {analytics && (
+            <section
+              role="status"
+              aria-live="polite"
+              className="rounded-2xl border border-amber-300/40 bg-amber-300/10 px-5 py-4 text-sm text-amber-100"
+            >
+              <p className="font-semibold">Demo data — not live school measurements</p>
+              <p className="mt-1">{analytics.data_notice}</p>
+            </section>
+          )}
+
           {/* Backend error banner */}
           {!snapshot.fetchedFromBackend && snapshot.backendError && (
             <section className="rounded-[2rem] border border-critical/35 bg-critical/10 px-6 py-5 shadow-panel">
