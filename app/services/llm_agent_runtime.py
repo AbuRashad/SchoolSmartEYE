@@ -81,6 +81,6 @@ def generate_specialist_summary(
         if not summary or len(summary) > MAX_SUMMARY_LENGTH:
             return fallback_summary, False
         return summary, True
-    except (httpx.HTTPError, ValueError, TypeError, KeyError):
+    except (httpx.HTTPError, ValueError, TypeError, KeyError, AttributeError):
         # Fail closed: deterministic output remains available and secrets are not logged.
         return fallback_summary, False
