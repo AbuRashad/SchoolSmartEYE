@@ -1,7 +1,7 @@
 from app.services.agent_orchestrator import run_orchestration
 
 
-def test_orchestrator_runs_four_ordered_stages_and_requires_human_review():
+def test_orchestrator_runs_six_specialist_stages_and_requires_human_review():
     result = run_orchestration("Review today's school-wide signals", {
         "attendance_rate": 88.5,
         "incidents_today": 2,
@@ -10,7 +10,7 @@ def test_orchestrator_runs_four_ordered_stages_and_requires_human_review():
     })
 
     assert [stage["name"] for stage in result["stages"]] == [
-        "analytics", "safety", "education", "ethics_review"
+        "analytics", "safety", "academic", "operations", "evidence", "ethics_review"
     ]
     assert result["requires_human_review"] is True
     assert result["autonomous_action_taken"] is False
