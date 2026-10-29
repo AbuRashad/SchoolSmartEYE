@@ -26,16 +26,11 @@ _ALLOWED_METRICS = {
     "compliance_score",
 }
 _METRIC_BOUNDS: dict[str, tuple[float, float]] = {
-    "attendance_rate": (0, 100),
-    "total_students": (0, float("inf")),
-    "active_cameras": (0, float("inf")),
-    "total_units": (0, float("inf")),
-    "incidents_today": (0, float("inf")),
-    "incidents_week": (0, float("inf")),
-    "avg_crowd_density": (0, 1),
-    "uptime_percent": (0, 100),
-    "alerts_resolved_today": (0, float("inf")),
-    "patrol_efficiency": (0, 100),
+    "attendance_rate": (0, 100), "total_students": (0, float("inf")),
+    "active_cameras": (0, float("inf")), "total_units": (0, float("inf")),
+    "incidents_today": (0, float("inf")), "incidents_week": (0, float("inf")),
+    "avg_crowd_density": (0, 1), "uptime_percent": (0, 100),
+    "alerts_resolved_today": (0, float("inf")), "patrol_efficiency": (0, 100),
     "compliance_score": (0, 100),
 }
 _INTEGER_METRICS = {
@@ -75,20 +70,15 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         for key, value in sorted(safe.items())
     ]
     stages = [
-        analytics_agent(safe),
-        safety_agent(safe),
-        academic_agent(safe),
-        operations_agent(safe),
-        evidence_agent(evidence),
-        ethics_review_agent(safe, evidence),
+        analytics_agent(safe), safety_agent(safe), academic_agent(safe),
+        operations_agent(safe), evidence_agent(evidence), ethics_review_agent(safe, evidence),
     ]
 
     llm_used = False
     if ollama_enabled() and safe:
         for stage in stages:
             summary, used = generate_specialist_summary(
-                agent_name=stage["name"],
-                metrics=safe,
+                agent_name=stage["name"], metrics=safe,
                 fallback_summary=stage.get("summary") or "No summary available.",
             )
             stage["summary"] = summary
@@ -96,13 +86,9 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
             llm_used = llm_used or used
 
     return {
-        "request_id": str(uuid.uuid4()),
-        "status": "completed" if safe else "limited",
-        "task": normalized_task,
-        "provider": "ollama" if llm_used else "deterministic",
-        "stages": stages,
-        "evidence": evidence,
+        "request_id": str(uuid.uuid4()), "status": "completed" if safe else "limited",
+        "task": normalized_task, "provider": "ollama" if llm_used else "deterministic",
+        "stages": stages, "evidence": evidence,
         "confidence": "low" if not safe else "moderate",
-        "requires_human_review": True,
-        "autonomous_action_taken": False,
+        "requires_human_review": True, "autonomous_action_taken": False,
     }
