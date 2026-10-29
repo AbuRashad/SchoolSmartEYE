@@ -7,7 +7,10 @@ router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depend
 
 @router.get("/overview")
 def analytics_overview() -> dict[str, object]:
+    """Return placeholder dashboard metrics, explicitly marked as demo data."""
     return {
+        "data_status": "demo",
+        "data_notice": "These are illustrative demo metrics, not live school data.",
         "attendance_rate": 94.2,
         "total_students": 1247,
         "active_cameras": 12,
