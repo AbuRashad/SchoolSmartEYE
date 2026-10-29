@@ -1,4 +1,4 @@
-""""Bounded multi-agent orchestration for SchoolSmartEYE.
+"""Bounded multi-agent orchestration for SchoolSmartEYE.
 
 Specialists receive validated aggregate metrics only. Optional LLM summaries are
 advisory; deterministic findings and evidence remain authoritative. Human review
