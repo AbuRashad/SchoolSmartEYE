@@ -359,7 +359,7 @@ def _teacher_headers() -> dict[str, str]:
 @pytest.mark.anyio
 async def test_get_agent_insights_returns_session_data() -> None:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=_teacher_headers()) as client:
         r = await client.get("/api/v1/agent/insights")
     assert r.status_code == 200
     data = r.json()
@@ -373,7 +373,7 @@ async def test_get_agent_insights_returns_session_data() -> None:
 @pytest.mark.anyio
 async def test_get_agent_insights_with_explicit_session() -> None:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=_teacher_headers()) as client:
         r = await client.get("/api/v1/agent/insights?session_id=SES-TODAY-AM")
     assert r.status_code == 200
     data = r.json()
@@ -416,7 +416,7 @@ async def test_post_agent_feedback_unknown_student_returns_404() -> None:
 @pytest.mark.anyio
 async def test_get_agent_feedback_metrics() -> None:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=_teacher_headers()) as client:
         r = await client.get("/api/v1/agent/feedback/metrics")
     assert r.status_code == 200
     data = r.json()
@@ -427,7 +427,7 @@ async def test_get_agent_feedback_metrics() -> None:
 @pytest.mark.anyio
 async def test_get_agent_baselines() -> None:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=_teacher_headers()) as client:
         r = await client.get("/api/v1/agent/baselines")
     assert r.status_code == 200
     data = r.json()
