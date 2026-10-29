@@ -31,6 +31,43 @@ def test_only_allowlisted_numeric_aggregate_metrics_enter_evidence():
     assert [item["description"] for item in result["evidence"]] == ["Aggregate metric: attendance_rate"]
 
 
+def test_metrics_outside_domain_bounds_are_excluded():
+    result = run_orchestration("Validate aggregate metrics", {
+        "attendance_rate": 140,
+        "uptime_percent": -1,
+        "avg_crowd_density": 1.5,
+        "incidents_today": -3,
+        "total_students": 12.5,
+        "active_cameras": 4,
+        "compliance_score": 100,
+    })
+
+    assert {item["description"] for item in result["evidence"]} == {
+        "Aggregate metric: active_cameras",
+        "Aggregate metric: compliance_score",
+    }
+    ethics = next(stage for stage in result["stages"] if stage["name"] == "ethics_review")
+    assert any("outside expected domain bounds" in warning for warning in ethics["warnings"])
+
+
+def test_metric_bounds_accept_valid_edge_values():
+    result = run_orchestration("Check boundary values", {
+        "attendance_rate": 0,
+        "uptime_percent": 100,
+        "avg_crowd_density": 1,
+        "incidents_today": 0,
+        "total_students": 0,
+    })
+
+    assert {item["description"] for item in result["evidence"]} == {
+        "Aggregate metric: attendance_rate",
+        "Aggregate metric: uptime_percent",
+        "Aggregate metric: avg_crowd_density",
+        "Aggregate metric: incidents_today",
+        "Aggregate metric: total_students",
+    }
+
+
 def test_empty_metrics_returns_limited_result_and_never_claims_confidence():
     result = run_orchestration("Check readiness", {})
     assert result["status"] == "limited"
