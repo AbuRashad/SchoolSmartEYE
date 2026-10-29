@@ -92,7 +92,12 @@ def evidence_agent(evidence: list[dict[str, str | int | float]]) -> dict[str, An
     }
 
 
-def ethics_review_agent(metrics: dict[str, int | float], evidence: list[dict[str, str | int | float]]) -> dict[str, Any]:
+def ethics_review_agent(
+    metrics: dict[str, int | float],
+    evidence: list[dict[str, str | int | float]],
+    prior_stages: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Cross-review completed specialist outputs without changing their findings."""
     warnings = [
         "This v1 uses transparent deterministic rules, not independent LLM agents.",
         "The analytics overview may contain demo/static values; verify source freshness before operational use.",
@@ -101,12 +106,26 @@ def ethics_review_agent(metrics: dict[str, int | float], evidence: list[dict[str
         "Human review is required before acting on any recommendation.",
         "Metrics outside expected domain bounds are excluded from evidence.",
     ]
+    reviewed = prior_stages or []
+    reviewed_names = [str(stage.get("name", "unknown")) for stage in reviewed]
+    incomplete = [
+        str(stage.get("name", "unknown"))
+        for stage in reviewed
+        if stage.get("status") != "completed" or not stage.get("summary")
+    ]
     if not evidence:
         warnings.append("No usable metrics were supplied; conclusions are unavailable.")
+    if not reviewed:
+        warnings.append("No prior specialist outputs were available for cross-review.")
+    if incomplete:
+        warnings.append(
+            "Cross-review found incomplete specialist output(s): " + ", ".join(incomplete) + "."
+        )
     return {
         "name": "ethics_review",
         "kind": "deterministic",
         "status": "completed",
-        "summary": "Checked evidence limitations and retained the human-review gate.",
+        "summary": "Cross-reviewed prior specialist outputs and evidence limitations; human review remains required.",
+        "reviewed_stages": reviewed_names,
         "warnings": warnings,
     }
