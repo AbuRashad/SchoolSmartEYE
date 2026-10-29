@@ -37,6 +37,21 @@ class AgentStage(BaseModel):
     reviewed_stages: list[str] = Field(default_factory=list)
 
 
+class ReportFinding(BaseModel):
+    stage: str
+    type: Literal["flag", "recommendation", "warning"]
+    text: str
+
+
+class UnifiedReviewReport(BaseModel):
+    title: str
+    status: Literal["completed", "limited"]
+    finding_count: int
+    findings: list[ReportFinding]
+    evidence_count: int
+    limitations: list[str]
+
+
 class OrchestrateResponse(BaseModel):
     request_id: str
     status: Literal["completed", "limited"]
@@ -44,6 +59,7 @@ class OrchestrateResponse(BaseModel):
     provider: Literal["deterministic", "ollama"]
     stages: list[AgentStage]
     evidence: list[EvidenceItem]
+    report: UnifiedReviewReport
     confidence: Literal["low", "moderate"]
     requires_human_review: bool
     autonomous_action_taken: Literal[False]
