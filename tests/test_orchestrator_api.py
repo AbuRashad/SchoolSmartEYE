@@ -30,7 +30,14 @@ def test_principal_can_call_orchestrator_and_result_requires_review(client: Test
     assert payload["provider"] == "deterministic"
     assert payload["requires_human_review"] is True
     assert payload["autonomous_action_taken"] is False
-    assert len(payload["stages"]) == 4
+    assert [stage["name"] for stage in payload["stages"]] == [
+        "analytics",
+        "safety",
+        "academic",
+        "operations",
+        "evidence",
+        "ethics_review",
+    ]
     assert payload["status"] == "completed"
 
 
