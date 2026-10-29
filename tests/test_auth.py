@@ -66,7 +66,8 @@ def test_role_matrix(anon_client, auth_headers) -> None:
     # Anonymous
     assert anon_client.get(f"{API}/students").status_code == 401
     assert anon_client.get(f"{API}/health").status_code == 200
-    assert anon_client.get(f"{API}/portal/student").status_code == 200
+    assert anon_client.get(f"{API}/portal/student").status_code == 401
+    assert anon_client.get(f"{API}/portal/student", headers=auth_headers("teacher")).status_code == 200
 
     # Teacher: read-only
     t = auth_headers("teacher")
