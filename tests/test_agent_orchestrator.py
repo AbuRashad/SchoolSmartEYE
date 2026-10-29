@@ -91,7 +91,7 @@ def test_task_validation_rejects_blank_and_oversized_requests():
     with pytest.raises(ValueError):
         run_orchestration("   ", {})
     with pytest.raises(ValueError):
-        run_orchestration("x" * 501)
+        run_orchestration("x" * 501, {})
 
 
 def test_advisory_llm_text_never_becomes_a_report_finding(monkeypatch):
