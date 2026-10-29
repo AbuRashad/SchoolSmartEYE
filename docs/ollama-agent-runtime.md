@@ -20,6 +20,10 @@ OLLAMA_API_KEY=
 - Provider requests contain only the specialist label and allowlisted, validated aggregate numeric metrics. The free-form task text is intentionally not sent to the model, because it could contain student identifiers or other sensitive details.
 - Calls have a 12-second timeout and do not follow redirects. A provider failure falls back to deterministic output.
 
+## Unified review report
+
+The orchestration response includes a deterministic `report` containing flags, recommendations, and warnings labelled with their originating specialist, plus evidence count and explicit limitations. The report does not treat advisory LLM text as evidence and does not claim that aggregate metrics establish individual causes. Consumers should display the evidence and limitations alongside findings and keep the human-review gate.
+
 ## Limitations
 
-This is summary assistance, not a fully autonomous multi-agent framework. All six roles are invoked sequentially, and their deterministic findings remain authoritative. The current API obtains metrics from the existing analytics overview; confirm whether those values are live or demo/static before operational use. Tenant scoping, real-data provenance, and end-to-end deployment validation remain separate requirements.
+This is bounded sequential orchestration, not a fully autonomous multi-agent framework. All six roles are invoked sequentially, and their deterministic findings remain authoritative. The current API obtains metrics from the existing analytics overview; confirm whether those values are live or demo/static before operational use. Tenant scoping, real-data provenance, and end-to-end deployment validation remain separate requirements.
