@@ -1,4 +1,4 @@
-"""Authenticated API for the bounded agent orchestrator."""
+"""Authenticated API for the bounded specialist-agent orchestrator."""
 from __future__ import annotations
 
 from typing import Literal
@@ -27,7 +27,7 @@ class EvidenceItem(BaseModel):
 
 class AgentStage(BaseModel):
     name: Literal["analytics", "safety", "academic", "operations", "evidence", "ethics_review"]
-    kind: Literal["deterministic"]
+    kind: Literal["deterministic", "llm_assisted"]
     status: Literal["completed", "limited"]
     summary: str | None = None
     flags: list[str] = Field(default_factory=list)
@@ -39,7 +39,7 @@ class OrchestrateResponse(BaseModel):
     request_id: str
     status: Literal["completed", "limited"]
     task: str
-    provider: Literal["deterministic"]
+    provider: Literal["deterministic", "ollama"]
     stages: list[AgentStage]
     evidence: list[EvidenceItem]
     confidence: Literal["low", "moderate"]
@@ -52,10 +52,10 @@ def orchestrate_agents(
     payload: OrchestrateRequest,
     _user: User = Depends(require_principal),
 ) -> OrchestrateResponse:
-    """Coordinate deterministic specialists over allowlisted aggregate metrics.
+    """Coordinate specialists over allowlisted aggregate metrics.
 
-    Principal and Ministry roles may call this endpoint. No student records are
-    fetched, and no external LLM provider is called in this initial version.
+    Principal and Ministry roles may call this endpoint. No student-level records
+    are fetched. Optional Ollama summaries do not change deterministic findings.
     """
     try:
         result = run_orchestration(payload.task, analytics_overview())
