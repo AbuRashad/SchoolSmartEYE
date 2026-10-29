@@ -1,4 +1,4 @@
-""""Optional Ollama Cloud/local summary adapter for specialist agents.
+"""Optional Ollama Cloud/local summary adapter for specialist agents.
 
 LLM output is advisory only. Deterministic findings/evidence remain authoritative;
 provider errors fall back to the deterministic summary. No tools or actions are exposed.
@@ -57,14 +57,7 @@ def generate_specialist_summary(
         "stream": False,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {"agent": agent_name, "aggregate_metrics": metrics},
-                    ensure_ascii=True,
-                    allow_nan=False,
-                ),
-            },
+            {"role": "user", "content": json.dumps({"agent": agent_name, "aggregate_metrics": metrics}, ensure_ascii=True, allow_nan=False)},
         ],
         "options": {"temperature": 0.1},
     }
@@ -82,5 +75,4 @@ def generate_specialist_summary(
             return fallback_summary, False
         return summary, True
     except (httpx.HTTPError, ValueError, TypeError, KeyError, AttributeError):
-        # Fail closed: deterministic output remains available and secrets are not logged.
         return fallback_summary, False
