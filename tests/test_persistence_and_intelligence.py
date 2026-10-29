@@ -68,7 +68,7 @@ def test_ssi_trend_uses_elapsed_calendar_days() -> None:
     assert trend["direction"] == "stable"
 
 
-def test_ssi_endpoints_use_stored_history(anon_client, db_session_factory) -> None:
+def test_ssi_endpoints_use_stored_history(anon_client, db_session_factory, auth_headers) -> None:
     seed_data.populate()
     h = anon_client.get(f"{API}/ssi/history").json()
     assert len(h["scores"]) == 30 and h["trend"] in {"improving", "stable", "declining"}
@@ -77,7 +77,7 @@ def test_ssi_endpoints_use_stored_history(anon_client, db_session_factory) -> No
     with db_session_factory() as db:
         live = db.query(orm.SSISnapshot).filter_by(source="live").count()
     assert live == 1
-    assert anon_client.get(f"{API}/dashboard/summary").json()["ssiTrend"]
+    assert anon_client.get(f"{API}/dashboard/summary", headers=auth_headers("teacher")).json()["ssiTrend"]
 
 
 def test_attendance_risk_scoring(db_session_factory) -> None:
@@ -156,7 +156,7 @@ def test_feedback_submission_and_baselines_skip_feedback_history(
     assert anon_client.post(
         f"{API}/agent/feedback", json=payload, headers=auth_headers("teacher")
     ).status_code == 201
-    assert anon_client.get(f"{API}/agent/baselines").status_code == 200
+    assert anon_client.get(f"{API}/agent/baselines", headers=auth_headers("teacher")).status_code == 200
 
 
 def test_risk_endpoints_require_teacher_and_rank(anon_client, client, seeded) -> None:
@@ -180,9 +180,10 @@ def test_agent_feedback_requires_teacher_and_persists(anon_client, auth_headers,
     assert r.status_code == 201
     with seeded() as db:
         assert db.get(orm.AgentFeedbackRecord, r.json()["feedback_id"]) is not None
-    # Public reads stay public
-    assert anon_client.get(f"{API}/agent/feedback/metrics").json()["total_feedback"] == 4
-    assert anon_client.get(f"{API}/agent/insights").status_code == 200
+    # Protected reads require a teacher-level token.
+    assert anon_client.get(f"{API}/agent/feedback/metrics").status_code == 401
+    assert anon_client.get(f"{API}/agent/feedback/metrics", headers=auth_headers("teacher")).json()["total_feedback"] == 4
+    assert anon_client.get(f"{API}/agent/insights", headers=auth_headers("teacher")).status_code == 200
 
 
 def test_feedback_calibrates_and_shapes_recommendations(anon_client, auth_headers, seeded) -> None:
@@ -193,8 +194,8 @@ def test_feedback_calibrates_and_shapes_recommendations(anon_client, auth_header
                   "predicted_state": "drowsy", "confirmed_state": "engaged"},
             headers=auth_headers("teacher"),
         )
-    cal = anon_client.get(f"{API}/agent/feedback/metrics").json()["calibration"]
+    cal = anon_client.get(f"{API}/agent/feedback/metrics", headers=auth_headers("teacher")).json()["calibration"]
     assert cal["drowsy"]["low_confidence"] is True
-    rec = anon_client.get(f"{API}/agent/recommendations/STU-2024-0847").json()
+    rec = anon_client.get(f"{API}/agent/recommendations/STU-2024-0847", headers=auth_headers("teacher")).json()
     assert rec["recommendations"] and rec["confidence_notes"]
-    assert anon_client.get(f"{API}/agent/recommendations/NOPE").status_code == 404
+    assert anon_client.get(f"{API}/agent/recommendations/NOPE", headers=auth_headers("teacher")).status_code == 404
