@@ -1,14 +1,15 @@
 """Bounded multi-agent orchestration for SchoolSmartEYE.
 
-Specialist agents are intentionally deterministic in v1. They receive only
-validated aggregate metrics; no student-level records are loaded, and no agent
-can trigger an operational action. Human review remains mandatory.
+Specialists receive validated aggregate metrics only. Optional LLM summaries are
+advisory; deterministic findings and evidence remain authoritative. Human review
+is mandatory and agents cannot trigger operational actions.
 """
 from __future__ import annotations
 
 import uuid
 from typing import Any
 
+from app.services.llm_agent_runtime import generate_specialist_summary, ollama_enabled
 from app.services.specialist_agents import (
     academic_agent,
     analytics_agent,
@@ -63,7 +64,7 @@ def _safe_metrics(metrics: dict[str, Any]) -> dict[str, int | float]:
 
 
 def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
-    """Run six specialist stages over allowlisted aggregate metrics."""
+    """Run six specialists; optionally enrich summaries through Ollama."""
     normalized_task = task.strip()
     if not normalized_task or len(normalized_task) > _MAX_TASK_LENGTH:
         raise ValueError(f"task must contain 1-{_MAX_TASK_LENGTH} characters")
@@ -73,8 +74,6 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         {"source": "analytics.overview", "description": f"Aggregate metric: {key}", "value": value}
         for key, value in sorted(safe.items())
     ]
-
-    # Each specialist is isolated behind a small input/output contract.
     stages = [
         analytics_agent(safe),
         safety_agent(safe),
@@ -83,11 +82,25 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         evidence_agent(evidence),
         ethics_review_agent(safe, evidence),
     ]
+
+    llm_used = False
+    if ollama_enabled() and safe:
+        for stage in stages:
+            summary, used = generate_specialist_summary(
+                agent_name=stage["name"],
+                task=normalized_task,
+                metrics=safe,
+                fallback_summary=stage.get("summary") or "No summary available.",
+            )
+            stage["summary"] = summary
+            stage["kind"] = "llm_assisted" if used else "deterministic"
+            llm_used = llm_used or used
+
     return {
         "request_id": str(uuid.uuid4()),
         "status": "completed" if safe else "limited",
         "task": normalized_task,
-        "provider": "deterministic",
+        "provider": "ollama" if llm_used else "deterministic",
         "stages": stages,
         "evidence": evidence,
         "confidence": "low" if not safe else "moderate",
