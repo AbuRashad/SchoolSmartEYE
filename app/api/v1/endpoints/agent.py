@@ -25,7 +25,7 @@ from app.models import EngagementState
 from app.api.deps import require_teacher
 from app.services import agent_store
 
-router = APIRouter(prefix="/agent", tags=["agent"])
+router = APIRouter(prefix="/agent", tags=["agent"], dependencies=[Depends(require_teacher)])
 
 # ── Request / response schemas ────────────────────────────────────────────────
 
