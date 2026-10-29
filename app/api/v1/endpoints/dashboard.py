@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, HTTPException
 from starlette.websockets import WebSocketState
 
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
+from app.api.deps import _user_from_token, _check_roles, require_teacher
+from app.core.governance_layer import Role
 from app.services import ssi_history
 from app.services.dashboard_service import DashboardService
 
@@ -49,31 +51,40 @@ class DashboardConnectionManager:
 manager = DashboardConnectionManager()
 
 
-@router.get("/summary")
+@router.get("/summary", dependencies=[Depends(require_teacher)])
 def dashboard_summary(db: Session = Depends(get_db)) -> dict[str, object]:
     summary = service.get_summary()
     summary["ssiTrend"] = ssi_history.summarize(db, 30)["trend"]
     return summary
 
 
-@router.get("/alerts")
+@router.get("/alerts", dependencies=[Depends(require_teacher)])
 def dashboard_alerts() -> list[dict[str, str]]:
     return service.get_alerts()
 
 
-@router.get("/heatmap")
+@router.get("/heatmap", dependencies=[Depends(require_teacher)])
 def dashboard_heatmap() -> dict[str, object]:
     return service.get_heatmap()
 
 
-@router.get("/live")
+@router.get("/live", dependencies=[Depends(require_teacher)])
 def dashboard_live() -> dict[str, object]:
     """REST polling fallback — returns the full dashboard snapshot as JSON."""
     return service.get_snapshot()
 
 
 @router.websocket("/ws")
-async def dashboard_ws(websocket: WebSocket) -> None:
+async def dashboard_ws(websocket: WebSocket, access_token: str | None = Query(default=None)) -> None:
+    # WebSocket clients cannot set Authorization headers in the browser API.
+    # Validate the short-lived JWT before accepting or sending any dashboard data.
+    try:
+        with SessionLocal() as db:
+            user = _user_from_token(access_token, db)
+            _check_roles(user, (Role.TEACHER,))
+    except HTTPException as exc:
+        await websocket.close(code=4401 if exc.status_code == 401 else 4403)
+        return
     await manager.connect(websocket)
     try:
         await manager.send_snapshot(websocket)

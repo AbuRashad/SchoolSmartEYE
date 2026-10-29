@@ -1,6 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+from app.api.deps import require_teacher
+
+router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(require_teacher)])
 
 
 @router.get("/overview")
