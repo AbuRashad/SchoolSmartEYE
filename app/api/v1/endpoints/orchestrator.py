@@ -34,6 +34,7 @@ class AgentStage(BaseModel):
     flags: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    reviewed_stages: list[str] = Field(default_factory=list)
 
 
 class OrchestrateResponse(BaseModel):
