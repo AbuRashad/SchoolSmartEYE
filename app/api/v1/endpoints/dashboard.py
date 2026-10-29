@@ -12,7 +12,7 @@ from app.services import ssi_history
 from app.services.dashboard_service import DashboardService
 
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(require_teacher)])
+router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 service = DashboardService()
 
 
@@ -51,24 +51,24 @@ class DashboardConnectionManager:
 manager = DashboardConnectionManager()
 
 
-@router.get("/summary")
+@router.get("/summary", dependencies=[Depends(require_teacher)])
 def dashboard_summary(db: Session = Depends(get_db)) -> dict[str, object]:
     summary = service.get_summary()
     summary["ssiTrend"] = ssi_history.summarize(db, 30)["trend"]
     return summary
 
 
-@router.get("/alerts")
+@router.get("/alerts", dependencies=[Depends(require_teacher)])
 def dashboard_alerts() -> list[dict[str, str]]:
     return service.get_alerts()
 
 
-@router.get("/heatmap")
+@router.get("/heatmap", dependencies=[Depends(require_teacher)])
 def dashboard_heatmap() -> dict[str, object]:
     return service.get_heatmap()
 
 
-@router.get("/live")
+@router.get("/live", dependencies=[Depends(require_teacher)])
 def dashboard_live() -> dict[str, object]:
     """REST polling fallback — returns the full dashboard snapshot as JSON."""
     return service.get_snapshot()
