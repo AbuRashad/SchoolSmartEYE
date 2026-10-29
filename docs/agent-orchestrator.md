@@ -1,24 +1,46 @@
 # Agent Orchestrator v1
 
 ## What it does
-`POST /api/v1/agent/orchestrate` coordinates four bounded stages: analytics, safety, education, and ethics review. It is an initial deterministic orchestration layer, not a claim that four independent LLM agents exist.
+
+`POST /api/v1/agent/orchestrate` runs six bounded specialist stages in order:
+
+1. `analytics` — summarizes the validated aggregate metric set.
+2. `safety` — flags aggregate signals that warrant human verification.
+3. `academic` — offers school-level educational follow-up suggestions.
+4. `operations` — checks selected operational indicators.
+5. `evidence` — records the allowlisted aggregate metrics used as evidence.
+6. `ethics_review` — reports limitations and reinforces the human-review requirement.
+
+These are deterministic Python functions, not six independent autonomous AI agents. If the optional Ollama provider is explicitly enabled and configured, it may rewrite bounded stage summaries; deterministic flags, recommendations, and evidence remain authoritative.
 
 ## Access and data boundaries
-- Requires an authenticated Principal or Ministry role through the existing `require_principal` dependency.
-- Uses the existing analytics overview only; that endpoint currently returns static/demo aggregate values.
-- The orchestrator copies only an explicit allowlist of numeric aggregate metrics into evidence. Student names, IDs, nested objects, strings, and other non-allowlisted values are excluded.
-- Does not query student tables, send data to external model providers, access secrets, or take autonomous actions.
-- Every result requires human review; safety flags are prompts to verify source reports, not findings about individuals.
 
-## Current limitations
-- The analytics overview is demo/static data, not a verified live data source.
-- All stages are deterministic functions, not autonomous agents or LLM calls.
-- No provider fallback, model call, or live availability is claimed.
-- Tenant/school-level scoping is not represented in the current SQLite demo data model. Do not treat this endpoint as production-ready for multi-school live data until tenant boundaries are modeled and tested.
+- The endpoint requires a Principal or Ministry role through `require_principal`.
+- The current analytics overview returns static/demo aggregate values. It is not a live, verified school data feed.
+- The orchestrator accepts only an allowlist of finite numeric aggregate metrics within configured domain bounds. Unknown metrics, booleans, invalid numbers, out-of-range values, and fractional values for integer metrics are excluded.
+- The request's free-form task text is not sent to the Ollama provider. The provider receives the specialist label and validated aggregate metrics only.
+- If Ollama is enabled, aggregate metrics leave the application and are sent to the configured provider endpoint. Configure this only after reviewing provider terms, data residency, access controls, and institutional approval.
+- The API rejects unknown request fields, requires human review, and takes no autonomous operational action.
+
+## Current limitations — not production-ready for live multi-school data
+
+- The analytics overview is demo/static data, not a verified live source.
+- There is no tenant/school identifier in the current demo data model; tenant-level isolation is not implemented or tested.
+- No claim is made that the stages are independent LLM agents or that live data is available.
+- Role-based access is not a substitute for school-level data isolation.
+
+Do not use this endpoint to make real student safety or academic decisions until live-source provenance, tenant boundaries, access control, data freshness, and end-to-end tests are implemented and reviewed.
 
 ## Test
+
 Run from the repository root:
-`pytest -q tests/test_agent_orchestrator.py`
+
+```bash
+python -m pytest -q
+```
+
+The API regression test should assert all six stage names and verify that authentication, role restrictions, the human-review gate, no-autonomous-action contract, and rejection of unknown request fields remain enforced.
 
 ## Threat model
-The endpoint assumes authenticated role claims resolved by the existing server dependency. Request input is bounded and rejects extra fields. Aggregate evidence is allowlisted and type-checked to reduce accidental PII propagation. Remaining risks include stale/demo metrics, role hierarchy semantics, and the absence of tenant identifiers in the current demo schema. Do not add live student data or LLM providers without explicit authorization, a privacy review, tenant-isolation tests, and validated output schemas.
+
+The current boundary reduces accidental PII propagation by filtering to validated aggregate numeric metrics and not forwarding free-form task text to the LLM provider. Remaining risks include stale/demo metrics, incorrect or misleading aggregates, provider data-handling terms when Ollama is enabled, role-hierarchy semantics, and absent tenant identifiers. Before adding live student data or enabling an external LLM for school use, require explicit authorization, a privacy review, tenant-isolation tests, validated output schemas, and source-data provenance checks.
