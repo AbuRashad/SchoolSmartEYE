@@ -99,6 +99,7 @@ def ethics_review_agent(metrics: dict[str, int | float], evidence: list[dict[str
         "Aggregate metrics cannot establish individual responsibility or explain causes.",
         "No student-level records or identifiers are passed into this orchestration pipeline.",
         "Human review is required before acting on any recommendation.",
+        "Metrics outside expected domain bounds are excluded from evidence.",
     ]
     if not evidence:
         warnings.append("No usable metrics were supplied; conclusions are unavailable.")
