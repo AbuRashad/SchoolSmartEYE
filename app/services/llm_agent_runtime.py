@@ -1,7 +1,8 @@
-"""Optional Ollama Cloud/local summary adapter for specialist agents.
+""""Optional Ollama Cloud/local summary adapter for specialist agents.
 
 LLM output is advisory only. Deterministic findings/evidence remain authoritative;
 provider errors fall back to the deterministic summary. No tools or actions are exposed.
+Only the specialist label and validated aggregate metrics are sent to the provider.
 """
 from __future__ import annotations
 
@@ -28,7 +29,6 @@ def _ollama_chat_url() -> str:
 
 def generate_specialist_summary(
     agent_name: str,
-    task: str,
     metrics: dict[str, int | float],
     fallback_summary: str,
 ) -> tuple[str, bool]:
@@ -60,7 +60,7 @@ def generate_specialist_summary(
             {
                 "role": "user",
                 "content": json.dumps(
-                    {"agent": agent_name, "task": task[:500], "aggregate_metrics": metrics},
+                    {"agent": agent_name, "aggregate_metrics": metrics},
                     ensure_ascii=True,
                     allow_nan=False,
                 ),
