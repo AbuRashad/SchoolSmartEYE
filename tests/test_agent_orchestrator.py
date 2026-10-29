@@ -80,6 +80,8 @@ def test_empty_metrics_returns_limited_result_and_never_claims_confidence():
     assert result["status"] == "limited"
     assert result["confidence"] == "low"
     assert result["evidence"] == []
+    assert result["report"]["status"] == "limited"
+    assert result["report"]["evidence_count"] == 0
     assert result["requires_human_review"] is True
 
 
@@ -89,4 +91,24 @@ def test_task_validation_rejects_blank_and_oversized_requests():
     with pytest.raises(ValueError):
         run_orchestration("   ", {})
     with pytest.raises(ValueError):
-        run_orchestration("x" * 501, {})
+        run_orchestration("x" * 501)
+
+
+def test_advisory_llm_text_never_becomes_a_report_finding(monkeypatch):
+    import app.services.agent_orchestrator as orchestrator
+
+    monkeypatch.setattr(orchestrator, "ollama_enabled", lambda: True)
+
+    def fake_summary(*, agent_name, metrics, fallback_summary):
+        return f"ADVISORY-ONLY-{agent_name}", True
+
+    monkeypatch.setattr(orchestrator, "generate_specialist_summary", fake_summary)
+
+    result = run_orchestration("Review aggregate school signals", {"attendance_rate": 90})
+
+    assert result["provider"] == "ollama"
+    assert all("advisory_summary" in stage for stage in result["stages"])
+    assert all("ADVISORY-ONLY-" not in finding["text"] for finding in result["report"]["findings"])
+    assert all("ADVISORY-ONLY-" not in str(item) for item in result["evidence"])
+    assert result["requires_human_review"] is True
+    assert result["autonomous_action_taken"] is False
