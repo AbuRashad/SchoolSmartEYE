@@ -1,8 +1,10 @@
 """Mock student portal data for demonstration purposes."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-router = APIRouter(prefix="/portal", tags=["portal"])
+from app.api.deps import require_teacher
+
+router = APIRouter(prefix="/portal", tags=["portal"], dependencies=[Depends(require_teacher)])
 
 
 @router.get("/student")
