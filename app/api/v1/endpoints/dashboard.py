@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, HTTPException
 from starlette.websockets import WebSocketState
 
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
+from app.api.deps import _user_from_token, _check_roles, require_teacher
+from app.core.governance_layer import Role
 from app.services import ssi_history
 from app.services.dashboard_service import DashboardService
 
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(require_teacher)])
 service = DashboardService()
 
 
@@ -73,7 +75,16 @@ def dashboard_live() -> dict[str, object]:
 
 
 @router.websocket("/ws")
-async def dashboard_ws(websocket: WebSocket) -> None:
+async def dashboard_ws(websocket: WebSocket, access_token: str | None = Query(default=None)) -> None:
+    # WebSocket clients cannot set Authorization headers in the browser API.
+    # Validate the short-lived JWT before accepting or sending any dashboard data.
+    try:
+        with SessionLocal() as db:
+            user = _user_from_token(access_token, db)
+            _check_roles(user, (Role.TEACHER,))
+    except HTTPException as exc:
+        await websocket.close(code=4401 if exc.status_code == 401 else 4403)
+        return
     await manager.connect(websocket)
     try:
         await manager.send_snapshot(websocket)
