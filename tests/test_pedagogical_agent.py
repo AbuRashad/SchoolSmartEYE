@@ -30,6 +30,11 @@ from app.services.pedagogical_agent import (
 )
 
 
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
