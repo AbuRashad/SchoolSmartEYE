@@ -96,10 +96,37 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
                 stage["kind"] = "deterministic"
             llm_used = llm_used or used
 
+    findings: list[dict[str, str]] = []
+    for stage in stages:
+        for field, label in (
+            ("flags", "flag"),
+            ("recommendations", "recommendation"),
+            ("warnings", "warning"),
+        ):
+            for item in stage.get(field, []):
+                findings.append({
+                    "stage": str(stage["name"]),
+                    "type": label,
+                    "text": str(item),
+                })
+
+    report = {
+        "title": "School-wide specialist review",
+        "status": "completed" if safe else "limited",
+        "finding_count": len(findings),
+        "findings": findings,
+        "evidence_count": len(evidence),
+        "limitations": [
+            "Aggregate metrics do not establish individual causes or responsibility.",
+            "Verify metric freshness and source provenance before operational use.",
+            "All findings and recommendations require human review.",
+        ],
+    }
+
     return {
         "request_id": str(uuid.uuid4()), "status": "completed" if safe else "limited",
         "task": normalized_task, "provider": "ollama" if llm_used else "deterministic",
-        "stages": stages, "evidence": evidence,
+        "stages": stages, "evidence": evidence, "report": report,
         "confidence": "low" if not safe else "moderate",
         "requires_human_review": True, "autonomous_action_taken": False,
     }
