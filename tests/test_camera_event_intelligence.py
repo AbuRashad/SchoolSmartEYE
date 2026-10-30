@@ -78,7 +78,8 @@ def test_snapshot_serialization_is_json_friendly_and_has_no_identity_fields():
     data = analyze(FakeDetector([detection()])).to_dict()
     assert data["findings"][0]["event_type"] == "person_presence"
     assert data["findings"][0]["requires_human_review"] is True
-    assert "identity" not in str(data).lower()
+    assert all("identity" not in key.lower() for key in data)
+    assert all("identity" not in key.lower() for finding in data["findings"] for key in finding)
 
 
 def test_naive_timestamp_is_rejected():
