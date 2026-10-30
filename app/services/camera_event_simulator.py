@@ -25,6 +25,7 @@ def generate_camera_events(
     events_per_camera: int = 10,
     seed: int = 7,
     run_id: str = "simulation",
+    start_at: datetime | None = None,
 ) -> Iterator[dict[str, object]]:
     """Yield repeatable, privacy-minimised event payloads for API/load tests."""
     if not camera_ids:
@@ -35,7 +36,10 @@ def generate_camera_events(
         raise ValueError("camera_ids must be non-empty strings up to 64 characters")
 
     rng = random.Random(seed)
-    base_time = datetime.now(timezone.utc)
+    base_time = start_at or datetime.now(timezone.utc)
+    if base_time.tzinfo is None or base_time.utcoffset() is None:
+        raise ValueError("start_at must be timezone-aware")
+    base_time = base_time.astimezone(timezone.utc)
     for camera_index, camera_id in enumerate(camera_ids):
         for sequence in range(events_per_camera):
             event_type = EVENT_TYPES[(camera_index + sequence) % len(EVENT_TYPES)]
