@@ -99,3 +99,18 @@ def test_observation_requires_authentication(anon_client):
         "idempotency_key": "attendance-anon-001",
     })
     assert response.status_code == 401
+
+
+def test_ministry_cannot_ingest_school_observations(client, auth_headers):
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    ministry_client = TestClient(app, headers=auth_headers("ministry"))
+    response = ministry_client.post("/api/v1/observations", json={
+        "metric_key": "attendance_rate",
+        "metric_value": 91,
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "source_id": "attendance",
+        "idempotency_key": "ministry-forbidden-001",
+    })
+    assert response.status_code == 403
