@@ -115,7 +115,7 @@ def list_cameras(user: User = Depends(require_teacher)) -> list[CameraInfo]:
 )
 def register_camera(
     payload: CameraCreate,
-    user: User = Depends(require_principal),
+    user: User = Depends(require_school_principal),
     db: Session = Depends(get_db),
 ) -> CameraInfo:
     """Register a new live camera and start streaming from it."""
@@ -144,9 +144,9 @@ def register_camera(
 @router.delete(
     "/{camera_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_principal)],
+    dependencies=[Depends(require_school_principal)],
 )
-def unregister_camera(camera_id: str, user: User = Depends(require_principal)) -> Response:
+def unregister_camera(camera_id: str, user: User = Depends(require_school_principal)) -> Response:
     if not user.school_id:
         raise HTTPException(status_code=403, detail="User is not assigned to a school")
     source = next((s for s in ingestion_service.list_sources() if s.camera_id == camera_id), None)
@@ -158,9 +158,9 @@ def unregister_camera(camera_id: str, user: User = Depends(require_principal)) -
 
 
 @router.post(
-    "/{camera_id}/start", response_model=CameraInfo, dependencies=[Depends(require_principal)]
+    "/{camera_id}/start", response_model=CameraInfo, dependencies=[Depends(require_school_principal)]
 )
-def start_camera(camera_id: str, user: User = Depends(require_principal)) -> CameraInfo:
+def start_camera(camera_id: str, user: User = Depends(require_school_principal)) -> CameraInfo:
     if not user.school_id:
         raise HTTPException(status_code=403, detail="User is not assigned to a school")
     info = _info_for(camera_id, user.school_id)
@@ -176,9 +176,9 @@ def start_camera(camera_id: str, user: User = Depends(require_principal)) -> Cam
 
 
 @router.post(
-    "/{camera_id}/stop", response_model=CameraInfo, dependencies=[Depends(require_principal)]
+    "/{camera_id}/stop", response_model=CameraInfo, dependencies=[Depends(require_school_principal)]
 )
-def stop_camera(camera_id: str, user: User = Depends(require_principal)) -> CameraInfo:
+def stop_camera(camera_id: str, user: User = Depends(require_school_principal)) -> CameraInfo:
     if not user.school_id:
         raise HTTPException(status_code=403, detail="User is not assigned to a school")
     info = _info_for(camera_id, user.school_id)
