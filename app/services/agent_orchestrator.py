@@ -5,7 +5,7 @@ import uuid
 from typing import Any
 
 from app.services.agent_metric_scope import MAX_PEER_HANDOFF, scope_metrics
-from app.services.llm_agent_runtime import ai_enabled, generate_specialist_analysis
+from app.services.llm_agent_runtime import ai_enabled, generate_specialist_analysis, last_outcome
 from app.services.specialist_agents import (
     academic_agent, analytics_agent, ethics_review_agent, evidence_agent,
     operations_agent, safety_agent,
@@ -55,7 +55,8 @@ def _apply_ai_analysis(
     """Enrich stages with validated model analysis; deterministic findings stay authoritative.
 
     Each role receives only the metrics it owns, and the validated analyses of the
-    roles that ran before it as bounded peer context.
+    roles that ran before it as bounded peer context. Every stage also records why
+    its model call succeeded or fell back.
     """
     prior_analyses: list[dict[str, Any]] = []
     for stage in stages:
@@ -66,15 +67,25 @@ def _apply_ai_analysis(
             fallback_summary=stage.get("summary") or "No deterministic summary available.",
             prior_analyses=list(prior_analyses) if prior_analyses else None,
         )
+        outcome = last_outcome()
         stage["agent_role"] = name
         stage["provider"] = provider if used else "deterministic"
         stage["analysis_status"] = "ai_completed" if used else "deterministic_fallback"
         stage["kind"] = "llm_assisted" if used else "deterministic"
+        if outcome is not None:
+            stage["failure_reason"] = outcome.failure_reason
+            stage["latency_ms"] = outcome.total_latency_ms
+            stage["attempts"] = [attempt.__dict__ for attempt in outcome.attempts]
         if used and analysis:
             stage["analysis"] = analysis
             stage["advisory_summary"] = analysis["summary"]
             prior_analyses.append({"agent": name, "analysis": analysis})
             prior_analyses = prior_analyses[-MAX_PEER_HANDOFF:]
+
+
+def _fallback_diagnostic(reason: str) -> dict[str, Any]:
+    """Per-stage diagnostics when the AI layer never ran at all."""
+    return {"failure_reason": reason, "latency_ms": 0, "attempts": []}
 
 
 def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
@@ -105,10 +116,13 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
     if ai_enabled() and safe:
         _apply_ai_analysis(stages, safe)
     else:
+        # Distinguish "AI turned off", "nothing to analyse" from a real failure.
+        reason = "no_metrics" if not safe else "provider_disabled"
         for stage in stages:
             stage["agent_role"] = str(stage["name"])
             stage["provider"] = "deterministic"
             stage["analysis_status"] = "deterministic_fallback"
+            stage.update(_fallback_diagnostic(reason))
 
     findings: list[dict[str, str]] = []
     for stage in stages:
@@ -124,6 +138,11 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
     limitations.append(data_notice if data_status != "live" else "Verify source provenance and metric freshness before operational use.")
     ai_count = sum(stage.get("analysis_status") == "ai_completed" for stage in stages)
     providers = sorted({stage["provider"] for stage in stages if stage.get("analysis_status") == "ai_completed"})
+    # Surface why the AI layer produced nothing, without leaking internals per stage.
+    fallback_reasons = sorted({
+        str(stage.get("failure_reason")) for stage in stages
+        if stage.get("analysis_status") != "ai_completed" and stage.get("failure_reason")
+    })
     report = {
         "title": "School-wide specialist review",
         "status": "completed" if safe else "limited",
@@ -131,6 +150,7 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         "finding_count": len(findings), "findings": findings,
         "evidence_count": len(evidence), "limitations": limitations,
         "ai_agent_count": ai_count, "ai_providers": providers,
+        "fallback_reasons": fallback_reasons,
         "reviewed_agents": stages[-1].get("reviewed_stages", []),
     }
     return {
