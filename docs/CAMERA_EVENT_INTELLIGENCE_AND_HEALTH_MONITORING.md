@@ -279,3 +279,16 @@ Added `app/services/camera_event_pipeline.py` and focused tests:
 This is an orchestration contract, not a complete production event worker. It does not yet perform clip extraction, event deduplication, persistent review-queue storage, camera health monitoring, authorization, tenant scoping, or API integration. The pipeline does not use the scene-local tracker yet; adding temporal association safely requires a detector result contract that avoids running inference twice per frame and guarantees temporary track IDs never enter persistent review records.
 
 Tests use synthetic arrays and a fake detector. They verify bounds, timestamp ordering, review-only status, and serialization boundaries. They do not validate visual accuracy, live camera behavior, throughput, or deployment readiness.
+
+
+## Human-review decision contract — domain-only slice
+
+Added `app/services/camera_review_workflow.py`:
+- Defines explicit human decisions: confirmed, dismissed, and needs follow-up.
+- Requires a reviewer identifier, non-empty rationale, and timezone-aware review timestamp.
+- Preserves the source batch as a candidate; a human decision is a separate record and never rewrites the AI finding as ground truth.
+- Binds each per-frame snapshot to the upstream trigger event ID, so one event has a consistent event reference.
+
+This is not yet a persistent review queue. It does not authenticate the reviewer, establish school membership, write an audit event, or store decisions. Do not expose it through an API until server-side school scope, principal authorization, and append-only audit persistence are implemented together. The reviewer identifier is only a required input at this domain layer and is not proof of identity.
+
+Tests cover all decision types, required rationale/actor, timestamp validation, candidate immutability, and event ID consistency. They use synthetic frames and a fake detector only.
