@@ -20,12 +20,12 @@ The current branch now has a persisted `School` model and school ownership on us
 
 ### P0 — Establish school/tenant isolation before multi-school live data
 
-- The ORM `User` model has no school/tenant association. The `Student` model and related records also have no school identifier.
-- `GET /students` queries all student rows and relies on the teacher-role dependency; `GET /students/{student_id}/profile` and behavioral history look up records by student ID without a school boundary.
-- Bracelet endpoints list or resolve bracelet records by ID and role, without a tenant boundary.
-- Role-based authorization answers what role a user has; it does not prove which school's records that user may access.
+- The ORM has a `School` tenant model; users and students carry school ownership, and bracelets inherit their school through the assigned student.
+- Student lists, profiles, behavioral history, and bracelet lists are now school-filtered for school users. Ministry accounts can read across schools on these routes but cannot mutate student or bracelet records.
+- Other school-owned datasets and service paths are not yet consistently tenant-scoped; in-memory stores remain a separate isolation risk.
+- The general RBAC hierarchy is still role-based. The exact-principal write guard currently protects student and bracelet mutations; other write endpoints still require an explicit read-only/ministry policy review.
 
-**Required before live multi-school use:** define a canonical School/Tenant model; map each user to an explicitly authorized school scope; add tenant ownership or validated tenant relationships to school-owned data; apply scope filters to every read/write path; and add cross-tenant denial tests for list, detail, create, update, delete, attendance, bracelet, notification, incident, and analytics paths. Do not infer tenant identity from client-supplied IDs alone.
+**Required before live multi-school use:** apply authenticated school scope to every school-owned read/write path; add cross-tenant denial tests for attendance, notifications, incidents, analytics, cameras, parent portal, reports, wearable data, orchestrator, and remaining units/services; and ensure ministry is read-only wherever that is the intended policy. Do not infer tenant identity from client-supplied IDs alone.
 
 ### P1 — Replace demo analytics with a provenance-aware data source
 
