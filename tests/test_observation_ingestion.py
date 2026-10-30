@@ -66,3 +66,36 @@ def test_teacher_cannot_ingest_observation(anon_client, auth_headers):
         "idempotency_key": "teacher-forbidden-001",
     })
     assert response.status_code == 403
+
+
+def test_observation_rejects_out_of_range_value(client):
+    response = client.post("/api/v1/observations", json={
+        "metric_key": "attendance_rate",
+        "metric_value": 150,
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "source_id": "attendance",
+        "idempotency_key": "attendance-range-001",
+    })
+    assert response.status_code == 422
+
+
+def test_observation_requires_timezone(client):
+    response = client.post("/api/v1/observations", json={
+        "metric_key": "attendance_rate",
+        "metric_value": 90,
+        "observed_at": "2026-10-30T08:00:00",
+        "source_id": "attendance",
+        "idempotency_key": "attendance-timezone-001",
+    })
+    assert response.status_code == 422
+
+
+def test_observation_requires_authentication(anon_client):
+    response = anon_client.post("/api/v1/observations", json={
+        "metric_key": "attendance_rate",
+        "metric_value": 90,
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "source_id": "attendance",
+        "idempotency_key": "attendance-anon-001",
+    })
+    assert response.status_code == 401
