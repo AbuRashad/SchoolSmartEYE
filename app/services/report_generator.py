@@ -6,6 +6,8 @@ from datetime import date
 
 import numpy as np
 
+from app.core.policy_thresholds import NATIONAL_SSI_STANDARD, POLICY_VERSION
+
 
 @dataclass(frozen=True)
 class DailySSIRecord:
@@ -23,7 +25,10 @@ class HeatmapRiskRecord:
 class ReportGenerator:
     """Contribution 11: Institutional Self-Assessment report generator."""
 
-    def __init__(self, national_standard_ssi: float = 75.0) -> None:
+    def __init__(self, national_standard_ssi: float | None = None) -> None:
+        # Default comes from the shared policy layer so the benchmark has one home.
+        if national_standard_ssi is None:
+            national_standard_ssi = NATIONAL_SSI_STANDARD.value
         if not (0.0 <= national_standard_ssi <= 100.0):
             raise ValueError("national_standard_ssi must be in [0.0, 100.0]")
         self.national_standard_ssi = national_standard_ssi
@@ -50,6 +55,7 @@ class ReportGenerator:
         return {
             "report_type": "semester_summary",
             "format": "json",
+            "policy_version": POLICY_VERSION,
             "ministerial_review": {
                 "ready": True,
                 "sections": [
