@@ -79,7 +79,7 @@ def test_bracelet_records_are_isolated_by_school(client, db_session_factory, see
     assert client.patch("/api/v1/bracelets/BR-OTHER", json={"battery_level": 1}).status_code == 404
     assert client.delete("/api/v1/bracelets/BR-OTHER").status_code == 404
     assert client.post(
-        "/api/v1/bracelets/BR-10",
+        "/api/v1/bracelets",
         json={
             "bracelet_id": "BR-10", "student_id": "STU-OTHER-1",
             "mac_address": "AA:BB:CC:DD:EE:10",
