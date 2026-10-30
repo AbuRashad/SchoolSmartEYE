@@ -81,13 +81,16 @@ def student_risk(db: Session, student_id: str, window_days: int = 14) -> dict[st
     return {"student_id": student_id, **score_records(recs, window_days)}
 
 
-def school_risk(db: Session, window_days: int = 14) -> list[dict[str, object]]:
+def school_risk(db: Session, window_days: int = 14, school_id: str | None = None) -> list[dict[str, object]]:
     """All active students ranked by descending risk."""
     since = date.today() - timedelta(days=window_days * 2)
     by_student: dict[str, list[orm.AttendanceRecord]] = {}
     for r in db.scalars(select(orm.AttendanceRecord).where(orm.AttendanceRecord.date >= since)):
         by_student.setdefault(r.student_id, []).append(r)
-    students = {s.student_id: s for s in db.scalars(select(orm.Student).where(orm.Student.is_active))}
+    student_stmt = select(orm.Student).where(orm.Student.is_active)
+    if school_id is not None:
+        student_stmt = student_stmt.where(orm.Student.school_id == school_id)
+    students = {s.student_id: s for s in db.scalars(student_stmt)}
     out = []
     for sid, s in students.items():
         out.append({"student_id": sid, "name": s.name, **score_records(by_student.get(sid, []), window_days)})
