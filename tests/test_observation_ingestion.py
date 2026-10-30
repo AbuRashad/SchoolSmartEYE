@@ -114,3 +114,28 @@ def test_ministry_cannot_ingest_school_observations(client, auth_headers):
         "idempotency_key": "ministry-forbidden-001",
     })
     assert response.status_code == 403
+
+
+def test_ingestion_writes_audit_event_atomically(client, db_session_factory):
+    from sqlalchemy import select
+    from app.db.models import GovernanceAuditEvent
+
+    response = client.post("/api/v1/observations", json={
+        "metric_key": "camera_uptime",
+        "metric_value": 99.2,
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "source_id": "camera-health-monitor",
+        "idempotency_key": "camera-audit-0001",
+    })
+    assert response.status_code == 201
+
+    with db_session_factory() as db:
+        event = db.scalar(select(GovernanceAuditEvent).where(
+            GovernanceAuditEvent.target_id == str(response.json()["id"])
+        ))
+        assert event is not None
+        assert event.event_type == "observation.ingested"
+        assert event.actor_user_id is not None
+        assert event.school_id == "school-primary"
+        assert event.details["data_status"] == "live_unverified"
+        assert event.details["validation_status"] == "pending"
