@@ -93,21 +93,30 @@ export type LiveCameraInfo = {
   last_error: string | null;
 };
 
+export type AnalyticsMetric = {
+  value: number | string | null;
+  status: "live" | "stale" | "unavailable" | "demo";
+  source: string | null;
+  observed_at: string | null;
+};
+
 export type AnalyticsOverview = {
-  data_status: "demo";
+  data_status: "live" | "partial" | "unavailable" | "demo";
   data_notice: string;
-  attendance_rate: number;
-  total_students: number;
-  active_cameras: number;
-  total_units: number;
-  incidents_today: number;
-  incidents_week: number;
-  avg_crowd_density: number;
-  peak_density_zone: string;
-  uptime_percent: number;
-  alerts_resolved_today: number;
-  patrol_efficiency: number;
-  compliance_score: number;
+  generated_at: string;
+  metrics: Record<string, AnalyticsMetric>;
+  attendance_rate: number | null;
+  total_students: number | null;
+  active_cameras: number | null;
+  total_units: number | null;
+  incidents_today: number | null;
+  incidents_week: number | null;
+  avg_crowd_density: number | null;
+  peak_density_zone: string | null;
+  uptime_percent: number | null;
+  alerts_resolved_today: number | null;
+  patrol_efficiency: number | null;
+  compliance_score: number | null;
 };
 
 export type ReportItem = {
