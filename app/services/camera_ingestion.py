@@ -56,6 +56,8 @@ class CameraSource:
     label: str
     source_url: str
     anonymize_faces: bool = True
+    # Tenant owner. Missing ownership is treated as unassigned and never exposed by tenant APIs.
+    school_id: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -371,12 +373,18 @@ class CameraIngestionService:
         count = 0
         for entry in payload:
             try:
+                # Legacy entries without an explicit tenant are intentionally skipped.
+                # Assigning them to a default school could leak camera feeds across tenants.
+                if not entry.get("school_id"):
+                    logger.warning("Skipping unscoped camera entry %r", entry.get("camera_id"))
+                    continue
                 source = CameraSource(
                     camera_id=str(entry["camera_id"]),
                     zone_id=str(entry["zone_id"]),
                     label=str(entry["label"]),
                     source_url=str(entry["source_url"]),
                     anonymize_faces=bool(entry.get("anonymize_faces", settings.camera_anonymize_faces)),
+                    school_id=str(entry["school_id"]),
                 )
             except (KeyError, TypeError, ValueError) as exc:
                 logger.error("Skipping invalid camera entry %r: %s", entry, exc)
