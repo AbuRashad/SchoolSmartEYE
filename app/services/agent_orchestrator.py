@@ -65,17 +65,21 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"task must contain 1-{_MAX_TASK_LENGTH} characters")
 
     raw_data_status = metrics.get("data_status")
-    data_status = raw_data_status if raw_data_status in {"demo", "live"} else "unknown"
+    data_status = (
+        raw_data_status
+        if isinstance(raw_data_status, str) and raw_data_status in {"demo", "live"}
+        else "unknown"
+    )
     raw_data_notice = metrics.get("data_notice")
-    data_notice = (
-        raw_data_notice.strip()
-        if isinstance(raw_data_notice, str) and raw_data_notice.strip()
-        else (
+    if isinstance(raw_data_notice, str) and raw_data_notice.strip():
+        # Bound externally supplied metadata so it cannot bloat agent reports.
+        data_notice = raw_data_notice.strip()[:500]
+    else:
+        data_notice = (
             "These are illustrative demo metrics, not live school data."
             if data_status == "demo"
             else "Data provenance is unverified; confirm the source and freshness before operational use."
         )
-    )
 
     safe = _safe_metrics(metrics)
     evidence: list[dict[str, str | int | float]] = [
