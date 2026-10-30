@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, hardening/agent-output-validation]
   push:
-    branches: [main, "feature/agent-orchestrator-v1", "feature/orchestrator-metric-validation", "feat/native-ai-engine-hybrid"]
+    branches: [main, "feature/agent-orchestrator-v1", "feature/orchestrator-metric-validation", "feat/native-ai-engine-hybrid", "feat/native-school-intelligence-engine"]
 
 permissions:
   contents: read
