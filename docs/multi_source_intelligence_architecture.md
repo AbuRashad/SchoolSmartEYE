@@ -29,6 +29,8 @@ The orchestrator is the coordinator. Specialist outputs are advisory, evidence i
 
 ### WAI wearable intelligence
 - The bracelet registry already exists in `app/db/models.py` and the API in `app/api/v1/endpoints/bracelets.py`.
+- The founder's WAI/SchoolSmartEYE concept documents describe these proposed signal families: heart rate (bpm), heart-rate variability (HRV, milliseconds), skin temperature (°C), movement/activity, and optional electrodermal activity (EDA/GSR, device-dependent).
+- These are the intended integration fields, not proof that a particular wristband model or firmware currently exposes them. EDA/GSR is explicitly optional. Hardware model, exact HRV method, movement encoding, sampling rates, calibration, transport, and firmware payload still require confirmation before live ingestion.
 - The current bracelet ping endpoint updates battery level and last-seen zone; it is not yet a general wearable sensor-ingestion protocol.
 - Do not assume heart-rate, temperature, GPS, fall-detection, sleep, or other sensor availability until the actual WAI hardware specification is confirmed.
 - Future wearable observations must be timestamped, device-authenticated, replay-resistant, school-scoped, and linked to an authorised bracelet/student assignment.
