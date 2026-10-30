@@ -105,7 +105,7 @@ def ethics_review_agent(
 ) -> dict[str, Any]:
     """Cross-review completed specialist outputs without changing their findings."""
     warnings = [
-        "This v1 uses transparent deterministic rules, not independent LLM agents.",
+        "Six role-specific native analyses provide advisory reasoning over validated aggregates; they are not six independent trained models, and deterministic findings remain authoritative.",
         "The analytics overview may contain demo/static values; verify source freshness before operational use.",
         "Aggregate metrics cannot establish individual responsibility or explain causes.",
         "No student-level records or identifiers are passed into this orchestration pipeline.",
