@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_principal
-from app.db.models import AggregateObservation, User
+from app.db.models import AggregateObservation, GovernanceAuditEvent, User
 from app.db.session import get_db
 
 router = APIRouter(prefix="/observations", tags=["observations"])
@@ -84,6 +84,21 @@ def ingest_observation(
     )
     db.add(record)
     try:
+        # Keep the ingestion record and its audit event in one atomic transaction.
+        db.flush()
+        db.add(GovernanceAuditEvent(
+            school_id=user.school_id,
+            actor_user_id=user.id,
+            event_type="observation.ingested",
+            target_type="aggregate_observation",
+            target_id=str(record.id),
+            details={
+                "metric_key": record.metric_key,
+                "source_id": record.source_id,
+                "data_status": record.data_status,
+                "validation_status": record.validation_status,
+            },
+        ))
         db.commit()
         db.refresh(record)
     except IntegrityError:
