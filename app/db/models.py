@@ -170,6 +170,7 @@ class User(Base):
 class Zone(Base):
     __tablename__ = "zones"
 
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id"), index=True)
     zone_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     label: Mapped[str] = mapped_column(String(128))
     zone_type: Mapped[str] = mapped_column(String(32))
