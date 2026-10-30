@@ -11,7 +11,6 @@ def _payload(key="camera-event-0001"):
         "event_type": "crowd_density_spike",
         "severity": "medium",
         "confidence": 0.82,
-        "summary": "Synthetic crowd-density threshold event",
         "detected_at": datetime.now(timezone.utc).isoformat(),
         "evidence_ref": "evidence://synthetic/event-0001",
     }
