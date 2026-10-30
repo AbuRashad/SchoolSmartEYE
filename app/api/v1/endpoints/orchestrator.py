@@ -102,7 +102,7 @@ def orchestrate_agents(
             if any(key.startswith("wearable_") for key in metrics):
                 metrics["data_notice"] += (
                     " Wearable reporting coverage is live_unverified and is kept separate "
-                    "from verified operational metrics."
+                    "from verified operational metrics; no individual measurements or student identifiers are included."
                 )
         result = run_orchestration(payload.task, metrics)
     except ValueError as exc:
