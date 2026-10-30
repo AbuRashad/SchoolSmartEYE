@@ -108,7 +108,7 @@ export function CameraHealthPanel() {
                   <Metric label="Reconnects" value={health.reconnect_count.toString()} />
                   <div className="col-span-2 flex items-center gap-2 border-t border-white/5 pt-3 text-mist/50">
                     <Activity className="h-3.5 w-3.5" />
-                    Last seen {new Date(health.last_seen_at).toLocaleString()} · {health.source.replaceAll("_", " ")}
+                    Last seen {new Date(health.last_seen_at).toLocaleString()} · {health.source.replace(/_/g, " ")}
                   </div>
                 </div>
               ) : (
