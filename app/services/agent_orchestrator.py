@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from app.services.llm_agent_runtime import generate_specialist_analysis, ollama_enabled
+from app.services.llm_agent_runtime import ai_enabled, generate_specialist_analysis
 from app.services.specialist_agents import (
     academic_agent, analytics_agent, ethics_review_agent, evidence_agent,
     operations_agent, safety_agent,
@@ -51,28 +51,25 @@ def _safe_metrics(metrics: dict[str, Any]) -> dict[str, int | float]:
 def _apply_ai_analysis(
     stages: list[dict[str, Any]], safe: dict[str, int | float]
 ) -> None:
-    """Enrich stages with isolated AI analysis; never mutate deterministic findings."""
+    """Enrich stages with validated model analysis; deterministic findings stay authoritative."""
     prior_analyses: list[dict[str, Any]] = []
     for stage in stages:
         name = str(stage["name"])
-        analysis, used = generate_specialist_analysis(
+        analysis, used, provider = generate_specialist_analysis(
             agent_name=name,
             metrics=safe,
             fallback_summary=stage.get("summary") or "No deterministic summary available.",
             prior_analyses=prior_analyses if name == "ethics_review" else None,
         )
         stage["agent_role"] = name
-        stage["provider"] = "ollama" if used else "deterministic"
+        stage["provider"] = provider if used else "deterministic"
         stage["analysis_status"] = "ai_completed" if used else "deterministic_fallback"
         stage["kind"] = "llm_assisted" if used else "deterministic"
         if used and analysis:
             stage["analysis"] = analysis
             stage["advisory_summary"] = analysis["summary"]
             if name != "ethics_review":
-                prior_analyses.append({
-                    "agent": name,
-                    "analysis": analysis,
-                })
+                prior_analyses.append({"agent": name, "analysis": analysis})
 
 
 def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
@@ -98,10 +95,9 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         analytics_agent(safe), safety_agent(safe), academic_agent(safe),
         operations_agent(safe), evidence_agent(evidence),
     ]
-    # Deterministic reviewer receives the first five outputs before AI peer review.
     stages.append(ethics_review_agent(safe, evidence, prior_stages=stages.copy()))
 
-    if ollama_enabled() and safe:
+    if ai_enabled() and safe:
         _apply_ai_analysis(stages, safe)
     else:
         for stage in stages:
@@ -122,18 +118,19 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
     ]
     limitations.append(data_notice if data_status != "live" else "Verify source provenance and metric freshness before operational use.")
     ai_count = sum(stage.get("analysis_status") == "ai_completed" for stage in stages)
+    providers = sorted({stage["provider"] for stage in stages if stage.get("analysis_status") == "ai_completed"})
     report = {
         "title": "School-wide specialist review",
         "status": "completed" if safe else "limited",
         "data_status": data_status, "data_notice": data_notice,
         "finding_count": len(findings), "findings": findings,
         "evidence_count": len(evidence), "limitations": limitations,
-        "ai_agent_count": ai_count,
+        "ai_agent_count": ai_count, "ai_providers": providers,
         "reviewed_agents": stages[-1].get("reviewed_stages", []),
     }
     return {
         "request_id": str(uuid.uuid4()), "status": "completed" if safe else "limited",
-        "task": normalized_task, "provider": "ollama" if ai_count else "deterministic",
+        "task": normalized_task, "provider": providers[0] if len(providers) == 1 else ("hybrid" if providers else "deterministic"),
         "stages": stages, "evidence": evidence, "report": report,
         "confidence": "low" if not safe else "moderate",
         "requires_human_review": True, "autonomous_action_taken": False,
