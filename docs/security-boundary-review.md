@@ -8,6 +8,14 @@ This is a code-review snapshot of the current demo architecture, not a penetrati
 
 **Do not connect real student records or use this build for live multi-school operations yet.** The current code demonstrates role-based access and several bounded agent safeguards, but it does not yet establish school-level data isolation.
 
+## Update — first enforced school boundary
+
+The current branch now has a persisted `School` model and school ownership on users and students. Student list/detail/profile/behavioral-history reads and bracelet list/detail operations are filtered by the authenticated user's school. Ministry accounts may read across schools for these routes, but are explicitly read-only for student and bracelet mutations; school principals are required for those writes. The school scope is derived from the authenticated user record, never from a client-supplied school ID.
+
+**Covered by regression tests:** school-specific student lists; ministry cross-school student and bracelet reads; student profile visibility; cross-school student and bracelet mutation denial; school assignment on student creation; and ministry mutation denial.
+
+**P0 remains open:** attendance, notifications, incidents, analytics, cameras, parent portal, reports, orchestrator, SSI, wearable endpoints, and remaining units/services must be reviewed and scoped independently. Globally unique student and bracelet IDs may still reveal collisions through generic conflict responses; in-memory stores are not yet tenant-aware. This first slice is not a claim of complete multi-tenant isolation or production readiness.
+
 ## Findings and priorities
 
 ### P0 — Establish school/tenant isolation before multi-school live data
