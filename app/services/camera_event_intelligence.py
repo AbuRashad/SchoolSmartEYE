@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
+from math import isfinite
 from typing import Protocol, Sequence
 from uuid import uuid4
 
@@ -34,6 +35,9 @@ class ObjectDetection:
     def __post_init__(self) -> None:
         if not self.label.strip():
             raise ValueError("detection label cannot be empty")
+        coordinates = (self.x1, self.y1, self.x2, self.y2, self.confidence)
+        if not all(isfinite(value) for value in coordinates):
+            raise ValueError("confidence and bounding-box coordinates must be finite")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
         if self.x1 < 0 or self.y1 < 0 or self.x2 <= self.x1 or self.y2 <= self.y1:
