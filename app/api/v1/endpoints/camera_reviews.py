@@ -82,9 +82,9 @@ def _serialize(event: CameraReviewEvent) -> dict[str, object]:
 @router.post("", status_code=status.HTTP_201_CREATED)
 def enqueue_camera_event(
     payload: CameraEventIn,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(require_principal),
-    response: Response = None,
 ) -> dict[str, object]:
     """Persist an unverified camera event; it remains pending human review."""
     school_id = _school_principal(user)
