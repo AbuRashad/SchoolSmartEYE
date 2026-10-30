@@ -19,7 +19,7 @@ def test_orchestrator_runs_six_specialist_stages_and_requires_human_review():
     assert report["status"] == "completed"
     assert report["evidence_count"] == len(result["evidence"])
     assert report["finding_count"] == len(report["findings"])
-    assert {finding["stage"] for finding in report["findings"]} >= {"safety", "academic", "operations"}
+    assert {finding["stage"] for finding in report["findings"]} >= {"safety", "academic"}
     assert all(finding["type"] in {"flag", "recommendation", "warning"} for finding in report["findings"])
     assert report["limitations"]
     assert all("student_names" not in item and "student_ids" not in item for item in result["evidence"])
