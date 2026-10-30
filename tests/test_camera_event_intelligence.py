@@ -105,3 +105,11 @@ def test_detection_rejects_invalid_confidence_and_box():
 def test_invalid_restricted_polygon_is_rejected():
     with pytest.raises(ValueError):
         analyze(FakeDetector([detection()]), restricted_zone_polygon=[(0, 0), (10, 10)])
+
+
+
+def test_detection_rejects_non_finite_values():
+    with pytest.raises(ValueError):
+        ObjectDetection("person", float("nan"), 0, 0, 10, 10)
+    with pytest.raises(ValueError):
+        ObjectDetection("person", 0.8, 0, 0, float("inf"), 10)
