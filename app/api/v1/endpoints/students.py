@@ -13,7 +13,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_principal, require_teacher
+from app.api.deps import require_school_principal, require_teacher, school_scope
 from app.db import models as orm
 from app.db.session import get_db
 from app.models import (
@@ -181,19 +181,11 @@ def _serialize(s: orm.Student) -> StudentOut:
     )
 
 
-def _school_id(user: orm.User) -> str:
-    if not user.school_id:
-        raise HTTPException(status_code=403, detail="A school-scoped account is required")
-    return user.school_id
-
-
-def _find_student(db: Session, student_id: str, school_id: str) -> orm.Student | None:
-    return db.scalar(
-        select(orm.Student).where(
-            orm.Student.student_id == student_id,
-            orm.Student.school_id == school_id,
-        )
-    )
+def _find_student(db: Session, student_id: str, scope: str | None) -> orm.Student | None:
+    stmt = select(orm.Student).where(orm.Student.student_id == student_id)
+    if scope is not None:
+        stmt = stmt.where(orm.Student.school_id == scope)
+    return db.scalar(stmt)
 
 
 # ── Students ──────────────────────────────────────────────────────────────────
@@ -203,10 +195,11 @@ def _find_student(db: Session, student_id: str, school_id: str) -> orm.Student |
 def list_students(
     db: Session = Depends(get_db), user: orm.User = Depends(require_teacher)
 ) -> list[StudentOut]:
-    rows = db.scalars(
-        select(orm.Student).where(orm.Student.school_id == _school_id(user))
-        .order_by(orm.Student.student_id)
-    ).all()
+    stmt = select(orm.Student).order_by(orm.Student.student_id)
+    scope = school_scope(user)
+    if scope is not None:
+        stmt = stmt.where(orm.Student.school_id == scope)
+    rows = db.scalars(stmt).all()
     return [_serialize(s) for s in rows]
 
 
@@ -218,9 +211,9 @@ def list_students(
 def create_student(
     payload: StudentCreate,
     db: Session = Depends(get_db),
-    user: orm.User = Depends(require_principal),
+    user: orm.User = Depends(require_school_principal),
 ) -> StudentOut:
-    school_id = _school_id(user)
+    school_id = school_scope(user)
     if _find_student(db, payload.student_id, school_id) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -254,9 +247,9 @@ def update_student(
     student_id: str,
     payload: StudentUpdate,
     db: Session = Depends(get_db),
-    user: orm.User = Depends(require_principal),
+    user: orm.User = Depends(require_school_principal),
 ) -> StudentOut:
-    student = _find_student(db, student_id, _school_id(user))
+    student = _find_student(db, student_id, school_scope(user))
     if student is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
     for field, value in payload.model_dump(exclude_none=True).items():
@@ -272,9 +265,9 @@ def update_student(
 def delete_student(
     student_id: str,
     db: Session = Depends(get_db),
-    user: orm.User = Depends(require_principal),
+    user: orm.User = Depends(require_school_principal),
 ) -> Response:
-    student = _find_student(db, student_id, _school_id(user))
+    student = _find_student(db, student_id, school_scope(user))
     if student is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
     # Cascade: the student's bracelet and attendance records are removed too
@@ -397,7 +390,7 @@ def student_profile(
     db: Session = Depends(get_db),
     user: orm.User = Depends(require_teacher),
 ) -> StudentProfile:
-    student = _find_student(db, student_id, _school_id(user))
+    student = _find_student(db, student_id, school_scope(user))
     if student is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
 
@@ -535,7 +528,7 @@ def student_behavioral_history(
     if days < 1 or days > 365:
         raise HTTPException(status_code=400, detail="days must be between 1 and 365")
 
-    if _find_student(db, student_id, _school_id(user)) is None:
+    if _find_student(db, student_id, school_scope(user)) is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
 
     snapshots = _get_agent().get_behavioral_history(student_id, days=days)
