@@ -150,7 +150,7 @@ _STUDENT_DATA = [
 def _seed_students(db: Session) -> None:
     db.add_all(
         orm.Student(
-            student_id=sid, name=name, grade=grade, class_section=cls,
+            student_id=sid, school_id="school-primary", name=name, grade=grade, class_section=cls,
             parent_id=pid, photo_initial=initial, is_active=True,
         )
         for sid, name, grade, cls, pid, initial in _STUDENT_DATA
