@@ -213,6 +213,20 @@ When authorized access to representative school cameras becomes available, run a
 
 A field-validation report must identify the exact model/runtime versions, camera configurations, dataset scope, metrics, thresholds, failures, and approval decision. Passing software tests is not equivalent to passing field validation.
 
+## Camera Event Intelligence Engine — first implementation slice
+
+Implemented in `app/services/camera_event_intelligence.py`:
+- A detector adapter contract (`ObjectDetector`) so a local, reviewed inference runtime can be plugged in without cloud fallback.
+- Structured detections with confidence and bounding-box validation.
+- CPU-friendly frame downscaling with configurable maximum dimensions.
+- Event candidate rules for person presence, configurable person-count screening, and optional configured restricted-zone polygon overlap.
+- Immutable-style analysis snapshots with camera/zone identifiers, timestamps, model version, evidence notes, and explicit limitations.
+- Every finding is marked `candidate` and `requires_human_review=true`; no identity recognition or autonomous action is included.
+
+Tests are in `tests/test_camera_event_intelligence.py` and use a fake detector. They validate orchestration and rule behavior only; they do not measure or claim real-world detector accuracy.
+
+**Important implementation boundary:** this slice does not yet include a production object-detection model, tracker, temporal action recognition, event-trigger adapter from the camera worker, persistent event storage, or central-orchestrator handoff. The detector must be supplied by a separately reviewed local model adapter before actual visual object detection occurs.
+
 ## Initial CPU-first software foundation
 
 The first implementation slice now includes:
