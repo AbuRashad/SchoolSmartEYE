@@ -117,9 +117,17 @@ def get_baselines(db: Session = Depends(get_db)) -> dict[str, object]:
 
 
 @router.get("/recommendations/{student_id}")
-def get_recommendations(student_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
-    """Recommended actions for a student, informed by history and prior teacher feedback."""
-    if db.get(orm.Student, student_id) is None:
+def get_recommendations(
+    student_id: str,
+    db: Session = Depends(get_db),
+    user: orm.User = Depends(require_teacher),
+) -> dict[str, object]:
+    """Recommended actions for a student within the caller's authorised school scope."""
+    student_stmt = select(orm.Student).where(orm.Student.student_id == student_id)
+    scope = school_scope(user)
+    if scope is not None:
+        student_stmt = student_stmt.where(orm.Student.school_id == scope)
+    if db.scalar(student_stmt) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Student {student_id!r} not found",
