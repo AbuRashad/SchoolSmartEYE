@@ -25,7 +25,19 @@ from app.db.session import get_db
 from app.services.camera_health_engine import CameraHealthMetrics, classify_camera_health
 from app.services.camera_ingestion import ingestion_service
 
-router = APIRouter(prefix="/camera-health", tags=["camera-health"])\n\n_EDGE_CLOCK_SKEW_SECONDS = 300\n\ndef _secret_digest(secret: str) -> str:\n    return hashlib.sha256(secret.encode("utf-8")).hexdigest()\n\ndef _edge_idempotency_key(device_id: str, key: str) -> str:\n    digest = hashlib.sha256(f"{device_id}:{key}".encode("utf-8")).hexdigest()\n    return f"edge:{digest}"\n\ndef _camera_is_registered(camera_id: str, school_id: str) -> bool:\n    return any(source.camera_id == camera_id and source.school_id == school_id for source in ingestion_service.list_sources())
+router = APIRouter(prefix="/camera-health", tags=["camera-health"])
+
+_EDGE_CLOCK_SKEW_SECONDS = 300
+
+def _secret_digest(secret: str) -> str:
+    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+def _edge_idempotency_key(device_id: str, key: str) -> str:
+    digest = hashlib.sha256(f"{device_id}:{key}".encode("utf-8")).hexdigest()
+    return f"edge:{digest}"
+
+def _camera_is_registered(camera_id: str, school_id: str) -> bool:
+    return any(source.camera_id == camera_id and source.school_id == school_id for source in ingestion_service.list_sources())
 
 
 class CameraHealthIn(BaseModel):
