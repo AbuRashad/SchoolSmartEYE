@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -84,6 +84,7 @@ def enqueue_camera_event(
     payload: CameraEventIn,
     db: Session = Depends(get_db),
     user: User = Depends(require_principal),
+    response: Response = None,
 ) -> dict[str, object]:
     """Persist an unverified camera event; it remains pending human review."""
     school_id = _school_principal(user)
@@ -118,7 +119,15 @@ def enqueue_camera_event(
         db.refresh(event)
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Duplicate idempotency key for this school") from None
+        existing = db.scalar(select(CameraReviewEvent).where(
+            CameraReviewEvent.school_id == school_id,
+            CameraReviewEvent.idempotency_key == payload.idempotency_key,
+        ))
+        if existing is None:
+            raise HTTPException(status_code=409, detail="Event could not be persisted") from None
+        if response is not None:
+            response.status_code = status.HTTP_200_OK
+        return _serialize(existing)
     return _serialize(event)
 
 
