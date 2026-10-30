@@ -6,7 +6,7 @@ Every finding remains a candidate for authorized human review.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Iterable, Sequence
 
@@ -96,7 +96,7 @@ class CameraEventPipeline:
                 captured_at=item.captured_at,
                 restricted_zone_polygon=restricted_zone_polygon,
             )
-            snapshots.append(snapshot)
+            snapshots.append(replace(snapshot, event_id=event_id))
 
         if not snapshots:
             raise ValueError("at least one event frame is required")
