@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from app.api.deps import require_principal, require_teacher
+from app.api.deps import require_school_principal, require_teacher
 from app.core.runtime_settings import (
     RuntimeSettings,
     get_runtime_settings,
@@ -51,7 +51,7 @@ def read_settings() -> SettingsOut:
     return _to_out(get_runtime_settings())
 
 
-@router.patch("", response_model=SettingsOut, dependencies=[Depends(require_principal)])
+@router.patch("", response_model=SettingsOut, dependencies=[Depends(require_school_principal)])
 def patch_settings(payload: SettingsUpdate) -> SettingsOut:
     updated = update_runtime_settings(**payload.model_dump(exclude_none=True))
     return _to_out(updated)
