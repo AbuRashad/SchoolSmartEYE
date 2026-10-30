@@ -80,7 +80,7 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"task must contain 1-{_MAX_TASK_LENGTH} characters")
 
     raw_data_status = metrics.get("data_status")
-    data_status = raw_data_status if isinstance(raw_data_status, str) and raw_data_status in {"demo", "live"} else "unknown"
+    data_status = raw_data_status if isinstance(raw_data_status, str) and raw_data_status in {"demo", "live", "unavailable"} else "unknown"
     raw_data_notice = metrics.get("data_notice")
     data_notice = raw_data_notice.strip()[:500] if isinstance(raw_data_notice, str) and raw_data_notice.strip() else (
         "These are illustrative demo metrics, not live school data." if data_status == "demo"
