@@ -13,7 +13,7 @@ def seeded(db_session_factory):
     return db_session_factory
 
 
-def _add_reporting_devices(db_session_factory, count: int) -> None:
+def _add_reporting_devices(db_session_factory, count: int, *, validation_status: str = "accepted") -> None:
     now = datetime.now(timezone.utc)
     with db_session_factory() as db:
         principal = db.query(orm.User).filter_by(role="principal").first()
@@ -43,7 +43,7 @@ def _add_reporting_devices(db_session_factory, count: int) -> None:
                 observed_at=now, schema_version="wai.v1",
                 heart_rate_bpm=80.0, hrv_ms=40.0,
                 movement_activity_score=20.0, idempotency_key=f"agg-key-{index:02d}",
-                data_status="live_unverified", validation_status="accepted",
+                data_status="live_unverified", validation_status=validation_status,
             ))
         db.commit()
 
@@ -90,3 +90,13 @@ def test_six_agent_orchestrator_receives_only_wearable_coverage(client, db_sessi
     assert "no individual measurements" in body["report"]["data_notice"]
     assert body["requires_human_review"] is True
     assert body["autonomous_action_taken"] is False
+
+
+
+def test_hardware_unverified_observations_never_count_toward_live_coverage(db_session_factory, seeded):
+    _add_reporting_devices(
+        db_session_factory, 10, validation_status="pending_hardware_verification"
+    )
+    with db_session_factory() as db:
+        metrics = school_wearable_reporting_metrics(db, "school-primary")
+    assert metrics == {}
