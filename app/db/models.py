@@ -241,3 +241,30 @@ class AgentFeedbackRecord(Base):
     confirmed_state: Mapped[str] = mapped_column(String(32))
     teacher_notes: Mapped[str] = mapped_column(String(1024), default="")
     recorded_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+
+
+class CameraReviewEvent(Base):
+    """Persisted camera-derived event awaiting a human decision; school-scoped."""
+
+    __tablename__ = "camera_review_events"
+    __table_args__ = (
+        UniqueConstraint("school_id", "idempotency_key", name="uq_camera_review_school_idempotency"),
+    )
+
+    event_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id"), index=True)
+    camera_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    zone_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(64))
+    severity: Mapped[str] = mapped_column(String(16), default="low")
+    confidence: Mapped[float] = mapped_column(Float)
+    summary: Mapped[str] = mapped_column(String(512))
+    detected_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    evidence_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    reviewed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    review_note: Mapped[str] = mapped_column(String(1024), default="")
