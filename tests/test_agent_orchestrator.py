@@ -44,3 +44,13 @@ def test_ethics_review_describes_native_role_agents_without_overclaiming_indepen
     assert "six role-specific native analyses" in warning_text.lower()
     assert "not six independent trained models" in warning_text.lower()
     assert "deterministic findings remain authoritative" in warning_text.lower()
+
+
+def test_partial_analytics_status_is_preserved_in_report():
+    result = run_orchestration("Review available camera telemetry", {
+        "data_status": "partial",
+        "data_notice": "Only verified camera telemetry is available.",
+        "active_cameras": 3,
+    })
+    assert result["report"]["data_status"] == "partial"
+    assert result["report"]["data_notice"] == "Only verified camera telemetry is available."
