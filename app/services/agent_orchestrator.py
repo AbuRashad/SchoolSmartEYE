@@ -117,7 +117,7 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         "Native domain analysis is advisory; deterministic findings and evidence remain authoritative.",
     ]
     limitations.append(data_notice if data_status != "live" else "Verify source provenance and metric freshness before operational use.")
-    ai_count = sum(stage.get("analysis_status") == "ai_completed" for stage in stages)
+    ai_count = sum(stage.get("analysis_status") == "native_completed" for stage in stages)
     providers = sorted({stage["provider"] for stage in stages if stage.get("analysis_status") == "ai_completed"})
     report = {
         "title": "School-wide specialist review",
