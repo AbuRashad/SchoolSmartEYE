@@ -114,6 +114,8 @@ def register_camera(payload: CameraCreate, user: User = Depends(require_principa
     """Register a new live camera and start streaming from it."""
     if not user.school_id:
         raise HTTPException(status_code=403, detail="User is not assigned to a school")
+    if any(src.camera_id == payload.camera_id for src in ingestion_service.list_sources()):
+        raise HTTPException(status_code=409, detail="Camera ID is already registered")
     source = CameraSource(
         camera_id=payload.camera_id,
         zone_id=payload.zone_id,
