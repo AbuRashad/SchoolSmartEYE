@@ -17,6 +17,7 @@ from app.api.v1.endpoints.students import router as students_router
 from app.api.v1.endpoints.units import router as units_router
 from app.api.v1.endpoints.observations import router as observations_router
 from app.api.v1.endpoints.camera_reviews import router as camera_reviews_router
+from app.api.v1.endpoints.camera_health import router as camera_health_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)
@@ -36,3 +37,4 @@ api_router.include_router(orchestrator_router)
 api_router.include_router(risk_router)
 api_router.include_router(observations_router)
 api_router.include_router(camera_reviews_router)
+api_router.include_router(camera_health_router)
