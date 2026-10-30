@@ -10,7 +10,7 @@ from app.main import app
 def _insert_edge_camera(db_session_factory, *, school_id="school-primary", camera_id="cam-1"):
     now = datetime.now(timezone.utc)
     with db_session_factory() as db:
-        principal = db.scalar(select(User).where(User.role == "principal", User.school_id == school_id))
+        principal = db.scalar(select(User).where(User.role == "principal"))
         device = CameraEdgeDevice(
             device_id=f"device-{school_id}-{camera_id}",
             school_id=school_id,
@@ -88,7 +88,7 @@ def test_principal_reported_snapshots_are_not_live_analytics(auth_headers, db_se
             secret_hash="b" * 64,
             is_active=True,
             provisioned_by_user_id=principal.id,
-            last_seen_at=now,
+            last_seen_at=None,
         ))
         db.add(CameraHealthSnapshot(
             school_id="school-primary",
@@ -112,3 +112,10 @@ def test_principal_reported_snapshots_are_not_live_analytics(auth_headers, db_se
     assert payload["data_status"] == "unavailable"
     assert payload["active_cameras"] is None
     assert payload["uptime_percent"] is None
+
+
+
+def test_analytics_overview_requires_authentication():
+    client = TestClient(app)
+    response = client.get("/api/v1/analytics/overview")
+    assert response.status_code == 401
