@@ -12,6 +12,8 @@ def test_dashboard_summary_contract(auth_headers) -> None:
     assert 0 <= payload["ssi"] <= 100
     assert payload["benchmark"] == 75
     assert payload["websocketStatus"] == "connected"
+    assert payload["data_status"] == "demo"
+    assert "not connected to a live school feed" in payload["data_notice"]
 
 
 def test_dashboard_alerts_contract(auth_headers) -> None:
@@ -31,6 +33,7 @@ def test_dashboard_heatmap_contract(auth_headers) -> None:
     payload = response.json()
     assert payload["location_id"] == "main-campus"
     assert payload["availableTimeSlots"] == ["live", "prediction_15m"]
+    assert payload["data_status"] == "demo"
     assert len(payload["cells"]) == 8
     sample = payload["cells"][0]
     assert {"x", "y", "time_slot", "risk_intensity", "reason", "label"}.issubset(sample.keys())
@@ -44,6 +47,7 @@ def test_dashboard_websocket_initial_snapshot_and_refresh(auth_headers) -> None:
         initial = websocket.receive_json()
         assert initial["schoolName"] == "Smart School Safety System"
         assert initial["fetchedFromBackend"] is True
+        assert initial["data_status"] == "demo"
         websocket.send_text("refresh")
         refreshed = websocket.receive_json()
         assert refreshed["availableTimeSlots"] == ["live", "prediction_15m"]
