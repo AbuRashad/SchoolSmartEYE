@@ -155,7 +155,7 @@ def test_load_from_file_skips_invalid_entries(
 ) -> None:
     f = tmp_path / "mixed.json"
     f.write_text(
-        '[{"camera_id":"ok","zone_id":"z","label":"L","source_url":"0"},'
+        '[{"camera_id":"ok","zone_id":"z","label":"L","source_url":"0","school_id":"school-primary"},'
         '{"missing":"required-keys"}]',
         encoding="utf-8",
     )
@@ -164,6 +164,7 @@ def test_load_from_file_skips_invalid_entries(
         assert count == 1
         ids = [s.camera_id for s in service.list_sources()]
         assert ids == ["ok"]
+        assert service.list_sources()[0].school_id == "school-primary"
     finally:
         service.unregister("ok")
 
