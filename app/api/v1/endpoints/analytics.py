@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends
 
 from app.api.deps import require_teacher
@@ -7,20 +9,27 @@ router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depend
 
 @router.get("/overview")
 def analytics_overview() -> dict[str, object]:
-    """Return placeholder dashboard metrics, explicitly marked as demo data."""
+    """Return an honest analytics contract until verified, tenant-owned feeds exist.
+
+    Demo seed rows are deliberately not counted as operational evidence. Metrics
+    remain unavailable rather than presenting seeded or unverified values as live.
+    """
+    unavailable_metrics = (
+        "attendance_rate", "total_students", "active_cameras", "total_units",
+        "incidents_today", "incidents_week", "avg_crowd_density",
+        "peak_density_zone", "uptime_percent", "alerts_resolved_today",
+        "patrol_efficiency", "compliance_score",
+    )
     return {
-        "data_status": "demo",
-        "data_notice": "These are illustrative demo metrics, not live school data.",
-        "attendance_rate": 94.2,
-        "total_students": 1247,
-        "active_cameras": 12,
-        "total_units": 14,
-        "incidents_today": 3,
-        "incidents_week": 18,
-        "avg_crowd_density": 0.42,
-        "peak_density_zone": "Learning Commons",
-        "uptime_percent": 99.7,
-        "alerts_resolved_today": 7,
-        "patrol_efficiency": 88.5,
-        "compliance_score": 96.1,
+        "data_status": "unavailable",
+        "data_notice": (
+            "Live analytics are not yet available. Demo seed records and "
+            "unverified observations are excluded from operational metrics."
+        ),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "metrics": {
+            key: {"value": None, "status": "unavailable", "source": None, "observed_at": None}
+            for key in unavailable_metrics
+        },
+        **{key: None for key in unavailable_metrics},
     }
