@@ -39,6 +39,9 @@ def test_principal_can_call_orchestrator_and_result_requires_review(client: Test
         "ethics_review",
     ]
     assert payload["status"] == "completed"
+    assert payload["report"]["data_status"] == "demo"
+    assert payload["report"]["data_notice"] == "These are illustrative demo metrics, not live school data."
+    assert any("not live school data" in item for item in payload["report"]["limitations"])
 
 
 def test_orchestrator_rejects_unknown_request_fields(client: TestClient):

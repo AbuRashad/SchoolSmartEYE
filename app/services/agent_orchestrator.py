@@ -64,6 +64,19 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
     if not normalized_task or len(normalized_task) > _MAX_TASK_LENGTH:
         raise ValueError(f"task must contain 1-{_MAX_TASK_LENGTH} characters")
 
+    raw_data_status = metrics.get("data_status")
+    data_status = raw_data_status if raw_data_status in {"demo", "live"} else "unknown"
+    raw_data_notice = metrics.get("data_notice")
+    data_notice = (
+        raw_data_notice.strip()
+        if isinstance(raw_data_notice, str) and raw_data_notice.strip()
+        else (
+            "These are illustrative demo metrics, not live school data."
+            if data_status == "demo"
+            else "Data provenance is unverified; confirm the source and freshness before operational use."
+        )
+    )
+
     safe = _safe_metrics(metrics)
     evidence: list[dict[str, str | int | float]] = [
         {"source": "analytics.overview", "description": f"Aggregate metric: {key}", "value": value}
@@ -76,8 +89,7 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         operations_agent(safe),
         evidence_agent(evidence),
     ]
-    # The ethics reviewer receives the prior specialists' deterministic outputs
-    # as an explicit handoff; it audits completeness but does not rewrite findings.
+    # The ethics reviewer receives prior deterministic outputs as an explicit handoff.
     stages.append(ethics_review_agent(safe, evidence, prior_stages=stages.copy()))
 
     llm_used = False
@@ -87,8 +99,7 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
                 agent_name=stage["name"], metrics=safe,
                 fallback_summary=stage.get("summary") or "No summary available.",
             )
-            # Preserve deterministic findings as the authoritative summary.
-            # LLM output is exposed separately as advisory text only.
+            # LLM output remains advisory and cannot replace deterministic findings.
             if used:
                 stage["advisory_summary"] = summary
                 stage["kind"] = "llm_assisted"
@@ -110,17 +121,24 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
                     "text": str(item),
                 })
 
+    limitations = [
+        "Aggregate metrics do not establish individual causes or responsibility.",
+        "All findings and recommendations require human review.",
+    ]
+    if data_status != "live":
+        limitations.append(data_notice)
+    else:
+        limitations.append("Verify source provenance and metric freshness before operational use.")
+
     report = {
         "title": "School-wide specialist review",
         "status": "completed" if safe else "limited",
+        "data_status": data_status,
+        "data_notice": data_notice,
         "finding_count": len(findings),
         "findings": findings,
         "evidence_count": len(evidence),
-        "limitations": [
-            "Aggregate metrics do not establish individual causes or responsibility.",
-            "Verify metric freshness and source provenance before operational use.",
-            "All findings and recommendations require human review.",
-        ],
+        "limitations": limitations,
     }
 
     return {
