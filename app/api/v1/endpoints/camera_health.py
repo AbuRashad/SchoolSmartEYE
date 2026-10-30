@@ -7,7 +7,7 @@ No frames, images, audio, or person-level data are accepted or stored.
 from __future__ import annotations
 
 import math
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/camera-health", tags=["camera-health"])
 class CameraHealthIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    observed_at: object
+    observed_at: datetime
     last_seen_age_seconds: float = Field(ge=0, le=86400)
     fps: float = Field(ge=0, le=240)
     latency_ms: float = Field(ge=0, le=60000)
@@ -39,7 +39,6 @@ class CameraHealthIn(BaseModel):
     @field_validator("observed_at", mode="before")
     @classmethod
     def require_aware_datetime(cls, value):
-        from datetime import datetime
         if isinstance(value, str):
             value = datetime.fromisoformat(value.replace("Z", "+00:00"))
         if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
