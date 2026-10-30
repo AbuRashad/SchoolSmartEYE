@@ -21,10 +21,11 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=160), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
-    op.add_column("users", sa.Column("school_id", sa.String(length=64), nullable=True))
-    op.create_foreign_key(
-        "fk_users_school_id_schools", "users", "schools", ["school_id"], ["school_id"]
-    )
+    with op.batch_alter_table("users") as batch_op:
+        batch_op.add_column(sa.Column("school_id", sa.String(length=64), nullable=True))
+        batch_op.create_foreign_key(
+            "fk_users_school_id_schools", "schools", ["school_id"], ["school_id"]
+        )
     op.create_index("ix_users_school_id", "users", ["school_id"])
 
     op.create_table(
@@ -102,6 +103,7 @@ def downgrade() -> None:
     op.drop_table("governance_audit_events")
 
     op.drop_index("ix_users_school_id", table_name="users")
-    op.drop_constraint("fk_users_school_id_schools", "users", type_="foreignkey")
-    op.drop_column("users", "school_id")
+    with op.batch_alter_table("users") as batch_op:
+        batch_op.drop_constraint("fk_users_school_id_schools", type_="foreignkey")
+        batch_op.drop_column("school_id")
     op.drop_table("schools")
