@@ -38,6 +38,10 @@ def two_schools(db_session_factory):
                 class_section="1",
                 parent_id=f"P-{student_id}",
             ))
+        db.add_all([
+            orm.Zone(zone_id="zone-a", school_id=SCHOOL_A, label="A Zone", zone_type="classroom", capacity=20, floor=1),
+            orm.Zone(zone_id="zone-b", school_id=SCHOOL_B, label="B Zone", zone_type="classroom", capacity=20, floor=1),
+        ])
         db.flush()
         db.add_all([
             orm.Bracelet(bracelet_id="BR-A1", student_id="A-1", mac_address="AA:AA:AA:AA:AA:01"),
@@ -61,6 +65,13 @@ def test_ministry_can_read_students_and_bracelets_across_schools(two_schools):
     assert [x["student_id"] for x in client.get("/api/v1/students").json()] == ["A-1", "B-1", "B-2"]
     assert [x["bracelet_id"] for x in client.get("/api/v1/bracelets").json()] == ["BR-A1", "BR-B1"]
     assert client.get("/api/v1/students/B-1/profile").status_code == 200
+
+
+def test_zone_lists_are_school_scoped_and_ministry_wide(two_schools):
+    school = _client("principal_a", "principal")
+    ministry = _client("ministry_x", "ministry")
+    assert [x["zone_id"] for x in school.get("/api/v1/zones").json()] == ["zone-a"]
+    assert [x["zone_id"] for x in ministry.get("/api/v1/zones").json()] == ["zone-a", "zone-b"]
 
 
 def test_teacher_cannot_read_another_school_student(two_schools):
