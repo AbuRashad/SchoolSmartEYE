@@ -75,7 +75,8 @@ Cross-source correlation may identify a reason to verify information, but it mus
 - Tenant isolation is mandatory for every source, observation, query, and report.
 - Use pseudonymous internal identifiers in processing paths where practical.
 - Do not expose student names, contact details, MAC addresses, or raw wearable readings to external LLM providers.
-- External model analysis is optional and advisory; local deterministic rules remain authoritative.
+- Native intelligence runs inside SchoolSmartEYE by default. No external AI provider is contacted by default.
+- Any external AI connection requires an explicit, documented request from an authorised principal/school leader; it remains advisory and cannot override deterministic rules.
 - Retention periods, guardian notices/consent, school policy, and applicable law must be settled before any live student wearable deployment.
 - Access to individual-level records is role-restricted and audited.
 - A human reviewer must be able to see provenance, timestamp, validation status, and limitations before acting.
