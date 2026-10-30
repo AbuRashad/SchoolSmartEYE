@@ -443,10 +443,10 @@ def student_profile(
     ntfs_sorted = db.scalars(
         select(orm.Notification)
         .where(
-            or_(
-                orm.Notification.student_id == student_id,
-                orm.Notification.parent_id == student.parent_id,
-            )
+            # Parent IDs are not globally unique or school-scoped in the current
+            # schema. Until notifications carry a school/tenant key, only return
+            # records explicitly linked to this student to prevent cross-school leaks.
+            orm.Notification.student_id == student_id
         )
         .order_by(orm.Notification.sent_at.desc())
         .limit(20)
