@@ -17,24 +17,15 @@ _UNAVAILABLE_KEYS = (
 )
 
 
-@router.get("/overview")
-def analytics_overview(
-    db: Session = Depends(get_db),
-    user: User = Depends(require_teacher),
-) -> dict[str, object]:
-    """Return verified camera metrics and explicitly unavailable unsupported metrics.
-
-    School accounts are restricted to their own tenant. Ministry receives only
-    aggregate counts across tenants; no school, camera, or student identifiers.
-    """
-    camera_metrics = camera_analytics(db, school_id=school_scope(user))
+def build_analytics_overview(db: Session, *, school_id: str | None) -> dict[str, object]:
+    """Build analytics for an explicit tenant scope; reusable by internal services."""
+    camera_metrics = camera_analytics(db, school_id=school_id)
     metrics: dict[str, dict[str, object]] = {
         key: {"value": None, "status": "unavailable", "source": None, "observed_at": None}
         for key in _UNAVAILABLE_KEYS
     }
     metrics.update(camera_metrics)
     available_count = sum(metric["status"] == "live" for metric in metrics.values())
-    all_count = len(metrics)
     data_status = "partial" if available_count else "unavailable"
     if data_status == "partial":
         notice = (
@@ -54,3 +45,12 @@ def analytics_overview(
         "metrics": metrics,
         **values,
     }
+
+
+@router.get("/overview")
+def analytics_overview(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_teacher),
+) -> dict[str, object]:
+    """Return verified metrics only within the caller's authorised tenant scope."""
+    return build_analytics_overview(db, school_id=school_scope(user))
