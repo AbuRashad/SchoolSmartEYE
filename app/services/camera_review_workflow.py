@@ -5,7 +5,7 @@ audit writes belong in the API/service layer after tenant scope is enforced.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from uuid import uuid4
