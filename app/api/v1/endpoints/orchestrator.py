@@ -60,7 +60,7 @@ class ReportFinding(BaseModel):
 class UnifiedReviewReport(BaseModel):
     title: str
     status: Literal["completed", "limited"]
-    data_status: Literal["demo", "live", "unknown", "unavailable"]
+    data_status: Literal["demo", "live", "partial", "unknown", "unavailable"]
     data_notice: str
     finding_count: int
     findings: list[ReportFinding]
