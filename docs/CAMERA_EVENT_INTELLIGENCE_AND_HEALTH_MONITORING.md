@@ -188,6 +188,31 @@ Do not promise a camera count or real-time frame rate before this benchmark. Sta
 - A failed or overloaded CV worker cannot disable camera-health monitoring.
 
 
+## Development without live camera access
+
+Live school-camera access is not currently available. This does not block architecture completion or implementation of provider-neutral components.
+
+Until authorized camera access is provided:
+- Implement and unit-test camera registry, event contracts, validation, authorization, idempotency, health-state transitions, audit records, and bounded processing queues independently of a physical camera.
+- Use synthetic events and locally stored/sample video only where licensing and safeguarding permit. Clearly label these as development fixtures, not school deployment evidence.
+- Keep RTSP/VMS integration behind adapters so camera vendors and connection details can be added later without changing the central intelligence contracts.
+- Provide deterministic test fixtures for normal scenes, occlusion, low light, crowded scenes, camera obstruction, disconnects, stale frames, duplicate events, malformed timestamps, and overload.
+- Do not use synthetic fixtures to claim field accuracy, real-world false-positive rates, supported camera counts, or production readiness.
+
+## Deferred field-validation phase
+
+When authorized access to representative school cameras becomes available, run a documented validation campaign before live operational use:
+1. Confirm camera ownership/authorization, field of view, privacy notices, approved zones, retention, and access controls.
+2. Validate RTSP/VMS compatibility and stream stability for each camera model/configuration.
+3. Capture a representative, lawfully approved validation set across lighting, distance, occlusion, camera angles, and scene density.
+4. Label ground truth with an approved safeguarding process; keep identities out of the dataset and evaluation outputs.
+5. Evaluate each event category separately using precision, recall, false alerts per camera-hour, missed-event analysis, and confidence calibration where applicable.
+6. Benchmark CPU-only and optional Intel Iris Xe execution, measuring end-to-end latency, queue lag, CPU/RAM use, dropped frames, and concurrent streams.
+7. Run shadow mode first: generate review-only findings without triggering consequential actions.
+8. Obtain human-review sign-off and document known limitations before enabling operational alerts.
+
+A field-validation report must identify the exact model/runtime versions, camera configurations, dataset scope, metrics, thresholds, failures, and approval decision. Passing software tests is not equivalent to passing field validation.
+
 ## Implementation status
 
 This document records the approved architecture decision. The camera registry, ingestion APIs, health monitor, event analyzer, and review workflow still require implementation and tests.
