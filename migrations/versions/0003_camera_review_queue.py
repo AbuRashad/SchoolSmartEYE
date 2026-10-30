@@ -1,69 +1,20 @@
-"""Add missing tenant/governance schema and camera review queue.
+"""Add the persistent human-review queue for camera-derived events.
 
-Revision ID: 0003
-Revises: 0002
+Revision ID: 0005
+Revises: 0004
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0003"
-down_revision = "0002"
+revision = "0005"
+down_revision = "0004"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    # The ORM already defines these tenant/governance tables, but the two
-    # previous revisions did not create them. Add them before dependent tables.
-    op.create_table(
-        "schools",
-        sa.Column("school_id", sa.String(length=64), primary_key=True),
-        sa.Column("name", sa.String(length=160), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-    )
-    with op.batch_alter_table("users") as batch_op:
-        batch_op.add_column(sa.Column("school_id", sa.String(length=64), nullable=True))
-        batch_op.create_foreign_key(
-            "fk_users_school_id_schools", "schools", ["school_id"], ["school_id"]
-        )
-    op.create_index("ix_users_school_id", "users", ["school_id"])
-
-    op.create_table(
-        "governance_audit_events",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("school_id", sa.String(length=64), sa.ForeignKey("schools.school_id"), nullable=False),
-        sa.Column("actor_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("event_type", sa.String(length=64), nullable=False),
-        sa.Column("target_type", sa.String(length=64), nullable=False),
-        sa.Column("target_id", sa.String(length=64), nullable=False),
-        sa.Column("details", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-    )
-    op.create_index("ix_governance_audit_events_school_id", "governance_audit_events", ["school_id"])
-    op.create_index("ix_governance_audit_events_actor_user_id", "governance_audit_events", ["actor_user_id"])
-    op.create_index("ix_governance_audit_events_event_type", "governance_audit_events", ["event_type"])
-    op.create_index("ix_governance_audit_events_created_at", "governance_audit_events", ["created_at"])
-
-    op.create_table(
-        "aggregate_observations",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("school_id", sa.String(length=64), sa.ForeignKey("schools.school_id"), nullable=False),
-        sa.Column("metric_key", sa.String(length=80), nullable=False),
-        sa.Column("metric_value", sa.Float(), nullable=False),
-        sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("source_id", sa.String(length=120), nullable=False),
-        sa.Column("data_status", sa.String(length=24), nullable=False, server_default="live_unverified"),
-        sa.Column("validation_status", sa.String(length=24), nullable=False, server_default="pending"),
-        sa.Column("metric_version", sa.String(length=24), nullable=False, server_default="1"),
-        sa.Column("idempotency_key", sa.String(length=128), nullable=False),
-        sa.Column("created_by_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.UniqueConstraint("school_id", "idempotency_key", name="uq_observation_school_idempotency"),
-    )
-    op.create_index("ix_aggregate_observations_school_id", "aggregate_observations", ["school_id"])
-    op.create_index("ix_aggregate_observations_metric_key", "aggregate_observations", ["metric_key"])
-    op.create_index("ix_aggregate_observations_observed_at", "aggregate_observations", ["observed_at"])
-
+    # Tenant, user-school linkage, aggregate observations, and audit events are
+    # created by revisions 0003 and 0004. This revision owns only this table.
     op.create_table(
         "camera_review_events",
         sa.Column("event_id", sa.String(length=36), primary_key=True),
@@ -93,17 +44,3 @@ def downgrade() -> None:
     for column in ("created_at", "status", "detected_at", "zone_id", "camera_id", "school_id"):
         op.drop_index(f"ix_camera_review_events_{column}", table_name="camera_review_events")
     op.drop_table("camera_review_events")
-
-    for column in ("observed_at", "metric_key", "school_id"):
-        op.drop_index(f"ix_aggregate_observations_{column}", table_name="aggregate_observations")
-    op.drop_table("aggregate_observations")
-
-    for column in ("created_at", "event_type", "actor_user_id", "school_id"):
-        op.drop_index(f"ix_governance_audit_events_{column}", table_name="governance_audit_events")
-    op.drop_table("governance_audit_events")
-
-    op.drop_index("ix_users_school_id", table_name="users")
-    with op.batch_alter_table("users") as batch_op:
-        batch_op.drop_constraint("fk_users_school_id_schools", type_="foreignkey")
-        batch_op.drop_column("school_id")
-    op.drop_table("schools")
