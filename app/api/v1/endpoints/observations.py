@@ -59,6 +59,9 @@ def ingest_observation(
     user: User = Depends(require_principal),
 ) -> dict[str, object]:
     """Persist an unverified aggregate; verification is a separate governed action."""
+    # This endpoint is school-operated in phase one: Ministry accounts are not school principals.
+    if user.role != "principal":
+        raise HTTPException(status_code=403, detail="Only the assigned school principal may ingest observations")
     if not user.school_id:
         raise HTTPException(status_code=403, detail="This account is not assigned to a school")
     allowed_range = METRIC_RANGES.get(payload.metric_key)
