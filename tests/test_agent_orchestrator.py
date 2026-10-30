@@ -35,3 +35,12 @@ def test_task_validation_and_empty_data():
     assert result["status"] == "limited"
     assert result["confidence"] == "low"
     assert result["requires_human_review"] is True
+
+
+def test_ethics_review_describes_native_role_agents_without_overclaiming_independence():
+    result = run_orchestration("Review governance wording", {"attendance_rate": 95})
+    ethics = result["stages"][-1]
+    warning_text = " ".join(ethics["analysis"]["risks"] + ethics.get("warnings", []))
+    assert "six role-specific native analyses" in warning_text.lower()
+    assert "not six independent trained models" in warning_text.lower()
+    assert "deterministic findings remain authoritative" in warning_text.lower()
