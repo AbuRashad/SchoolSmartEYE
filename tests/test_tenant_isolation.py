@@ -69,6 +69,22 @@ def test_teacher_cannot_read_another_school_student(two_schools):
     assert client.get("/api/v1/students/B-1/behavioral-history").status_code == 404
 
 
+def test_risk_and_agent_student_reads_obey_school_scope(two_schools):
+    teacher = _client("teacher_a", "teacher")
+    ministry = _client("ministry_x", "ministry")
+
+    school_risk = teacher.get("/api/v1/risk/attendance")
+    assert school_risk.status_code == 200
+    assert {row["student_id"] for row in school_risk.json()["students"]} == {"A-1"}
+    assert teacher.get("/api/v1/risk/attendance/B-1").status_code == 404
+    assert teacher.get("/api/v1/agent/recommendations/B-1").status_code == 404
+
+    ministry_risk = ministry.get("/api/v1/risk/attendance")
+    assert ministry_risk.status_code == 200
+    assert {row["student_id"] for row in ministry_risk.json()["students"]} == {"A-1", "B-1", "B-2"}
+    assert ministry.get("/api/v1/agent/recommendations/B-1").status_code == 200
+
+
 def test_principal_cannot_read_or_mutate_another_school_student(two_schools, db_session_factory):
     client = _client("principal_a", "principal")
     assert client.patch("/api/v1/students/B-1", json={"name": "hijack"}).status_code == 404
