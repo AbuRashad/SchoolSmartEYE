@@ -109,6 +109,7 @@ def ethics_review_agent(
         "The analytics overview may contain demo/static values; verify source freshness before operational use.",
         "Aggregate metrics cannot establish individual responsibility or explain causes.",
         "No student-level records or identifiers are passed into this orchestration pipeline.",
+        "Individual WAI physiological readings are excluded; only school-level device-reporting coverage may be reviewed after a minimum cohort threshold is met.",
         "Human review is required before acting on any recommendation.",
         "Metrics outside expected domain bounds are excluded from evidence.",
     ]
