@@ -25,7 +25,7 @@ from app.db.session import get_db
 from app.services.camera_health_engine import CameraHealthMetrics, classify_camera_health
 from app.services.camera_ingestion import ingestion_service
 
-router = APIRouter(prefix="/camera-health", tags=["camera-health"])\n\n_EDGE_CLOCK_SKEW_SECONDS = 300\n\ndef _secret_digest(secret: str) -> str:\n    return hashlib.sha256(secret.encode("utf-8")).hexdigest()\n\ndef _camera_is_registered(camera_id: str, school_id: str) -> bool:\n    return any(source.camera_id == camera_id and source.school_id == school_id for source in ingestion_service.list_sources())
+router = APIRouter(prefix="/camera-health", tags=["camera-health"])\n\n_EDGE_CLOCK_SKEW_SECONDS = 300\n\ndef _secret_digest(secret: str) -> str:\n    return hashlib.sha256(secret.encode("utf-8")).hexdigest()\n\ndef _edge_idempotency_key(device_id: str, key: str) -> str:\n    digest = hashlib.sha256(f"{device_id}:{key}".encode("utf-8")).hexdigest()\n    return f"edge:{digest}"\n\ndef _camera_is_registered(camera_id: str, school_id: str) -> bool:\n    return any(source.camera_id == camera_id and source.school_id == school_id for source in ingestion_service.list_sources())
 
 
 class CameraHealthIn(BaseModel):
@@ -301,7 +301,7 @@ def record_edge_heartbeat(
         consecutive_missed_heartbeats=result.consecutive_missed_heartbeats,
         reconnect_count=result.reconnect_count,
         frozen_frame=result.frozen_frame,
-        idempotency_key=f"edge:{device_id}:{payload.idempotency_key}",
+        idempotency_key=_edge_idempotency_key(device_id, payload.idempotency_key),
         source="edge_agent",
         created_by_user_id=device.provisioned_by_user_id,
     )
@@ -323,7 +323,7 @@ def record_edge_heartbeat(
         db.rollback()
         existing = db.scalar(select(CameraHealthSnapshot).where(
             CameraHealthSnapshot.school_id == device.school_id,
-            CameraHealthSnapshot.idempotency_key == f"edge:{device_id}:{payload.idempotency_key}",
+            CameraHealthSnapshot.idempotency_key == _edge_idempotency_key(device_id, payload.idempotency_key),
         ))
         if existing is None:
             raise HTTPException(status_code=409, detail="Duplicate heartbeat key") from None
