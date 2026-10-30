@@ -105,5 +105,5 @@ def test_camera_health_rejects_unknown_fields_and_non_finite_metrics(client):
     ).status_code == 422
     assert client.post(
         "/api/v1/camera-health/cam-01",
-        json=_payload(fps=float("nan")),
+        json=_payload(fps="NaN"),
     ).status_code == 422
