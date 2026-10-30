@@ -287,6 +287,33 @@ def ingest_wearable_observation(
     return _serialize(row)
 
 
+@router.get("/overview")
+def wearable_school_overview(
+    db: Session = Depends(get_db),
+    user: orm.User = Depends(require_principal),
+) -> dict[str, object]:
+    """Expose privacy-preserving school-level reporting coverage, never individual readings."""
+    school_id = _school_id(user)
+    from app.services.wearable_aggregation import school_wearable_reporting_metrics
+
+    metrics = school_wearable_reporting_metrics(db, school_id)
+    available = bool(metrics)
+    return {
+        "status": "available" if available else "suppressed",
+        "coverage_percent": metrics.get("wearable_coverage_percent"),
+        "reporting_devices": metrics.get("wearable_reporting_devices"),
+        "reporting_window_hours": 24,
+        "minimum_cohort_size": 10,
+        "message": (
+            "School-level device reporting coverage only; individual physiological readings are not shown."
+            if available
+            else "Coverage is withheld until at least 10 assigned students are reporting within the last 24 hours."
+        ),
+        "data_status": "live_unverified",
+        "human_review_required": True,
+    }
+
+
 @router.get("/{bracelet_id}/observations")
 def wearable_observation_history(
     bracelet_id: str,
