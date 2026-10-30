@@ -99,6 +99,12 @@ def test_role_matrix(anon_client, auth_headers) -> None:
     assert anon_client.delete(f"{API}/students/S-9", headers=m).status_code == 403
     assert anon_client.patch(f"{API}/settings", json={"camera_max_fps": 10}, headers=m).status_code == 403
     assert anon_client.post(f"{API}/agent/orchestrate", json={"task": "review"}, headers=m).status_code == 403
+    assert anon_client.post(
+        f"{API}/cameras",
+        json={"camera_id": "ministry-cam", "zone_id": "zone-x", "label": "x", "source_url": "0"},
+        headers=m,
+    ).status_code == 403
+    assert anon_client.post(f"{API}/cameras/cam-x/start", headers=m).status_code == 403
 
 
 def test_camera_stream_accepts_query_token_and_hides_source_for_teachers(anon_client, auth_headers) -> None:
