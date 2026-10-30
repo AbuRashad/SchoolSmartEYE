@@ -91,11 +91,12 @@ def test_role_matrix(anon_client, auth_headers) -> None:
     assert anon_client.patch(f"{API}/settings", json={"camera_max_fps": 10}, headers=p).status_code == 200
     assert anon_client.get(f"{API}/reports/list", headers=p).status_code == 403
 
-    # Ministry: everything
+    # Ministry: cross-school reads, but no school-record mutations
     m = auth_headers("ministry")
     assert anon_client.get(f"{API}/reports/list", headers=m).status_code == 200
     assert anon_client.get(f"{API}/reports/stats", headers=m).status_code == 200
-    assert anon_client.delete(f"{API}/students/S-9", headers=m).status_code == 204
+    assert anon_client.get(f"{API}/students", headers=m).status_code == 200
+    assert anon_client.delete(f"{API}/students/S-9", headers=m).status_code == 403
 
 
 def test_camera_stream_accepts_query_token_and_hides_source_for_teachers(anon_client, auth_headers) -> None:
