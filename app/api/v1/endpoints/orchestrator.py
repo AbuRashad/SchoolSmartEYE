@@ -37,7 +37,7 @@ class AgentStage(BaseModel):
     kind: Literal["deterministic", "llm_assisted"]
     status: Literal["completed", "limited"]
     agent_role: str
-    provider: Literal["deterministic", "ollama"]
+    provider: Literal["deterministic", "cloud", "local", "hybrid"]
     analysis_status: Literal["ai_completed", "deterministic_fallback"]
     summary: str | None = None
     advisory_summary: str | None = None
@@ -64,6 +64,7 @@ class UnifiedReviewReport(BaseModel):
     evidence_count: int
     limitations: list[str]
     ai_agent_count: int = 0
+    ai_providers: list[Literal["cloud", "local"]] = Field(default_factory=list)
     reviewed_agents: list[str] = Field(default_factory=list)
 
 

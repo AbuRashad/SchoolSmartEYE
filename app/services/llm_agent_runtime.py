@@ -1,4 +1,9 @@
-"""Role-specific, bounded Ollama analysis for SchoolSmartEYE agents."""
+"""Provider-independent, privacy-bounded multi-agent LLM runtime.
+
+Supports OpenAI-compatible cloud and local inference endpoints. Hybrid mode tries
+the configured cloud model first, then the configured local model. No provider
+is considered active until a validated model response is received.
+"""
 from __future__ import annotations
 
 import json
@@ -11,7 +16,7 @@ MAX_RESPONSE_CHARS = 6000
 MAX_SUMMARY_LENGTH = 500
 MAX_ITEMS = 5
 MAX_ITEM_LENGTH = 240
-DEFAULT_TIMEOUT_SECONDS = 12.0
+DEFAULT_TIMEOUT_SECONDS = 45.0
 
 AGENT_ROLES = {
     "analytics": "Analyze aggregate school metric patterns and data gaps; do not claim causation.",
@@ -23,15 +28,35 @@ AGENT_ROLES = {
 }
 
 
-def ollama_enabled() -> bool:
-    return os.getenv("SCHOOLSMARTEYE_LLM_PROVIDER", "deterministic").strip().lower() == "ollama"
+def ai_enabled() -> bool:
+    return os.getenv("AI_PROVIDER", "hybrid").strip().lower() in {"hybrid", "cloud", "local"}
 
 
-def _ollama_chat_url() -> str:
-    base_url = os.getenv("OLLAMA_BASE_URL", "https://ollama.com").strip().rstrip("/")
-    if not base_url.startswith(("https://", "http://")):
-        raise ValueError("OLLAMA_BASE_URL must be an HTTP(S) URL")
-    return f"{base_url}/api/chat"
+def _provider_configs() -> list[dict[str, str]]:
+    """Return configured providers in priority order without exposing credentials."""
+    mode = os.getenv("AI_PROVIDER", "hybrid").strip().lower()
+    configs: list[dict[str, str]] = []
+    cloud_url = os.getenv("AI_CLOUD_BASE_URL", "").strip().rstrip("/")
+    cloud_model = os.getenv("AI_CLOUD_MODEL", "").strip()
+    if mode in {"hybrid", "cloud"} and cloud_url and cloud_model:
+        if cloud_url.startswith("https://"):
+            configs.append({
+                "name": "cloud",
+                "url": f"{cloud_url}/chat/completions",
+                "model": cloud_model,
+                "api_key": os.getenv("AI_CLOUD_API_KEY", "").strip(),
+            })
+    local_url = os.getenv("AI_LOCAL_BASE_URL", "").strip().rstrip("/")
+    local_model = os.getenv("AI_LOCAL_MODEL", "").strip()
+    if mode in {"hybrid", "local"} and local_url and local_model:
+        if local_url.startswith("http://") or local_url.startswith("https://"):
+            configs.append({
+                "name": "local",
+                "url": f"{local_url}/chat/completions",
+                "model": local_model,
+                "api_key": os.getenv("AI_LOCAL_API_KEY", "").strip(),
+            })
+    return configs
 
 
 def _clean_text(value: Any, limit: int) -> str | None:
@@ -73,17 +98,11 @@ def generate_specialist_analysis(
     metrics: dict[str, int | float],
     fallback_summary: str,
     prior_analyses: list[dict[str, Any]] | None = None,
-) -> tuple[dict[str, Any] | None, bool]:
-    """Invoke one specialist AI role with validated metrics and optional peer handoff."""
-    if not ollama_enabled() or agent_name not in AGENT_ROLES:
-        return None, False
-    model = os.getenv("OLLAMA_MODEL", "").strip()
-    if not model:
-        return None, False
-    headers = {"Content-Type": "application/json"}
-    api_key = os.getenv("OLLAMA_API_KEY", "").strip()
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+) -> tuple[dict[str, Any] | None, bool, str | None]:
+    """Run a specialist against configured providers; return only validated model output."""
+    if not ai_enabled() or agent_name not in AGENT_ROLES:
+        return None, False, None
+
     system_prompt = (
         "You are a specialist AI agent in a privacy-conscious school intelligence system. "
         + AGENT_ROLES[agent_name]
@@ -98,24 +117,39 @@ def generate_specialist_analysis(
     if agent_name == "ethics_review":
         user_data["peer_analyses"] = prior_analyses or []
     payload = {
-        "model": model, "stream": False, "format": "json",
+        "model": "",
+        "stream": False,
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": json.dumps(user_data, ensure_ascii=True, allow_nan=False)},
         ],
-        "options": {"temperature": 0.1},
     }
     try:
-        with httpx.Client(timeout=DEFAULT_TIMEOUT_SECONDS, follow_redirects=False) as client:
-            response = client.post(_ollama_chat_url(), headers=headers, json=payload)
-            response.raise_for_status()
-            body: dict[str, Any] = response.json()
-        message = body.get("message")
-        content = message.get("content") if isinstance(message, dict) else None
-        analysis = _parse_analysis(content)
-        return (analysis, True) if analysis else (None, False)
-    except (httpx.HTTPError, ValueError, TypeError, KeyError, AttributeError):
-        return None, False
+        timeout = min(max(float(os.getenv("AI_REQUEST_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)), 2.0), 120.0)
+    except ValueError:
+        timeout = DEFAULT_TIMEOUT_SECONDS
+
+    for provider in _provider_configs():
+        headers = {"Content-Type": "application/json"}
+        if provider["api_key"]:
+            headers["Authorization"] = f"Bearer {provider['api_key']}"
+        payload["model"] = provider["model"]
+        try:
+            with httpx.Client(timeout=timeout, follow_redirects=False) as client:
+                response = client.post(provider["url"], headers=headers, json=payload)
+                response.raise_for_status()
+                body = response.json()
+            choices = body.get("choices") if isinstance(body, dict) else None
+            message = choices[0].get("message") if isinstance(choices, list) and choices else None
+            content = message.get("content") if isinstance(message, dict) else None
+            analysis = _parse_analysis(content)
+            if analysis:
+                return analysis, True, provider["name"]
+        except (httpx.HTTPError, ValueError, TypeError, KeyError, AttributeError, IndexError):
+            continue
+    return None, False, None
 
 
 def generate_specialist_summary(
@@ -124,7 +158,7 @@ def generate_specialist_summary(
     fallback_summary: str,
 ) -> tuple[str, bool]:
     """Backward-compatible summary adapter."""
-    analysis, used = generate_specialist_analysis(agent_name, metrics, fallback_summary)
+    analysis, used, _provider = generate_specialist_analysis(agent_name, metrics, fallback_summary)
     if not used or not analysis:
         return fallback_summary, False
     return analysis["summary"], True

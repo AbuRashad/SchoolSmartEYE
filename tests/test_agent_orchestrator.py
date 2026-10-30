@@ -3,10 +3,8 @@ from app.services.agent_orchestrator import run_orchestration
 
 def test_orchestrator_runs_six_specialist_stages_and_requires_human_review():
     result = run_orchestration("Review today's school-wide signals", {
-        "attendance_rate": 88.5,
-        "incidents_today": 2,
-        "student_names": ["Synthetic Student"],
-        "student_ids": ["student-123"],
+        "attendance_rate": 88.5, "incidents_today": 2,
+        "student_names": ["Synthetic Student"], "student_ids": ["student-123"],
     })
     assert [stage["name"] for stage in result["stages"]] == [
         "analytics", "safety", "academic", "operations", "evidence", "ethics_review"
@@ -28,10 +26,8 @@ def test_orchestrator_runs_six_specialist_stages_and_requires_human_review():
 
 def test_only_allowlisted_numeric_aggregate_metrics_enter_evidence():
     result = run_orchestration("Summarize", {
-        "attendance_rate": 91.2,
-        "student_name": "Private",
-        "student_count": {"raw": "nested"},
-        "incidents_today": True,
+        "attendance_rate": 91.2, "student_name": "Private",
+        "student_count": {"raw": "nested"}, "incidents_today": True,
         "avg_crowd_density": float("nan"),
     })
     assert [item["source"] for item in result["evidence"]] == ["analytics.overview"]
@@ -83,17 +79,15 @@ def test_task_validation_rejects_blank_and_oversized_requests():
 
 def test_ai_advisory_never_becomes_a_deterministic_finding(monkeypatch):
     import app.services.agent_orchestrator as orchestrator
-    monkeypatch.setenv("SCHOOLSMARTEYE_LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("AI_PROVIDER", "hybrid")
 
     def fake_analysis(agent_name, metrics, fallback_summary, prior_analyses=None):
-        return {
-            "summary": f"ADVISORY-ONLY-{agent_name}",
-            "observations": [], "follow_up_questions": [], "risks": [],
-        }, True
+        return {"summary": f"ADVISORY-ONLY-{agent_name}", "observations": [],
+                "follow_up_questions": [], "risks": []}, True, "cloud"
 
     monkeypatch.setattr(orchestrator, "generate_specialist_analysis", fake_analysis)
     result = run_orchestration("Review aggregate school signals", {"attendance_rate": 90})
-    assert result["provider"] == "ollama"
+    assert result["provider"] == "cloud"
     assert result["report"]["ai_agent_count"] == 6
     assert all("analysis" in stage for stage in result["stages"])
     assert all("ADVISORY-ONLY-" not in finding["text"] for finding in result["report"]["findings"])
@@ -104,8 +98,7 @@ def test_ai_advisory_never_becomes_a_deterministic_finding(monkeypatch):
 
 def test_malformed_provenance_metadata_is_type_checked_and_bounded():
     result = run_orchestration("Review malformed provenance", {
-        "attendance_rate": 90, "data_status": ["demo"],
-        "data_notice": {"unexpected": "object"},
+        "attendance_rate": 90, "data_status": ["demo"], "data_notice": {"unexpected": "object"},
     })
     assert result["report"]["data_status"] == "unknown"
     assert result["report"]["data_notice"] == (
