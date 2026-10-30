@@ -139,3 +139,35 @@ def test_ingestion_writes_audit_event_atomically(client, db_session_factory):
         assert event.school_id == "school-primary"
         assert event.details["data_status"] == "live_unverified"
         assert event.details["validation_status"] == "pending"
+
+
+def test_principal_can_read_only_school_audit_events(client):
+    payload = {
+        "metric_key": "camera_uptime",
+        "metric_value": 98.5,
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "source_id": "camera-monitor",
+        "idempotency_key": "audit-read-0001",
+    }
+    assert client.post("/api/v1/observations", json=payload).status_code == 201
+
+    response = client.get("/api/v1/observations/audit")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["school_id"] == "school-primary"
+    assert len(body["items"]) == 1
+    assert body["items"][0]["event_type"] == "observation.ingested"
+
+
+def test_teacher_cannot_read_school_audit_events(auth_headers):
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    teacher_client = TestClient(app, headers=auth_headers("teacher"))
+    response = teacher_client.get("/api/v1/observations/audit")
+    assert response.status_code == 403
+
+
+def test_audit_endpoint_enforces_page_limit(client):
+    response = client.get("/api/v1/observations/audit?limit=500")
+    assert response.status_code == 422
