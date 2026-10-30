@@ -36,9 +36,11 @@ export function AnalyticsDashboard({ data }: Props) {
 
   return (
     <div className="space-y-4">
-      {unavailable && (
+      {(unavailable || data.data_status === "partial") && (
         <div role="status" aria-live="polite" className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
-          <strong className="block">LIVE ANALYTICS UNAVAILABLE</strong>
+          <strong className="block">
+            {data.data_status === "partial" ? "PARTIAL ANALYTICS" : "LIVE ANALYTICS UNAVAILABLE"}
+          </strong>
           <span>{data.data_notice}</span>
         </div>
       )}
