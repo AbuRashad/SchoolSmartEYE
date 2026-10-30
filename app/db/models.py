@@ -297,3 +297,22 @@ class CameraHealthSnapshot(Base):
     source: Mapped[str] = mapped_column(String(24), default="principal_reported")
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class CameraEdgeDevice(Base):
+    """Revocable edge-agent identity; only a one-way credential digest is stored."""
+
+    __tablename__ = "camera_edge_devices"
+    __table_args__ = (
+        UniqueConstraint("school_id", "camera_id", name="uq_camera_edge_school_camera"),
+    )
+
+    device_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id"), index=True)
+    camera_id: Mapped[str] = mapped_column(String(64), index=True)
+    secret_hash: Mapped[str] = mapped_column(String(64))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    provisioned_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc))
+    last_seen_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
