@@ -300,8 +300,9 @@ def ping_bracelet(
     if bracelet is None:
         raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
     # Zone must exist (light validation)
-    if db.get(orm.Zone, payload.zone_id) is None:
-        raise HTTPException(status_code=400, detail=f"Zone {payload.zone_id!r} does not exist")
+    zone = db.get(orm.Zone, payload.zone_id)
+    if zone is None or zone.school_id != _school_id(user):
+        raise HTTPException(status_code=400, detail=f"Zone {payload.zone_id!r} is not available in this school")
     bracelet.last_seen_zone = payload.zone_id
     bracelet.last_seen_at = datetime.now(timezone.utc)
     if payload.battery_level is not None:
