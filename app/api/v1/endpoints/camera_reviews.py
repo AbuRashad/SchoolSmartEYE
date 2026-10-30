@@ -12,7 +12,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -32,10 +32,9 @@ class CameraEventIn(BaseModel):
     idempotency_key: str = Field(min_length=8, max_length=128)
     camera_id: str | None = Field(default=None, min_length=1, max_length=64)
     zone_id: str | None = Field(default=None, min_length=1, max_length=64)
-    event_type: str = Field(min_length=1, max_length=64)
+    event_type: Literal["crowd_density_spike", "restricted_zone_entry", "unusual_dwell_time", "camera_signal_loss"]
     severity: Severity = "low"
     confidence: float = Field(ge=0.0, le=1.0)
-    summary: str = Field(min_length=1, max_length=512)
     detected_at: datetime
     evidence_ref: str | None = Field(default=None, max_length=256)
 
@@ -96,7 +95,7 @@ def enqueue_camera_event(
         event_type=payload.event_type,
         severity=payload.severity,
         confidence=payload.confidence,
-        summary=payload.summary,
+        summary=f"Unverified {payload.event_type.replace('_', ' ')} event",
         detected_at=payload.detected_at,
         evidence_ref=payload.evidence_ref,
         idempotency_key=payload.idempotency_key,
@@ -148,7 +147,11 @@ def list_camera_events(
         cursor = db.get(CameraReviewEvent, before_event_id)
         if cursor is None or cursor.school_id != school_id:
             raise HTTPException(status_code=404, detail="Cursor event not found")
-        statement = statement.where(CameraReviewEvent.created_at < cursor.created_at)
+        statement = statement.where(or_(
+            CameraReviewEvent.created_at < cursor.created_at,
+            (CameraReviewEvent.created_at == cursor.created_at)
+            & (CameraReviewEvent.event_id < cursor.event_id),
+        ))
     events = db.scalars(
         statement.order_by(CameraReviewEvent.created_at.desc(), CameraReviewEvent.event_id.desc()).limit(limit)
     ).all()
@@ -171,21 +174,37 @@ def review_camera_event(
     ))
     if event is None:
         raise HTTPException(status_code=404, detail="Camera event not found")
-    if event.status != "pending":
-        raise HTTPException(status_code=409, detail="Only pending events can receive a review decision")
+
     now = datetime.now(timezone.utc)
-    event.status = payload.decision
-    event.reviewed_by_user_id = user.id
-    event.reviewed_at = now
-    event.review_note = payload.note
+    transition = db.execute(
+        update(CameraReviewEvent)
+        .where(
+            CameraReviewEvent.event_id == event_id,
+            CameraReviewEvent.school_id == school_id,
+            CameraReviewEvent.status == "pending",
+        )
+        .values(
+            status=payload.decision,
+            reviewed_by_user_id=user.id,
+            reviewed_at=now,
+            review_note=payload.note,
+        )
+    )
+    if transition.rowcount != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Only pending events can receive a review decision")
+
     db.add(GovernanceAuditEvent(
         school_id=school_id,
         actor_user_id=user.id,
         event_type="camera_review.decision_recorded",
         target_type="camera_review_event",
-        target_id=event.event_id,
+        target_id=event_id,
         details={"decision": payload.decision, "previous_status": "pending"},
     ))
     db.commit()
-    db.refresh(event)
+    event = db.scalar(select(CameraReviewEvent).where(
+        CameraReviewEvent.event_id == event_id,
+        CameraReviewEvent.school_id == school_id,
+    ))
     return _serialize(event)
