@@ -60,11 +60,11 @@ class CameraInfo(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _info_for(camera_id: str) -> CameraInfo | None:
+def _info_for(camera_id: str, school_id: str) -> CameraInfo | None:
     worker = ingestion_service.get_worker(camera_id)
     source = next((s for s in ingestion_service.list_sources() if s.camera_id == camera_id), None)
     stream = ingestion_service.capture_unit.get_stream(camera_id)
-    if worker is None or source is None or stream is None:
+    if worker is None or source is None or stream is None or source.school_id != school_id:
         return None
     return CameraInfo(
         camera_id=source.camera_id,
@@ -90,11 +90,15 @@ def list_cameras(user: User = Depends(require_teacher)) -> list[CameraInfo]:
 
     `source_url` may embed credentials, so it is only revealed to principal+.
     """
+    if not user.school_id:
+        raise HTTPException(status_code=403, detail="User is not assigned to a school")
     role = role_of(user)
     can_see_source = role is not None and SCOPE_LEVEL[role] >= SCOPE_LEVEL[Role.PRINCIPAL]
     out: list[CameraInfo] = []
     for src in ingestion_service.list_sources():
-        info = _info_for(src.camera_id)
+        if src.school_id != user.school_id:
+            continue
+        info = _info_for(src.camera_id, user.school_id)
         if info is not None:
             out.append(info if can_see_source else info.model_copy(update={"source_url": "hidden"}))
     return out
@@ -106,17 +110,20 @@ def list_cameras(user: User = Depends(require_teacher)) -> list[CameraInfo]:
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_principal)],
 )
-def register_camera(payload: CameraCreate) -> CameraInfo:
+def register_camera(payload: CameraCreate, user: User = Depends(require_principal)) -> CameraInfo:
     """Register a new live camera and start streaming from it."""
+    if not user.school_id:
+        raise HTTPException(status_code=403, detail="User is not assigned to a school")
     source = CameraSource(
         camera_id=payload.camera_id,
         zone_id=payload.zone_id,
         label=payload.label,
         source_url=payload.source_url,
         anonymize_faces=payload.anonymize_faces,
+        school_id=user.school_id,
     )
     ingestion_service.register(source, autostart=True)
-    info = _info_for(payload.camera_id)
+    info = _info_for(payload.camera_id, user.school_id)
     if info is None:  # pragma: no cover
         raise HTTPException(status_code=500, detail="Camera registration failed")
     return info
@@ -127,7 +134,12 @@ def register_camera(payload: CameraCreate) -> CameraInfo:
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_principal)],
 )
-def unregister_camera(camera_id: str) -> Response:
+def unregister_camera(camera_id: str, user: User = Depends(require_principal)) -> Response:
+    if not user.school_id:
+        raise HTTPException(status_code=403, detail="User is not assigned to a school")
+    source = next((s for s in ingestion_service.list_sources() if s.camera_id == camera_id), None)
+    if source is None or source.school_id != user.school_id:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     if not ingestion_service.unregister(camera_id):
         raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -136,12 +148,17 @@ def unregister_camera(camera_id: str) -> Response:
 @router.post(
     "/{camera_id}/start", response_model=CameraInfo, dependencies=[Depends(require_principal)]
 )
-def start_camera(camera_id: str) -> CameraInfo:
+def start_camera(camera_id: str, user: User = Depends(require_principal)) -> CameraInfo:
+    if not user.school_id:
+        raise HTTPException(status_code=403, detail="User is not assigned to a school")
+    info = _info_for(camera_id, user.school_id)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     worker = ingestion_service.get_worker(camera_id)
     if worker is None:
         raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     worker.start()
-    info = _info_for(camera_id)
+    info = _info_for(camera_id, user.school_id)
     assert info is not None
     return info
 
@@ -149,7 +166,12 @@ def start_camera(camera_id: str) -> CameraInfo:
 @router.post(
     "/{camera_id}/stop", response_model=CameraInfo, dependencies=[Depends(require_principal)]
 )
-def stop_camera(camera_id: str) -> CameraInfo:
+def stop_camera(camera_id: str, user: User = Depends(require_principal)) -> CameraInfo:
+    if not user.school_id:
+        raise HTTPException(status_code=403, detail="User is not assigned to a school")
+    info = _info_for(camera_id, user.school_id)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     worker = ingestion_service.get_worker(camera_id)
     if worker is None:
         raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
@@ -157,7 +179,7 @@ def stop_camera(camera_id: str) -> CameraInfo:
     stream = ingestion_service.capture_unit.get_stream(camera_id)
     if stream is not None:
         stream.status = StreamStatus.OFFLINE
-    info = _info_for(camera_id)
+    info = _info_for(camera_id, user.school_id)
     assert info is not None
     return info
 
@@ -167,8 +189,10 @@ def stop_camera(camera_id: str) -> CameraInfo:
     responses={200: {"content": {"image/jpeg": {}}}, 404: {}, 503: {}},
     dependencies=[Depends(require_teacher_stream)],
 )
-def snapshot(camera_id: str) -> Response:
-    """Return the latest JPEG frame from the camera (one-shot)."""
+def snapshot(camera_id: str, user: User = Depends(require_teacher_stream)) -> Response:
+    """Return the latest JPEG frame from a camera owned by the authenticated school."""
+    if not user.school_id or _info_for(camera_id, user.school_id) is None:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     worker = ingestion_service.get_worker(camera_id)
     if worker is None:
         raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
@@ -216,8 +240,10 @@ async def _mjpeg_generator(camera_id: str) -> AsyncIterator[bytes]:
     responses={200: {"content": {"multipart/x-mixed-replace": {}}}, 404: {}},
     dependencies=[Depends(require_teacher_stream)],
 )
-def stream_mjpeg(camera_id: str) -> StreamingResponse:
-    """Live MJPEG multipart stream — drop straight into an `<img>` tag."""
+def stream_mjpeg(camera_id: str, user: User = Depends(require_teacher_stream)) -> StreamingResponse:
+    """Live MJPEG multipart stream for a camera owned by the authenticated school."""
+    if not user.school_id or _info_for(camera_id, user.school_id) is None:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     worker = ingestion_service.get_worker(camera_id)
     if worker is None:
         raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
