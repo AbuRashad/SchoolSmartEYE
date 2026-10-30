@@ -78,3 +78,30 @@ def test_edge_heartbeat_rejects_missing_credentials(client, monkeypatch):
 def test_edge_device_cannot_be_provisioned_for_unregistered_camera(client, monkeypatch):
     monkeypatch.setattr(ingestion_service, "list_sources", lambda: [])
     assert client.post("/api/v1/camera-health/devices/unknown").status_code == 404
+
+
+
+def test_edge_heartbeat_accepts_maximum_length_idempotency_key(client, monkeypatch):
+    provisioned = _provision(client, monkeypatch)
+    payload = _heartbeat(key="k" * 128)
+    response = client.post(
+        f"/api/v1/camera-health/edge/{provisioned['device_id']}",
+        json=payload,
+        headers={"X-Edge-Device-Secret": provisioned["device_secret"]},
+    )
+    assert response.status_code == 201
+    assert response.json()["source"] == "edge_agent"
+
+
+def test_edge_heartbeat_rejects_stale_device_clock(client, monkeypatch):
+    from datetime import timedelta
+
+    provisioned = _provision(client, monkeypatch)
+    payload = _heartbeat()
+    payload["observed_at"] = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+    response = client.post(
+        f"/api/v1/camera-health/edge/{provisioned['device_id']}",
+        json=payload,
+        headers={"X-Edge-Device-Secret": provisioned["device_secret"]},
+    )
+    assert response.status_code == 422
