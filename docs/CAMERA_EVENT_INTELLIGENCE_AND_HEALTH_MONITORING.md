@@ -139,6 +139,55 @@ Machine-to-machine credentials must be scoped to a registered camera or gateway 
 - Raw video is not continuously stored by default.
 - Tests cover unauthorized source, cross-school access, malformed timestamps, duplicate events, stale heartbeat, stream outage, and review authorization.
 
+
+## CPU-first Computer Vision decision
+
+The first deployment target is CPU-only. The camera pipeline must not require an NVIDIA GPU, a hosted inference API, or a paid AI service.
+
+### Processing design
+
+- Use OpenCV or an equivalent decoder/vision utility for RTSP/VMS stream handling, frame sampling, region-of-interest operations, and image-quality checks.
+- Use a compact object-detection model for person/object detection. Select the exact model only after checking its license, model provenance, supported runtime, and measured accuracy on representative school footage.
+- Use multi-object tracking (for example, a ByteTrack-style tracker) to associate detections across sampled frames. Tracking identifiers are temporary scene-local IDs, not identities.
+- Add pose estimation or action recognition only for narrowly defined use cases, such as a possible fall indicator, after separate validation. Do not infer intent, emotion, or identity.
+- Use ONNX Runtime CPU as a portable inference option. Evaluate OpenVINO as an optional optimization on supported Intel hardware; do not make it a hard dependency.
+- Run inference on sampled frames and short event windows. Do not decode and infer on every frame from every camera by default.
+- Keep camera-health checks on a separate lightweight path so health monitoring continues even when the CV worker is busy or unavailable.
+
+### CPU workload controls
+
+- Make per-camera sampling rate, input resolution, active zones, model choice, and maximum concurrent inference jobs configurable.
+- Use bounded queues, backpressure, timeouts, and per-camera fairness so one busy camera cannot starve all others.
+- Prioritize safety events over routine scene summaries.
+- Drop or coalesce stale intermediate frames rather than allowing an unbounded backlog.
+- Expose queue depth, processing latency, dropped-frame count, CPU utilization, memory use, and per-camera processing lag.
+- If capacity is exceeded, degrade gracefully: reduce sampling frequency or defer noncritical analysis, while preserving health monitoring and recording the degraded state.
+- Never silently imply real-time coverage when the pipeline is behind.
+
+### Benchmark gate before multi-camera rollout
+
+Benchmark on the actual target CPU and representative camera streams. Record at least:
+- CPU model, core/thread count, RAM, OS, runtime, and model version
+- Number of concurrent streams and stream resolution/frame rate
+- Sampling rate and measured inference throughput
+- End-to-end event latency and queue lag
+- CPU/RAM utilization and dropped-frame rate
+- Precision/recall or task-appropriate detection metrics on a labeled validation set
+- False-alert rate by event category and relevant scene conditions
+
+Do not promise a camera count or real-time frame rate before this benchmark. Start with one test stream, then increase concurrency under load testing.
+
+### CPU-first acceptance criteria
+
+- The complete basic detection/tracking path runs without a GPU.
+- Health monitoring remains responsive while inference is loaded or stopped.
+- Queues remain bounded and overload is visible to operators.
+- The system reports actual processing lag and does not label delayed analysis as live.
+- Model/runtime licenses and provenance are recorded before deployment.
+- Event categories remain unverified until validated on representative school footage.
+- A failed or overloaded CV worker cannot disable camera-health monitoring.
+
+
 ## Implementation status
 
 This document records the approved architecture decision. The camera registry, ingestion APIs, health monitor, event analyzer, and review workflow still require implementation and tests.
