@@ -1,3 +1,14 @@
+import pytest
+
+from app.services import seed_data
+
+
+@pytest.fixture()
+def seeded(db_session_factory):
+    seed_data.populate()
+    return db_session_factory
+
+
 from datetime import datetime, timedelta, timezone
 
 from app.db import models as orm
