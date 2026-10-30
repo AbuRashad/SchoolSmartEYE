@@ -93,6 +93,7 @@ class Student(Base):
     __tablename__ = "students"
 
     student_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id"), index=True)
     name: Mapped[str] = mapped_column(String(128))
     grade: Mapped[str] = mapped_column(String(64))
     class_section: Mapped[str] = mapped_column(String(32))
