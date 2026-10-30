@@ -56,6 +56,8 @@ class DashboardService:
             "ssi": ssi,
             "benchmark": self.benchmark,
             "websocketStatus": "connected",
+            "data_status": "demo",
+            "data_notice": "Illustrative seeded metrics only; not connected to a live school feed.",
         }
 
     def get_alerts(self) -> list[dict[str, object]]:
@@ -166,6 +168,8 @@ class DashboardService:
         return {
             "location_id": raw["location_id"],
             "availableTimeSlots": ["live", "prediction_15m"],
+            "data_status": "demo",
+            "data_notice": "Illustrative seeded heatmap only; not a live camera or school observation.",
             "cells": cells,
         }
 
