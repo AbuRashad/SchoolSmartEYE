@@ -96,6 +96,18 @@ def test_risk_and_agent_student_reads_obey_school_scope(two_schools):
     assert ministry.get("/api/v1/agent/recommendations/B-1").status_code == 200
 
 
+def test_agent_feedback_is_school_scoped_and_ministry_read_only(two_schools):
+    payload = {
+        "session_id": "session-1",
+        "student_id": "B-1",
+        "predicted_state": "attentive",
+        "confirmed_state": "engaged",
+        "teacher_notes": "reviewed",
+    }
+    assert _client("teacher_a", "teacher").post("/api/v1/agent/feedback", json=payload).status_code == 404
+    assert _client("ministry_x", "ministry").post("/api/v1/agent/feedback", json=payload).status_code == 403
+
+
 def test_principal_cannot_read_or_mutate_another_school_student(two_schools, db_session_factory):
     client = _client("principal_a", "principal")
     assert client.patch("/api/v1/students/B-1", json={"name": "hijack"}).status_code == 404
