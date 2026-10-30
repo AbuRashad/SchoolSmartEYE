@@ -280,7 +280,14 @@ def delete_student(
 
 
 @router.get("/zones", response_model=list[ZoneOut], dependencies=[Depends(require_teacher)])
-def list_zones(db: Session = Depends(get_db)) -> list[ZoneOut]:
+def list_zones(
+    db: Session = Depends(get_db),
+    user: orm.User = Depends(require_teacher),
+) -> list[ZoneOut]:
+    stmt = select(orm.Zone).order_by(orm.Zone.grid_x, orm.Zone.grid_y)
+    scope = school_scope(user)
+    if scope is not None:
+        stmt = stmt.where(orm.Zone.school_id == scope)
     return [
         ZoneOut(
             zone_id=z.zone_id,
@@ -289,7 +296,7 @@ def list_zones(db: Session = Depends(get_db)) -> list[ZoneOut]:
             capacity=z.capacity,
             floor=z.floor,
         )
-        for z in db.scalars(select(orm.Zone).order_by(orm.Zone.grid_x, orm.Zone.grid_y))
+        for z in db.scalars(stmt)
     ]
 
 
