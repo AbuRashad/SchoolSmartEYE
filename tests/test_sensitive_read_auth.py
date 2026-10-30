@@ -35,5 +35,5 @@ def test_analytics_overview_identifies_placeholder_metrics(client: TestClient):
     response = client.get("/api/v1/analytics/overview")
     assert response.status_code == 200
     payload = response.json()
-    assert payload["data_status"] == "demo"
-    assert "not live school data" in payload["data_notice"]
+    assert payload["data_status"] == "unavailable"
+    assert "Live analytics are not yet available" in payload["data_notice"]
