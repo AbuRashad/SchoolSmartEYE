@@ -81,7 +81,7 @@ def _seed_zones(db: Session) -> None:
     )
     db.add_all(
         orm.Zone(
-            zone_id=z.zone_id, label=z.label, zone_type=z.zone_type.value,
+            school_id="school-primary", zone_id=z.zone_id, label=z.label, zone_type=z.zone_type.value,
             capacity=z.capacity, floor=z.floor, grid_x=z.coordinates[0], grid_y=z.coordinates[1],
         )
         for z in zone_defs
