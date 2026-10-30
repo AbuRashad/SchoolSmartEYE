@@ -79,6 +79,9 @@ def test_wearable_ingestion_is_authenticated_persistent_and_idempotent(client, d
         assert db.query(orm.GovernanceAuditEvent).filter_by(
             event_type="wearable.observation_ingested"
         ).count() == 1
+        assert db.query(orm.GovernanceAuditEvent).filter_by(
+            event_type="wearable.history_accessed"
+        ).count() == 1
 
 
 def test_wearable_ingestion_rejects_missing_or_wrong_secret(client, seeded):
