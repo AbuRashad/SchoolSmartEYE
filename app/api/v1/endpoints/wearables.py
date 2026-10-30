@@ -135,6 +135,7 @@ def provision_wearable_device(
     )
     if device is not None and device.is_active:
         raise HTTPException(status_code=409, detail="An active wearable identity already exists")
+    credential_rotated = device is not None
 
     secret = secrets.token_urlsafe(32)
     if device is None:
@@ -160,7 +161,7 @@ def provision_wearable_device(
         event_type="wearable.device_provisioned",
         target_type="wearable_edge_device",
         target_id=device.device_id,
-        details={"bracelet_id": bracelet_id, "credential_rotated": device.last_seen_at is not None},
+        details={"bracelet_id": bracelet_id, "credential_rotated": credential_rotated},
     ))
     db.commit()
     return {
