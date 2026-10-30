@@ -155,3 +155,70 @@ def test_teacher_cannot_read_sensitive_wearable_history(client, auth_headers, se
     teacher_client = TestClient(app, headers=auth_headers("teacher"))
     response = teacher_client.get("/api/v1/wearables/BR-0001/observations")
     assert response.status_code == 403
+
+
+
+def test_wearable_overview_suppresses_small_cohorts_and_exposes_no_individual_readings(client, seeded):
+    response = client.get("/api/v1/wearables/overview")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "suppressed"
+    assert body["coverage_percent"] is None
+    assert body["reporting_devices"] is None
+    assert body["minimum_cohort_size"] == 10
+    assert "individual physiological readings" in body["message"]
+    assert "heart_rate_bpm" not in body
+    assert "student_id" not in body
+
+
+def test_wearable_overview_returns_school_aggregate_only(client, db_session_factory, seeded):
+    with db_session_factory() as db:
+        principal = db.query(orm.User).filter_by(role="principal").first()
+        students = db.query(orm.Student).filter_by(school_id="school-primary").order_by(
+            orm.Student.student_id
+        ).limit(10).all()
+        now = datetime.now(timezone.utc)
+        for index, student in enumerate(students):
+            bracelet = db.query(orm.Bracelet).filter_by(student_id=student.student_id).first()
+            if bracelet is None:
+                bracelet = orm.Bracelet(
+                    bracelet_id=f"BR-OVERVIEW-{index:02d}", student_id=student.student_id,
+                    mac_address=f"AA:BB:CC:DD:ED:{index:02X}", battery_level=95,
+                    is_active=True, firmware_version="wai-test", notes="",
+                )
+                db.add(bracelet)
+                db.flush()
+            device = orm.WearableEdgeDevice(
+                device_id=f"WAI-OVERVIEW-{index:02d}", school_id="school-primary",
+                bracelet_id=bracelet.bracelet_id, secret_hash="b" * 64,
+                is_active=True, provisioned_by_user_id=principal.id,
+            )
+            db.add(device)
+            db.flush()
+            db.add(orm.WearableObservation(
+                school_id="school-primary", student_id=student.student_id,
+                bracelet_id=bracelet.bracelet_id, device_id=device.device_id,
+                observed_at=now, schema_version="wai.v1", heart_rate_bpm=80.0,
+                idempotency_key=f"overview-key-{index:02d}",
+                data_status="live_unverified", validation_status="accepted",
+            ))
+        db.commit()
+
+    response = client.get("/api/v1/wearables/overview")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "available"
+    assert body["coverage_percent"] == 100.0
+    assert body["reporting_devices"] == 10
+    assert body["data_status"] == "live_unverified"
+    assert body["human_review_required"] is True
+    assert "heart_rate_bpm" not in body
+    assert "student_id" not in body
+
+
+def test_teacher_cannot_access_wearable_school_overview(client, auth_headers, seeded):
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    teacher_client = TestClient(app, headers=auth_headers("teacher"))
+    assert teacher_client.get("/api/v1/wearables/overview").status_code == 403
