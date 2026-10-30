@@ -70,3 +70,23 @@ def test_wearable_aggregation_is_school_scoped(db_session_factory, seeded):
     _add_reporting_devices(db_session_factory, 10)
     with db_session_factory() as db:
         assert school_wearable_reporting_metrics(db, "school-other") == {}
+
+
+def test_six_agent_orchestrator_receives_only_wearable_coverage(client, db_session_factory, seeded):
+    _add_reporting_devices(db_session_factory, 10)
+    response = client.post(
+        "/api/v1/agent/orchestrate",
+        json={"task": "Review school-wide intelligence and data coverage"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    wearable_evidence = [
+        item for item in body["evidence"]
+        if item["description"] == "Aggregate metric: wearable_coverage_percent"
+    ]
+    assert wearable_evidence
+    assert wearable_evidence[0]["value"] == 100.0
+    assert all("heart_rate" not in item["description"] for item in body["evidence"])
+    assert "no individual measurements" in body["report"]["data_notice"]
+    assert body["requires_human_review"] is True
+    assert body["autonomous_action_taken"] is False
