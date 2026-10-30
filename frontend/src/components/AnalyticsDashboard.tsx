@@ -18,6 +18,16 @@ export function AnalyticsDashboard({ data }: Props) {
 
   return (
     <div className="space-y-4">
+      {data.data_status === "demo" && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning"
+        >
+          <strong className="block">DEMO DATA — NOT LIVE SCHOOL METRICS</strong>
+          <span>{data.data_notice}</span>
+        </div>
+      )}
       {/* Row 1 — 4 primary metrics */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
