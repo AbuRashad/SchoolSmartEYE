@@ -5,8 +5,9 @@ import math
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -114,4 +115,46 @@ def ingest_observation(
         "data_status": record.data_status,
         "validation_status": record.validation_status,
         "message": "Stored for review; this observation is not yet eligible for learning.",
+    }
+
+
+
+@router.get("/audit")
+def list_observation_audit_events(
+    limit: int = Query(default=50, ge=1, le=100),
+    before_id: int | None = Query(default=None, ge=1),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_principal),
+) -> dict[str, object]:
+    """Read recent audit events for the authenticated principal's school only."""
+    if user.role != "principal":
+        raise HTTPException(status_code=403, detail="Only the assigned school principal may view school audit events")
+    if not user.school_id:
+        raise HTTPException(status_code=403, detail="This account is not assigned to a school")
+
+    statement = (
+        select(GovernanceAuditEvent)
+        .where(GovernanceAuditEvent.school_id == user.school_id)
+        .order_by(GovernanceAuditEvent.id.desc())
+        .limit(limit)
+    )
+    if before_id is not None:
+        statement = statement.where(GovernanceAuditEvent.id < before_id)
+
+    events = db.scalars(statement).all()
+    return {
+        "school_id": user.school_id,
+        "items": [
+            {
+                "id": event.id,
+                "event_type": event.event_type,
+                "actor_user_id": event.actor_user_id,
+                "target_type": event.target_type,
+                "target_id": event.target_id,
+                "details": event.details,
+                "created_at": event.created_at.isoformat(),
+            }
+            for event in events
+        ],
+        "next_before_id": events[-1].id if len(events) == limit else None,
     }
