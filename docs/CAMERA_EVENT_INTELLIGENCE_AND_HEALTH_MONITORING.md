@@ -213,6 +213,16 @@ When authorized access to representative school cameras becomes available, run a
 
 A field-validation report must identify the exact model/runtime versions, camera configurations, dataset scope, metrics, thresholds, failures, and approval decision. Passing software tests is not equivalent to passing field validation.
 
+## Initial CPU-first software foundation
+
+The first implementation slice now includes:
+- `app/services/camera_cv_runtime.py`: validated per-camera workload configuration, monotonic frame sampling gate, and bounded latest-frame queue that drops stale pending frames under overload.
+- `tests/test_camera_cv_runtime.py`: unit coverage for configuration validation, sampling cadence/reset, bounded queue behavior, and overload freshness.
+
+These primitives are scheduling/backpressure infrastructure only. They do not decode RTSP streams, run object detection, track people, classify actions, monitor persistent camera health, or establish field accuracy. No model weights or third-party inference runtime have been added yet.
+
+The existing live-stream endpoint/service remains a separate legacy path and has not yet been migrated to these primitives. Before enabling school deployment, its source handling, tenant isolation, credential storage, privacy behavior, and authorization need a dedicated security review.
+
 ## Implementation status
 
 This document records the approved architecture decision. The camera registry, ingestion APIs, health monitor, event analyzer, and review workflow still require implementation and tests.
