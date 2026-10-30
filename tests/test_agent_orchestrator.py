@@ -112,3 +112,24 @@ def test_advisory_llm_text_never_becomes_a_report_finding(monkeypatch):
     assert all("ADVISORY-ONLY-" not in str(item) for item in result["evidence"])
     assert result["requires_human_review"] is True
     assert result["autonomous_action_taken"] is False
+
+
+def test_provenance_metadata_is_type_checked_and_notice_is_bounded():
+    result = run_orchestration("Review malformed provenance", {
+        "attendance_rate": 90,
+        "data_status": ["demo"],
+        "data_notice": {"unexpected": "object"},
+    })
+    assert result["report"]["data_status"] == "unknown"
+    assert result["report"]["data_notice"] == (
+        "Data provenance is unverified; confirm the source and freshness before operational use."
+    )
+
+    long_notice = "x" * 700
+    bounded = run_orchestration("Review long provenance notice", {
+        "attendance_rate": 90,
+        "data_status": "demo",
+        "data_notice": long_notice,
+    })
+    assert bounded["report"]["data_status"] == "demo"
+    assert bounded["report"]["data_notice"] == "x" * 500
