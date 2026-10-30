@@ -1,5 +1,4 @@
 import importlib.util
-from datetime import datetime, timezone
 from pathlib import Path
 import sys
 import unittest
@@ -34,10 +33,10 @@ def profile(**overrides):
 
 class SignalQualityTests(unittest.TestCase):
     def assess(self, payload=None, **kwargs):
+        received_at = kwargs.pop("received_at", "2026-10-30T10:00:30+00:00")
         return quality.assess_signal_quality(
             payload or observation(), profile(),
-            received_at="2026-10-30T10:00:30+00:00",
-            data_mode="live_unverified", **kwargs
+            received_at=received_at, data_mode="live_unverified", **kwargs
         )
 
     def test_clean_observation_is_unverified_and_coverage_eligible(self):
