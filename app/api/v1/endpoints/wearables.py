@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_principal, require_teacher
+from app.api.deps import require_principal
 from app.db import models as orm
 from app.db.session import get_db
 
