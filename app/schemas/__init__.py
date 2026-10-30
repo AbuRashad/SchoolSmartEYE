@@ -125,19 +125,30 @@ class UnitInfoSchema(BaseModel):
 # ── Analytics ─────────────────────────────────────────────────────────────────
 
 
+class AnalyticsMetricResponse(BaseModel):
+    value: float | int | str | None = None
+    status: Literal["live", "stale", "unavailable", "demo"]
+    source: str | None = None
+    observed_at: str | None = None
+
+
 class AnalyticsOverviewResponse(BaseModel):
-    attendance_rate: float
-    total_students: int
-    active_cameras: int
-    total_units: int
-    incidents_today: int
-    incidents_week: int
-    avg_crowd_density: float
-    peak_density_zone: str
-    uptime_percent: float
-    alerts_resolved_today: int
-    patrol_efficiency: float
-    compliance_score: float
+    data_status: Literal["live", "partial", "unavailable", "demo"]
+    data_notice: str
+    generated_at: str
+    metrics: dict[str, AnalyticsMetricResponse]
+    attendance_rate: float | None = None
+    total_students: int | None = None
+    active_cameras: int | None = None
+    total_units: int | None = None
+    incidents_today: int | None = None
+    incidents_week: int | None = None
+    avg_crowd_density: float | None = None
+    peak_density_zone: str | None = None
+    uptime_percent: float | None = None
+    alerts_resolved_today: int | None = None
+    patrol_efficiency: float | None = None
+    compliance_score: float | None = None
 
 
 # ── Reports ───────────────────────────────────────────────────────────────────
