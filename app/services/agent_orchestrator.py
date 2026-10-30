@@ -1,29 +1,19 @@
-"""Bounded multi-agent orchestration for SchoolSmartEYE.
-
-Specialists receive validated aggregate metrics only. Optional LLM summaries are
-advisory; deterministic findings and evidence remain authoritative. Human review
-is mandatory and agents cannot trigger operational actions.
-"""
+"""Bounded multi-agent orchestration for SchoolSmartEYE."""
 from __future__ import annotations
 
 import uuid
 from typing import Any
 
-from app.services.llm_agent_runtime import generate_specialist_summary, ollama_enabled
+from app.services.llm_agent_runtime import generate_specialist_analysis, ollama_enabled
 from app.services.specialist_agents import (
-    academic_agent,
-    analytics_agent,
-    ethics_review_agent,
-    evidence_agent,
-    operations_agent,
-    safety_agent,
+    academic_agent, analytics_agent, ethics_review_agent, evidence_agent,
+    operations_agent, safety_agent,
 )
 
 _ALLOWED_METRICS = {
     "attendance_rate", "total_students", "active_cameras", "total_units",
-    "incidents_today", "incidents_week", "avg_crowd_density",
-    "uptime_percent", "alerts_resolved_today", "patrol_efficiency",
-    "compliance_score",
+    "incidents_today", "incidents_week", "avg_crowd_density", "uptime_percent",
+    "alerts_resolved_today", "patrol_efficiency", "compliance_score",
 }
 _METRIC_BOUNDS: dict[str, tuple[float, float]] = {
     "attendance_rate": (0, 100), "total_students": (0, float("inf")),
@@ -58,28 +48,46 @@ def _safe_metrics(metrics: dict[str, Any]) -> dict[str, int | float]:
     return safe
 
 
+def _apply_ai_analysis(
+    stages: list[dict[str, Any]], safe: dict[str, int | float]
+) -> None:
+    """Enrich stages with isolated AI analysis; never mutate deterministic findings."""
+    prior_analyses: list[dict[str, Any]] = []
+    for stage in stages:
+        name = str(stage["name"])
+        analysis, used = generate_specialist_analysis(
+            agent_name=name,
+            metrics=safe,
+            fallback_summary=stage.get("summary") or "No deterministic summary available.",
+            prior_analyses=prior_analyses if name == "ethics_review" else None,
+        )
+        stage["agent_role"] = name
+        stage["provider"] = "ollama" if used else "deterministic"
+        stage["analysis_status"] = "ai_completed" if used else "deterministic_fallback"
+        stage["kind"] = "llm_assisted" if used else "deterministic"
+        if used and analysis:
+            stage["analysis"] = analysis
+            stage["advisory_summary"] = analysis["summary"]
+            if name != "ethics_review":
+                prior_analyses.append({
+                    "agent": name,
+                    "analysis": analysis,
+                })
+
+
 def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
-    """Run six specialists; optionally enrich summaries through Ollama."""
+    """Run six specialist agents over allowlisted aggregates; require human review."""
     normalized_task = task.strip()
     if not normalized_task or len(normalized_task) > _MAX_TASK_LENGTH:
         raise ValueError(f"task must contain 1-{_MAX_TASK_LENGTH} characters")
 
     raw_data_status = metrics.get("data_status")
-    data_status = (
-        raw_data_status
-        if isinstance(raw_data_status, str) and raw_data_status in {"demo", "live"}
-        else "unknown"
-    )
+    data_status = raw_data_status if isinstance(raw_data_status, str) and raw_data_status in {"demo", "live"} else "unknown"
     raw_data_notice = metrics.get("data_notice")
-    if isinstance(raw_data_notice, str) and raw_data_notice.strip():
-        # Bound externally supplied metadata so it cannot bloat agent reports.
-        data_notice = raw_data_notice.strip()[:500]
-    else:
-        data_notice = (
-            "These are illustrative demo metrics, not live school data."
-            if data_status == "demo"
-            else "Data provenance is unverified; confirm the source and freshness before operational use."
-        )
+    data_notice = raw_data_notice.strip()[:500] if isinstance(raw_data_notice, str) and raw_data_notice.strip() else (
+        "These are illustrative demo metrics, not live school data." if data_status == "demo"
+        else "Data provenance is unverified; confirm the source and freshness before operational use."
+    )
 
     safe = _safe_metrics(metrics)
     evidence: list[dict[str, str | int | float]] = [
@@ -87,67 +95,45 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
         for key, value in sorted(safe.items())
     ]
     stages = [
-        analytics_agent(safe),
-        safety_agent(safe),
-        academic_agent(safe),
-        operations_agent(safe),
-        evidence_agent(evidence),
+        analytics_agent(safe), safety_agent(safe), academic_agent(safe),
+        operations_agent(safe), evidence_agent(evidence),
     ]
-    # The ethics reviewer receives prior deterministic outputs as an explicit handoff.
+    # Deterministic reviewer receives the first five outputs before AI peer review.
     stages.append(ethics_review_agent(safe, evidence, prior_stages=stages.copy()))
 
-    llm_used = False
     if ollama_enabled() and safe:
+        _apply_ai_analysis(stages, safe)
+    else:
         for stage in stages:
-            summary, used = generate_specialist_summary(
-                agent_name=stage["name"], metrics=safe,
-                fallback_summary=stage.get("summary") or "No summary available.",
-            )
-            # LLM output remains advisory and cannot replace deterministic findings.
-            if used:
-                stage["advisory_summary"] = summary
-                stage["kind"] = "llm_assisted"
-            else:
-                stage["kind"] = "deterministic"
-            llm_used = llm_used or used
+            stage["agent_role"] = str(stage["name"])
+            stage["provider"] = "deterministic"
+            stage["analysis_status"] = "deterministic_fallback"
 
     findings: list[dict[str, str]] = []
     for stage in stages:
-        for field, label in (
-            ("flags", "flag"),
-            ("recommendations", "recommendation"),
-            ("warnings", "warning"),
-        ):
+        for field, label in (("flags", "flag"), ("recommendations", "recommendation"), ("warnings", "warning")):
             for item in stage.get(field, []):
-                findings.append({
-                    "stage": str(stage["name"]),
-                    "type": label,
-                    "text": str(item),
-                })
+                findings.append({"stage": str(stage["name"]), "type": label, "text": str(item)})
 
     limitations = [
         "Aggregate metrics do not establish individual causes or responsibility.",
         "All findings and recommendations require human review.",
+        "AI analysis is advisory; deterministic findings and evidence remain authoritative.",
     ]
-    if data_status != "live":
-        limitations.append(data_notice)
-    else:
-        limitations.append("Verify source provenance and metric freshness before operational use.")
-
+    limitations.append(data_notice if data_status != "live" else "Verify source provenance and metric freshness before operational use.")
+    ai_count = sum(stage.get("analysis_status") == "ai_completed" for stage in stages)
     report = {
         "title": "School-wide specialist review",
         "status": "completed" if safe else "limited",
-        "data_status": data_status,
-        "data_notice": data_notice,
-        "finding_count": len(findings),
-        "findings": findings,
-        "evidence_count": len(evidence),
-        "limitations": limitations,
+        "data_status": data_status, "data_notice": data_notice,
+        "finding_count": len(findings), "findings": findings,
+        "evidence_count": len(evidence), "limitations": limitations,
+        "ai_agent_count": ai_count,
+        "reviewed_agents": stages[-1].get("reviewed_stages", []),
     }
-
     return {
         "request_id": str(uuid.uuid4()), "status": "completed" if safe else "limited",
-        "task": normalized_task, "provider": "ollama" if llm_used else "deterministic",
+        "task": normalized_task, "provider": "ollama" if ai_count else "deterministic",
         "stages": stages, "evidence": evidence, "report": report,
         "confidence": "low" if not safe else "moderate",
         "requires_human_review": True, "autonomous_action_taken": False,
