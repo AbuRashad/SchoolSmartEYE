@@ -17,12 +17,13 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import models as orm
 from app.db.session import get_db
 from app.models import EngagementState
-from app.api.deps import require_teacher
+from app.api.deps import require_school_staff, require_teacher, school_scope
 from app.services import agent_store
 
 router = APIRouter(prefix="/agent", tags=["agent"], dependencies=[Depends(require_teacher)])
@@ -64,9 +65,9 @@ def get_session_insights(
     "/feedback",
     response_model=FeedbackResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_teacher)],
+    dependencies=[Depends(require_school_staff)],
 )
-def submit_feedback(payload: FeedbackPayload, db: Session = Depends(get_db)) -> FeedbackResponse:
+def submit_feedback(payload: FeedbackPayload, db: Session = Depends(get_db), user: orm.User = Depends(require_school_staff)) -> FeedbackResponse:
     """Accept a teacher annotation confirming or correcting a Unit 15 prediction.
 
     Each submission is stored in the database and appended to
@@ -74,7 +75,7 @@ def submit_feedback(payload: FeedbackPayload, db: Session = Depends(get_db)) -> 
     """
     agent = agent_store.build_agent(db, include_feedback=False)
     # Verify student exists
-    student = db.get(orm.Student, payload.student_id)
+    student = db.scalar(select(orm.Student).where(orm.Student.student_id == payload.student_id, orm.Student.school_id == school_scope(user)))
     if student is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
