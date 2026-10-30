@@ -13,7 +13,7 @@ from app.services.specialist_agents import (
 _ALLOWED_METRICS = {
     "attendance_rate", "total_students", "active_cameras", "total_units",
     "incidents_today", "incidents_week", "avg_crowd_density", "uptime_percent",
-    "alerts_resolved_today", "patrol_efficiency", "compliance_score",
+    "alerts_resolved_today", "patrol_efficiency", "compliance_score", "wearable_coverage_percent", "wearable_reporting_devices",
 }
 _METRIC_BOUNDS: dict[str, tuple[float, float]] = {
     "attendance_rate": (0, 100), "total_students": (0, float("inf")),
@@ -22,10 +22,11 @@ _METRIC_BOUNDS: dict[str, tuple[float, float]] = {
     "avg_crowd_density": (0, 1), "uptime_percent": (0, 100),
     "alerts_resolved_today": (0, float("inf")), "patrol_efficiency": (0, 100),
     "compliance_score": (0, 100),
+    "wearable_coverage_percent": (0, 100), "wearable_reporting_devices": (0, float("inf")),
 }
 _INTEGER_METRICS = {
     "total_students", "active_cameras", "total_units", "incidents_today",
-    "incidents_week", "alerts_resolved_today",
+    "incidents_week", "alerts_resolved_today", "wearable_reporting_devices",
 }
 _MAX_TASK_LENGTH = 500
 
