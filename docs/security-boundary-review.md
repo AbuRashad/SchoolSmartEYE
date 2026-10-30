@@ -2,30 +2,32 @@
 
 ## Scope
 
-This is a code-review snapshot of the current demo architecture, not a penetration test, compliance certification, or claim that every route has been exhaustively audited. Findings below are based on the current ORM models, authentication dependencies, student/bracelet endpoints, analytics overview, and orchestrator documentation.
+This is a code-review snapshot of the current demo architecture, not a penetration test, compliance certification, or claim that every route has been exhaustively audited. Findings below are based on inspected ORM models, authentication dependencies, student/bracelet/zone/risk/agent endpoints, settings, and orchestration routes.
 
 ## Current status
 
-**Do not connect real student records or use this build for live multi-school operations yet.** The current code demonstrates role-based access and several bounded agent safeguards, but it does not yet establish school-level data isolation.
+**Do not connect real student records or use this build for live multi-school operations yet.** The branch now enforces school scope on several key routes, but substantial school-owned data paths and global in-memory services remain outside the tenant boundary.
 
 ## Update — first enforced school boundary
 
-The current branch now has a persisted `School` model and school ownership on users and students. Student list/detail/profile/behavioral-history reads and bracelet list/detail operations are filtered by the authenticated user's school. Ministry accounts may read across schools for these routes, but are explicitly read-only for student and bracelet mutations; school principals are required for those writes. The school scope is derived from the authenticated user record, never from a client-supplied school ID.
+The current branch has a persisted `School` model and school ownership on users and students. Student lists, profiles, behavioral history, bracelet lists, and zone lists are filtered by the authenticated user's school. Ministry accounts may read across schools on these routes. Student/bracelet mutations require an exact school-principal role; Ministry is also denied settings mutation, agent feedback submission, and orchestration. Attendance-risk lists and individual risk/recommendation lookups now apply the caller's school scope. Agent feedback writes require a school staff account and a student in that same school. The school scope is derived from the authenticated user record, never from a client-supplied school ID. Student profile notifications are limited to records explicitly linked to the student because parent IDs are not tenant-safe in the current schema.
 
-**Covered by regression tests:** school-specific student lists; ministry cross-school student and bracelet reads; student profile visibility; cross-school student and bracelet mutation denial; school assignment on student creation; and ministry mutation denial.
+**Covered by regression tests:** school-specific student and zone lists; ministry cross-school student, bracelet, and zone reads; student profile visibility; cross-school student and bracelet mutation denial; school assignment on student creation; risk and recommendation scope; and Ministry denial for protected mutations.
 
-**P0 remains open:** attendance, notifications, incidents, analytics, cameras, parent portal, reports, orchestrator, SSI, wearable endpoints, and remaining units/services must be reviewed and scoped independently. Globally unique student and bracelet IDs may still reveal collisions through generic conflict responses; in-memory stores are not yet tenant-aware. This first slice is not a claim of complete multi-tenant isolation or production readiness.
+**P0 remains open:** attendance and notifications need full schema-level tenant ownership; camera health/review, wearable reporting, SSI, reports, portal, dashboard, analytics, and remaining units/services need independent policy and scope review. Several agent summary/metrics/baseline reads still aggregate globally. Runtime settings are process-global: although Ministry can no longer patch them, a school principal's PATCH still changes shared process settings and must be redesigned as per-school settings before multi-tenant use. In-memory stores are not tenant-aware. This slice is not a claim of complete multi-tenant isolation or production readiness.
 
 ## Findings and priorities
 
 ### P0 — Establish school/tenant isolation before multi-school live data
 
 - The ORM has a `School` tenant model; users and students carry school ownership, and bracelets inherit their school through the assigned student.
-- Student lists, profiles, behavioral history, and bracelet lists are now school-filtered for school users. Ministry accounts can read across schools on these routes but cannot mutate student or bracelet records.
-- Other school-owned datasets and service paths are not yet consistently tenant-scoped; in-memory stores remain a separate isolation risk.
-- The general RBAC hierarchy is still role-based. The exact-principal write guard currently protects student and bracelet mutations; other write endpoints still require an explicit read-only/ministry policy review.
+- Student lists, profiles, behavioral history, bracelet lists, and zone lists are school-filtered for school users; Ministry receives cross-school reads on those routes.
+- Attendance risk and per-student agent recommendations enforce school scope. Agent feedback writes verify that the target student belongs to the caller's school.
+- Ministry is blocked from student/bracelet writes, settings PATCH, agent feedback POST, and orchestration POST. The generic role hierarchy still allows Ministry through some `require_teacher` / `require_principal` dependencies; each such route must be reviewed rather than assumed safe.
+- Dashboard, SSI, reports, analytics, agent-wide summaries, cameras, wearable coverage/history, and other data services remain partially global, demo-only, or inaccessible to Ministry; none should be described as a complete Ministry all-schools read surface.
+- Runtime settings are global process state. A school principal can still change those shared settings, so the PATCH endpoint is not tenant-isolated even though Ministry is denied.
 
-**Required before live multi-school use:** apply authenticated school scope to every school-owned read/write path; add cross-tenant denial tests for attendance, notifications, incidents, analytics, cameras, parent portal, reports, wearable data, orchestrator, and remaining units/services; and ensure ministry is read-only wherever that is the intended policy. Do not infer tenant identity from client-supplied IDs alone.
+**Required before live multi-school use:** add school ownership to attendance and notification records; finish school-scope filtering for all student-specific reads; define an explicit Ministry all-school read API for camera, wearable, safety, dashboard, and reporting data; reject Ministry on every mutation endpoint (including less-obvious POST actions); replace process-global settings with per-school configuration; and add cross-tenant denial tests across all services. Do not infer tenant identity from client-supplied IDs alone.
 
 ### P1 — Replace demo analytics with a provenance-aware data source
 
@@ -37,7 +39,8 @@ The current branch now has a persisted `School` model and school ownership on us
 ### P1 — Review student-sensitive endpoint exposure
 
 - Student profiles can include attendance, last-seen zone, bracelet details, parent identifiers, notifications, and behavioral/engagement summaries.
-- Current checks shown in these routes are role-based, not school-scoped. A teacher role alone is not a least-privilege policy for a specific student population.
+- Student profile and behavioral-history routes now resolve the student within the caller's school; Ministry may read across schools. Parent-linked notifications are intentionally omitted unless explicitly linked to the student because parent IDs are not yet tenant-scoped.
+- Agent-wide insights, feedback metrics, and baseline summaries still need school-aware aggregation for school users. The current `require_teacher` hierarchy is not itself a tenant boundary.
 
 **Required:** define per-school and, where applicable, class/student-level authorization; minimize returned fields by role and purpose; audit access to behavioral history and location-related data; and verify authorization failures with tests.
 
@@ -60,7 +63,7 @@ The current branch now has a persisted `School` model and school ownership on us
 1. Keep the current demo isolated from real student data.
 2. Decide the tenant model and authorization rules before editing ORM tables.
 3. Implement tenant-aware migrations and explicit ownership backfill policy.
-4. Add a reusable server-side school-scope dependency and apply it consistently to every endpoint and service query.
+4. Extend the reusable server-side school-scope dependency to every endpoint and service query; create explicit cross-school read-only Ministry dependencies.
 5. Add cross-tenant isolation tests, including negative tests for guessed IDs and parent/student-related records.
 6. Separate demo/live analytics and include provenance/freshness.
 7. Re-run the complete test suite and review migration behavior on a disposable database.
@@ -68,7 +71,7 @@ The current branch now has a persisted `School` model and school ownership on us
 
 ## Existing safeguards worth preserving
 
-- The orchestrator requires principal-level access, rejects unknown request fields, and declares human review required.
+- The orchestrator requires an exact school-principal role, rejects unknown request fields, and declares human review required.
 - The orchestration response explicitly says no autonomous action was taken.
 - The specialist stages are deterministic Python functions; they should not be described as six independent autonomous LLM agents.
 - Model-generated advisory analysis must never override deterministic evidence or safety boundaries.
