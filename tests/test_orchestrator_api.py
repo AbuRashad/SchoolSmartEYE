@@ -39,7 +39,7 @@ def test_principal_can_call_orchestrator_and_result_requires_review(client: Test
         "ethics_review",
     ]
     assert payload["status"] == "limited"
-    assert payload["report"]["data_status"] == "unknown"
+    assert payload["report"]["data_status"] == "unavailable"
     assert "Live analytics are not yet available" in payload["report"]["data_notice"]
     assert any("Live analytics are not yet available" in item for item in payload["report"]["limitations"])
 
