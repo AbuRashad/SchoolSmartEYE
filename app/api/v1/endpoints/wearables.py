@@ -292,9 +292,9 @@ def wearable_observation_history(
     limit: int = Query(default=50, ge=1, le=100),
     before_id: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
-    user: orm.User = Depends(require_teacher),
+    user: orm.User = Depends(require_principal),
 ) -> dict[str, object]:
-    """Return only the authenticated school's observation history."""
+    """Return sensitive wearable history to the school principal only, with access audit."""
     school_id = _school_id(user)
     statement = select(orm.WearableObservation).where(
         orm.WearableObservation.school_id == school_id,
@@ -314,6 +314,15 @@ def wearable_observation_history(
     rows = db.scalars(
         statement.order_by(orm.WearableObservation.id.desc()).limit(limit)
     ).all()
+    db.add(orm.GovernanceAuditEvent(
+        school_id=school_id,
+        actor_user_id=user.id,
+        event_type="wearable.history_accessed",
+        target_type="wearable_bracelet",
+        target_id=bracelet_id,
+        details={"returned_count": len(rows), "limit": limit},
+    ))
+    db.commit()
     return {
         "bracelet_id": bracelet_id,
         "items": [_serialize(row) for row in rows],
