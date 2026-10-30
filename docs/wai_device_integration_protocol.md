@@ -65,7 +65,7 @@ At least one of the five physiological/activity measurement fields is required. 
 - The six-agent orchestrator receives only school-level wearable device-reporting coverage, and only when at least ten distinct students report within the last 24 hours.
 - Heart rate, HRV, skin temperature, activity and EDA values are not sent to the six-agent pipeline.
 - No diagnosis, emotion inference, disciplinary finding, automated intervention, or emergency determination is made from wearable values.
-- All findings require human review. Data from a physical WAI unit remains labelled `live_unverified` until hardware, firmware, calibration, and transport are verified in a supervised pilot.
+- All findings require human review. Device-originated observations are stored as `live_unverified` but have `validation_status=pending_hardware_verification`; they are excluded from school coverage and the six-agent pipeline until a supervised hardware-validation and approval workflow is implemented and completed. Authentication alone does not establish physical sensor capability, calibration, or signal quality.
 
 ## Hardware information still required
 
