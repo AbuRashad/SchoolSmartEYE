@@ -62,9 +62,9 @@ def _apply_ai_analysis(
             prior_analyses=prior_analyses if name == "ethics_review" else None,
         )
         stage["agent_role"] = name
-        stage["provider"] = provider if used else "deterministic"
-        stage["analysis_status"] = "ai_completed" if used else "deterministic_fallback"
-        stage["kind"] = "llm_assisted" if used else "deterministic"
+        stage["provider"] = "native" if used else "deterministic"
+        stage["analysis_status"] = "native_completed" if used else "deterministic_fallback"
+        stage["kind"] = "native_analysis" if used else "deterministic"
         if used and analysis:
             stage["analysis"] = analysis
             stage["advisory_summary"] = analysis["summary"]
@@ -114,7 +114,7 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
     limitations = [
         "Aggregate metrics do not establish individual causes or responsibility.",
         "All findings and recommendations require human review.",
-        "AI analysis is advisory; deterministic findings and evidence remain authoritative.",
+        "Native domain analysis is advisory; deterministic findings and evidence remain authoritative.",
     ]
     limitations.append(data_notice if data_status != "live" else "Verify source provenance and metric freshness before operational use.")
     ai_count = sum(stage.get("analysis_status") == "ai_completed" for stage in stages)
@@ -130,7 +130,7 @@ def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
     }
     return {
         "request_id": str(uuid.uuid4()), "status": "completed" if safe else "limited",
-        "task": normalized_task, "provider": providers[0] if len(providers) == 1 else ("hybrid" if providers else "deterministic"),
+        "task": normalized_task, "provider": "native" if providers else "deterministic",
         "stages": stages, "evidence": evidence, "report": report,
         "confidence": "low" if not safe else "moderate",
         "requires_human_review": True, "autonomous_action_taken": False,
