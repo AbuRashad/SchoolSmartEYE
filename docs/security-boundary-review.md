@@ -31,7 +31,7 @@ The current branch has a persisted `School` model and school ownership on users 
 
 ### P1 — Replace demo analytics with a provenance-aware data source
 
-- `GET /analytics/overview` currently returns hard-coded illustrative metrics, including attendance, incidents, camera activity, and compliance.
+- `GET /analytics/overview` and dashboard summary/heatmap/WebSocket snapshots use seeded illustrative values, not live school feeds. Dashboard responses now carry `data_status=demo` and an explicit notice so clients cannot mistake them for live observations.
 - The orchestrator consumes this overview. As a result, a successful response is not evidence of live school conditions.
 
 **Required:** make demo/live mode explicit in the API and UI; label all demo metrics visibly; include source and freshness metadata for live metrics; reject or clearly flag stale/missing inputs; and test that demo values cannot be mistaken for live observations.
