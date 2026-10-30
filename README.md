@@ -436,3 +436,10 @@ cd frontend && npm run build
 ```
 
 Tests cover: database seeding and persistence, JWT authentication and the role matrix, student CRUD and the profile endpoint, bracelets, governance layer, health, dashboard, SSI, drill simulation, ministry reports, parent portal, report generator, risk heatmap, school safety index, spatial behavioral memory, attendance-safety integration, collective behavioral coherence, crowd density forecasting and the Unit 15 pedagogical agent.
+
+
+## Native Hybrid AI Engine
+
+The six specialist agents use a provider-independent OpenAI-compatible runtime. Configure `AI_PROVIDER=hybrid` to try the cloud model first and a local inference endpoint second. The cloud endpoint must use HTTPS. The local endpoint can be served by llama.cpp or another compatible runtime; SchoolSmartEYE does not download model weights or manage the inference server.
+
+See [Native Hybrid AI Engine](docs/NATIVE_AI_ENGINE.md) for configuration, privacy boundaries and deployment notes. Without a configured and reachable model endpoint, the app explicitly reports deterministic fallback rather than claiming AI analysis.
