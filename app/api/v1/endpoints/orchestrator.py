@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.api.deps import require_school_principal
-from app.api.v1.endpoints.analytics import analytics_overview
+from app.api.v1.endpoints.analytics import build_analytics_overview
 from app.db.models import User
 from app.db.session import get_db
 from app.services.agent_orchestrator import run_orchestration
@@ -96,14 +96,13 @@ def orchestrate_agents(
     are fetched. AI analyses are advisory and cannot alter deterministic findings.
     """
     try:
-        metrics = analytics_overview()
+        metrics = build_analytics_overview(db, school_id=user.school_id)
         if user.school_id:
             metrics.update(school_wearable_reporting_metrics(db, user.school_id))
             if any(key.startswith("wearable_") for key in metrics):
-                metrics["data_notice"] = (
-                    "The dashboard's other school metrics are illustrative demo values. "
-                    "WAI values are live_unverified school-level device-reporting coverage only; "
-                    "no individual measurements or student identifiers are passed to agents."
+                metrics["data_notice"] += (
+                    " Wearable reporting coverage is live_unverified and is kept separate "
+                    "from verified operational metrics."
                 )
         result = run_orchestration(payload.task, metrics)
     except ValueError as exc:
