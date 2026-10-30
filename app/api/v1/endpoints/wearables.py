@@ -313,7 +313,7 @@ def wearable_school_overview(
         "message": (
             "School-level device reporting coverage only; individual physiological readings are not shown."
             if available
-            else "Coverage is withheld until at least 10 assigned students are reporting within the last 24 hours."
+            else "Coverage is withheld until at least 10 assigned students are reporting within the last 24 hours; individual physiological readings are never exposed in this overview."
         ),
         "data_status": "live_unverified",
         "human_review_required": True,
