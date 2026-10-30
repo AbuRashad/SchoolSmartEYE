@@ -248,7 +248,9 @@ def ingest_wearable_observation(
         battery_level=payload.battery_level,
         idempotency_key=payload.idempotency_key,
         data_status="live_unverified",
-        validation_status="accepted",
+        # Authenticated transport is not proof of hardware capability or signal quality.
+        # Keep observations out of live coverage until a supervised hardware-validation flow exists.
+        validation_status="pending_hardware_verification",
     )
     device.last_seen_at = now
     if payload.battery_level is not None:
@@ -274,6 +276,8 @@ def ingest_wearable_observation(
                     ) if getattr(payload, name) is not None
                 ],
                 "data_status": "live_unverified",
+                "validation_status": "pending_hardware_verification",
+                "coverage_eligible": False,
             },
         ))
         db.commit()
@@ -362,5 +366,5 @@ def wearable_observation_history(
         "items": [_serialize(row) for row in rows],
         "count": len(rows),
         "next_before_id": rows[-1].id if len(rows) == limit else None,
-        "data_status_note": "live_unverified means device-originated data not yet validated against physical WAI hardware",
+        "data_status_note": "Device-originated readings remain pending_hardware_verification and are excluded from live coverage until supervised hardware validation is implemented and completed.",
     }
