@@ -110,6 +110,16 @@ def require_roles_header_or_query(*roles: Role) -> Callable[..., User]:
     return _dependency
 
 
+def require_school_staff(user: User = Depends(get_current_user)) -> User:
+    """Require a teacher or principal assigned to one school; never Ministry."""
+    if role_of(user) not in {Role.TEACHER, Role.PRINCIPAL} or not user.school_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="An authorised school account is required",
+        )
+    return user
+
+
 def require_school_principal(user: User = Depends(get_current_user)) -> User:
     """Require an actual school principal; ministry is read-only on school records."""
     if role_of(user) is not Role.PRINCIPAL:
