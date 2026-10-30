@@ -4,12 +4,15 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.api.deps import require_principal
 from app.api.v1.endpoints.analytics import analytics_overview
 from app.db.models import User
+from app.db.session import get_db
 from app.services.agent_orchestrator import run_orchestration
+from app.services.wearable_aggregation import school_wearable_reporting_metrics
 
 router = APIRouter(prefix="/agent", tags=["agent-orchestrator"])
 
@@ -84,7 +87,8 @@ class OrchestrateResponse(BaseModel):
 @router.post("/orchestrate", response_model=OrchestrateResponse)
 def orchestrate_agents(
     payload: OrchestrateRequest,
-    _user: User = Depends(require_principal),
+    user: User = Depends(require_principal),
+    db: Session = Depends(get_db),
 ) -> OrchestrateResponse:
     """Coordinate specialist agents over allowlisted aggregate metrics.
 
@@ -92,7 +96,16 @@ def orchestrate_agents(
     are fetched. AI analyses are advisory and cannot alter deterministic findings.
     """
     try:
-        result = run_orchestration(payload.task, analytics_overview())
+        metrics = analytics_overview()
+        if user.school_id:
+            metrics.update(school_wearable_reporting_metrics(db, user.school_id))
+            if any(key.startswith("wearable_") for key in metrics):
+                metrics["data_notice"] = (
+                    "The dashboard's other school metrics are illustrative demo values. "
+                    "WAI values are live_unverified school-level device-reporting coverage only; "
+                    "no individual measurements or student identifiers are passed to agents."
+                )
+        result = run_orchestration(payload.task, metrics)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
     return OrchestrateResponse.model_validate(result)
