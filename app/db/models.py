@@ -269,3 +269,31 @@ class CameraReviewEvent(Base):
     reviewed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     review_note: Mapped[str] = mapped_column(String(1024), default="")
+
+
+class CameraHealthSnapshot(Base):
+    """Append-only, school-scoped operational telemetry; contains no image data."""
+
+    __tablename__ = "camera_health_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "school_id", "idempotency_key",
+            name="uq_camera_health_school_idempotency",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id"), index=True)
+    camera_id: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(16), index=True)
+    observed_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    fps: Mapped[float] = mapped_column(Float)
+    latency_ms: Mapped[float] = mapped_column(Float)
+    consecutive_missed_heartbeats: Mapped[int] = mapped_column(Integer, default=0)
+    reconnect_count: Mapped[int] = mapped_column(Integer, default=0)
+    frozen_frame: Mapped[bool] = mapped_column(Boolean, default=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128))
+    source: Mapped[str] = mapped_column(String(24), default="principal_reported")
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc), index=True)
