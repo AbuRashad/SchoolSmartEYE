@@ -144,3 +144,14 @@ def test_wearable_provisioning_cannot_cross_school_boundary(client, db_session_f
     assert client.post(
         "/api/v1/wearables/devices/BR-OTHER-WAI"
     ).status_code == 404
+
+
+def test_teacher_cannot_read_sensitive_wearable_history(client, auth_headers, seeded):
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    provisioned = _provision(client)
+    _ingest(client, provisioned)
+    teacher_client = TestClient(app, headers=auth_headers("teacher"))
+    response = teacher_client.get("/api/v1/wearables/BR-0001/observations")
+    assert response.status_code == 403
