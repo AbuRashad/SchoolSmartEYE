@@ -7,6 +7,7 @@ an authenticated edge-agent endpoint.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Iterator, Literal
@@ -37,8 +38,8 @@ class CameraHealthMetrics:
             raise ValueError("observed_at must be timezone-aware")
         for name in ("last_seen_age_seconds", "fps", "latency_ms"):
             value = getattr(self, name)
-            if value < 0:
-                raise ValueError(f"{name} cannot be negative")
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be finite and cannot be negative")
         if self.consecutive_missed_heartbeats < 0 or self.reconnect_count < 0:
             raise ValueError("heartbeat and reconnect counters cannot be negative")
 
