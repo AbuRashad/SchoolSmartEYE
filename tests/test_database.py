@@ -21,7 +21,7 @@ def test_seed_inserts_demo_data_only_when_tables_empty(db_session_factory) -> No
 
 def test_seed_does_not_overwrite_existing_data(db_session_factory) -> None:
     with db_session_factory() as db:
-        db.add(orm.Student(student_id="X1", name="Only", grade="G1", class_section="A", parent_id="P"))
+        db.add(orm.Student(student_id="X1", school_id="school-primary", name="Only", grade="G1", class_section="A", parent_id="P"))
         db.commit()
         assert seed_data.seed_database(db) is False
         assert db.scalar(select(func.count()).select_from(orm.Student)) == 1
