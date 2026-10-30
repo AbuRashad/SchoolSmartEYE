@@ -17,11 +17,14 @@ from typing import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from app.api.deps import require_principal, require_teacher, require_teacher_stream, role_of
 from app.core.governance_layer import SCOPE_LEVEL, Role
-from app.db.models import User
+from app.db.models import User, Zone
+from app.db.session import get_db
 from app.services.camera_ingestion import CameraSource, ingestion_service
 from app.units.unit_01.module import StreamStatus
 
@@ -110,10 +113,17 @@ def list_cameras(user: User = Depends(require_teacher)) -> list[CameraInfo]:
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_principal)],
 )
-def register_camera(payload: CameraCreate, user: User = Depends(require_principal)) -> CameraInfo:
+def register_camera(
+    payload: CameraCreate,
+    user: User = Depends(require_principal),
+    db: Session = Depends(get_db),
+) -> CameraInfo:
     """Register a new live camera and start streaming from it."""
     if not user.school_id:
         raise HTTPException(status_code=403, detail="User is not assigned to a school")
+    zone = db.scalar(select(Zone).where(Zone.zone_id == payload.zone_id, Zone.school_id == user.school_id))
+    if zone is None:
+        raise HTTPException(status_code=404, detail="Zone not found for this school")
     if any(src.camera_id == payload.camera_id for src in ingestion_service.list_sources()):
         raise HTTPException(status_code=409, detail="Camera ID is already registered")
     source = CameraSource(
