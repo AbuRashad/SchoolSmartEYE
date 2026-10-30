@@ -144,3 +144,35 @@ def test_ministry_is_read_only_for_student_and_bracelet_records(two_schools, met
     client = _client("ministry_x", "ministry")
     response = getattr(client, method)(path, json=payload) if payload is not None else getattr(client, method)(path)
     assert response.status_code == 403
+
+def test_agent_metrics_and_baselines_are_tenant_scoped(two_schools, db_session_factory):
+    from datetime import datetime, timezone
+
+    with db_session_factory() as db:
+        db.add(orm.AgentFeedbackRecord(
+            feedback_id="FB-SCHOOL-B",
+            session_id="session-b",
+            student_id="B-1",
+            predicted_state="distracted",
+            confirmed_state="attentive",
+            teacher_notes="school B only",
+            recorded_at=datetime.now(timezone.utc),
+        ))
+        db.commit()
+
+    school_a = _client("teacher_a", "teacher")
+    ministry = _client("ministry_x", "ministry")
+
+    school_metrics = school_a.get("/api/v1/agent/feedback/metrics")
+    ministry_metrics = ministry.get("/api/v1/agent/feedback/metrics")
+    assert school_metrics.status_code == 200
+    assert school_metrics.json()["total_feedback"] == 0
+    assert ministry_metrics.status_code == 200
+    assert ministry_metrics.json()["total_feedback"] == 1
+
+    school_baselines = school_a.get("/api/v1/agent/baselines")
+    ministry_baselines = ministry.get("/api/v1/agent/baselines")
+    assert school_baselines.status_code == 200
+    assert set(school_baselines.json()["baselines"]).issubset({"A-1"})
+    assert ministry_baselines.status_code == 200
+    assert "B-1" not in school_baselines.json()["baselines"]
