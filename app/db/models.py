@@ -127,6 +127,55 @@ class Bracelet(Base):
     student: Mapped[Student] = relationship(back_populates="bracelet")
 
 
+class WearableEdgeDevice(Base):
+    """Revocable identity for one physical WAI bracelet; stores only a secret digest."""
+
+    __tablename__ = "wearable_edge_devices"
+    __table_args__ = (
+        UniqueConstraint("school_id", "bracelet_id", name="uq_wearable_edge_school_bracelet"),
+    )
+
+    device_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id"), index=True)
+    bracelet_id: Mapped[str] = mapped_column(ForeignKey("bracelets.bracelet_id"), index=True)
+    secret_hash: Mapped[str] = mapped_column(String(64))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    provisioned_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc))
+    last_seen_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
+class WearableObservation(Base):
+    """Minimal, typed, timestamped wearable measurements with source provenance."""
+
+    __tablename__ = "wearable_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "school_id", "device_id", "idempotency_key",
+            name="uq_wearable_observation_device_idempotency",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id"), index=True)
+    student_id: Mapped[str] = mapped_column(ForeignKey("students.student_id"), index=True)
+    bracelet_id: Mapped[str] = mapped_column(ForeignKey("bracelets.bracelet_id"), index=True)
+    device_id: Mapped[str] = mapped_column(ForeignKey("wearable_edge_devices.device_id"), index=True)
+    observed_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    received_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc))
+    schema_version: Mapped[str] = mapped_column(String(24), default="wai.v1")
+    heart_rate_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hrv_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    skin_temperature_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    movement_activity_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    eda_us: Mapped[float | None] = mapped_column(Float, nullable=True)
+    battery_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128))
+    data_status: Mapped[str] = mapped_column(String(24), default="live_unverified")
+    validation_status: Mapped[str] = mapped_column(String(24), default="accepted")
+
+
 class AttendanceRecord(Base):
     __tablename__ = "attendance_records"
     __table_args__ = (UniqueConstraint("student_id", "date", name="uq_attendance_student_date"),)
