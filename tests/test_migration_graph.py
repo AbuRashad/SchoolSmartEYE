@@ -7,7 +7,8 @@ def test_migration_history_has_one_linear_head():
     config = Config("alembic.ini")
     scripts = ScriptDirectory.from_config(config)
 
-    assert scripts.get_heads() == ["0006"]
+    assert scripts.get_heads() == ["0007"]
+    assert scripts.get_revision("0007").down_revision == "0006"
     assert scripts.get_revision("0006").down_revision == "0005"
     assert scripts.get_revision("0005").down_revision == "0004"
     assert scripts.get_revision("0004").down_revision == "0003"
