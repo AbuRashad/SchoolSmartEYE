@@ -265,3 +265,17 @@ Added `app/services/camera_scene_tracker.py`:
 - No face, appearance, biometric, or cross-camera matching.
 
 This is a deliberately small baseline association layer, **not ByteTrack** and not a validated person-tracking model. IDs are ephemeral scene bookkeeping only; they must not be persisted as identities or used to infer who a person is. Occlusion, crowded crossings, camera movement, and long frame gaps can cause track switches or fragmentation. No camera footage or production performance has been validated.
+
+
+## Bounded event pipeline — initial orchestration slice
+
+Added `app/services/camera_event_pipeline.py` and focused tests:
+- Accepts only an upstream-triggered, bounded sequence of `EventFrame` values; it does not open cameras or poll streams.
+- Enforces an explicit per-event frame cap and strictly increasing timezone-aware capture timestamps.
+- Invokes the injected event intelligence engine once per supplied frame and groups its snapshots under the caller-supplied event ID.
+- Returns candidate findings only; every snapshot and batch requires human review.
+- Serialization contains event metadata and findings, not frame pixels or scene tracker IDs. Frames are processed in memory and are not persisted by this component.
+
+This is an orchestration contract, not a complete production event worker. It does not yet perform clip extraction, event deduplication, persistent review-queue storage, camera health monitoring, authorization, tenant scoping, or API integration. The pipeline does not use the scene-local tracker yet; adding temporal association safely requires a detector result contract that avoids running inference twice per frame and guarantees temporary track IDs never enter persistent review records.
+
+Tests use synthetic arrays and a fake detector. They verify bounds, timestamp ordering, review-only status, and serialization boundaries. They do not validate visual accuracy, live camera behavior, throughput, or deployment readiness.
