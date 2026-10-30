@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from app.services.agent_metric_scope import MAX_PEER_HANDOFF, scope_metrics
 from app.services.llm_agent_runtime import ai_enabled, generate_specialist_analysis
 from app.services.specialist_agents import (
     academic_agent, analytics_agent, ethics_review_agent, evidence_agent,
@@ -51,15 +52,19 @@ def _safe_metrics(metrics: dict[str, Any]) -> dict[str, int | float]:
 def _apply_ai_analysis(
     stages: list[dict[str, Any]], safe: dict[str, int | float]
 ) -> None:
-    """Enrich stages with validated model analysis; deterministic findings stay authoritative."""
+    """Enrich stages with validated model analysis; deterministic findings stay authoritative.
+
+    Each role receives only the metrics it owns, and the validated analyses of the
+    roles that ran before it as bounded peer context.
+    """
     prior_analyses: list[dict[str, Any]] = []
     for stage in stages:
         name = str(stage["name"])
         analysis, used, provider = generate_specialist_analysis(
             agent_name=name,
-            metrics=safe,
+            metrics=scope_metrics(name, safe),
             fallback_summary=stage.get("summary") or "No deterministic summary available.",
-            prior_analyses=prior_analyses if name == "ethics_review" else None,
+            prior_analyses=list(prior_analyses) if prior_analyses else None,
         )
         stage["agent_role"] = name
         stage["provider"] = provider if used else "deterministic"
@@ -68,8 +73,8 @@ def _apply_ai_analysis(
         if used and analysis:
             stage["analysis"] = analysis
             stage["advisory_summary"] = analysis["summary"]
-            if name != "ethics_review":
-                prior_analyses.append({"agent": name, "analysis": analysis})
+            prior_analyses.append({"agent": name, "analysis": analysis})
+            prior_analyses = prior_analyses[-MAX_PEER_HANDOFF:]
 
 
 def run_orchestration(task: str, metrics: dict[str, Any]) -> dict[str, Any]:
