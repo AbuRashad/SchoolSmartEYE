@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.api.deps import require_principal
+from app.api.deps import require_school_principal
 from app.api.v1.endpoints.analytics import analytics_overview
 from app.db.models import User
 from app.db.session import get_db
@@ -87,12 +87,12 @@ class OrchestrateResponse(BaseModel):
 @router.post("/orchestrate", response_model=OrchestrateResponse)
 def orchestrate_agents(
     payload: OrchestrateRequest,
-    user: User = Depends(require_principal),
+    user: User = Depends(require_school_principal),
     db: Session = Depends(get_db),
 ) -> OrchestrateResponse:
     """Coordinate specialist agents over allowlisted aggregate metrics.
 
-    Principal and Ministry roles may call this endpoint. No student-level records
+    Only an assigned school principal may invoke this endpoint. No student-level records
     are fetched. AI analyses are advisory and cannot alter deterministic findings.
     """
     try:
