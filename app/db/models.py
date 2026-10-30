@@ -40,6 +40,39 @@ class UTCDateTime(TypeDecorator):
         return value.astimezone(timezone.utc)
 
 
+
+class School(Base):
+    """School tenant boundary; one row is provisioned for the initial deployment."""
+
+    __tablename__ = "schools"
+
+    school_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(160))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class AggregateObservation(Base):
+    """School-scoped, privacy-minimised aggregate metric with provenance."""
+
+    __tablename__ = "aggregate_observations"
+    __table_args__ = (
+        UniqueConstraint("school_id", "idempotency_key", name="uq_observation_school_idempotency"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id"), index=True)
+    metric_key: Mapped[str] = mapped_column(String(80), index=True)
+    metric_value: Mapped[float] = mapped_column(Float)
+    observed_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    source_id: Mapped[str] = mapped_column(String(120))
+    data_status: Mapped[str] = mapped_column(String(24), default="live_unverified")
+    validation_status: Mapped[str] = mapped_column(String(24), default="pending")
+    metric_version: Mapped[str] = mapped_column(String(24), default="1")
+    idempotency_key: Mapped[str] = mapped_column(String(128))
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class Student(Base):
     __tablename__ = "students"
 
@@ -114,6 +147,7 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(128), default="")
     hashed_password: Mapped[str] = mapped_column(String(256))
     role: Mapped[str] = mapped_column(String(16))  # teacher | principal | ministry
+    school_id: Mapped[str | None] = mapped_column(ForeignKey("schools.school_id"), nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
