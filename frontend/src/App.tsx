@@ -108,10 +108,10 @@ function AppShell() {
               {/* Analytics metric row */}
               {analytics && (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  <MetricCard title="Total Students" value={analytics.total_students.toLocaleString()} subtitle="Enrolled & tracked" icon={Users} color="blue" trend="stable" trendValue="No change" />
-                  <MetricCard title="Attendance Rate" value={`${analytics.attendance_rate.toFixed(1)}%`} subtitle="Today's attendance" icon={Calendar} color="green" trend="up" trendValue="+1.2%" />
-                  <MetricCard title="Active Cameras" value={analytics.active_cameras} subtitle="Cameras online" icon={Camera} color="blue" trend="stable" trendValue="Nominal" />
-                  <MetricCard title="System Uptime" value={`${analytics.uptime_percent.toFixed(1)}%`} subtitle="30-day SLA" icon={Activity} color="green" trend="up" trendValue="SLA OK" />
+                  <MetricCard title="Total Students" value={analytics.total_students?.toLocaleString() ?? "Unavailable"} subtitle="Verified school-owned records" icon={Users} color="blue" />
+                  <MetricCard title="Attendance Rate" value={analytics.attendance_rate == null ? "Unavailable" : `${analytics.attendance_rate.toFixed(1)}%`} subtitle="Verified attendance feed" icon={Calendar} color="green" />
+                  <MetricCard title="Active Cameras" value={analytics.active_cameras ?? "Unavailable"} subtitle="Authenticated edge telemetry" icon={Camera} color="blue" />
+                  <MetricCard title="System Uptime" value={analytics.uptime_percent == null ? "Unavailable" : `${analytics.uptime_percent.toFixed(1)}%`} subtitle="Recent edge-device availability" icon={Activity} color="green" />
                 </div>
               )}
 
