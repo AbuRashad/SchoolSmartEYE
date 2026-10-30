@@ -63,6 +63,7 @@ def test_wearable_ingestion_is_authenticated_persistent_and_idempotent(client, d
     assert body["heart_rate_bpm"] == 82.0
     assert body["eda_us"] is None
     assert body["battery_level"] == 91
+    assert "student_id" not in body and "school_id" not in body
     assert body["data_status"] == "live_unverified"
     assert body["validation_status"] == "accepted"
 
