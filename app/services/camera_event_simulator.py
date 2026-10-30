@@ -51,7 +51,6 @@ def generate_camera_events(
                 "event_type": event_type,
                 "severity": rng.choice(SEVERITIES),
                 "confidence": round(rng.uniform(0.55, 0.99), 3),
-                "summary": f"Synthetic {event_type.replace('_', ' ')} event; no person-level data",
                 "detected_at": detected_at.isoformat(),
                 "evidence_ref": f"synthetic://{uuid.uuid5(uuid.NAMESPACE_URL, f'{run_id}/{camera_id}/{sequence}')}",
             }
