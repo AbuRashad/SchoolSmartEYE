@@ -54,11 +54,12 @@ class FeedbackResponse(BaseModel):
 
 @router.get("/insights")
 def get_session_insights(
-    session_id: Optional[str] = None, db: Session = Depends(get_db)
+    session_id: Optional[str] = None, db: Session = Depends(get_db),
+    user: orm.User = Depends(require_teacher),
 ) -> dict[str, object]:
     """Return AI session summary: top engaged students, disengagement flags, and
     audio-visual mismatches.  Optionally filter to a specific session_id."""
-    return agent_store.build_agent(db).get_session_insights(session_id=session_id)
+    return agent_store.build_agent(db, school_id=school_scope(user)).get_session_insights(session_id=session_id)
 
 
 @router.post(
@@ -73,7 +74,7 @@ def submit_feedback(payload: FeedbackPayload, db: Session = Depends(get_db), use
     Each submission is stored in the database and appended to
     `<video_log_dir>/agent_performance.jsonl` for audit and offline analysis.
     """
-    agent = agent_store.build_agent(db, include_feedback=False)
+    agent = agent_store.build_agent(db, include_feedback=False, school_id=school_scope(user))
     # Verify student exists
     student = db.scalar(select(orm.Student).where(orm.Student.student_id == payload.student_id, orm.Student.school_id == school_scope(user)))
     if student is None:
@@ -103,16 +104,20 @@ def submit_feedback(payload: FeedbackPayload, db: Session = Depends(get_db), use
 
 
 @router.get("/feedback/metrics")
-def get_feedback_metrics(db: Session = Depends(get_db)) -> dict[str, object]:
+def get_feedback_metrics(
+    db: Session = Depends(get_db), user: orm.User = Depends(require_teacher)
+) -> dict[str, object]:
     """Return precision/recall-style accuracy metrics derived from teacher feedback."""
-    agent = agent_store.build_agent(db)
+    agent = agent_store.build_agent(db, school_id=school_scope(user))
     return {**agent.compute_feedback_metrics(), "calibration": agent.get_feedback_calibration()}
 
 
 @router.get("/baselines")
-def get_baselines(db: Session = Depends(get_db)) -> dict[str, object]:
+def get_baselines(
+    db: Session = Depends(get_db), user: orm.User = Depends(require_teacher)
+) -> dict[str, object]:
     """Return the most recent nightly-computed per-student daily engagement baselines."""
-    baselines = agent_store.build_agent(db, include_feedback=False).compute_daily_baselines()
+    baselines = agent_store.build_agent(db, include_feedback=False, school_id=school_scope(user)).compute_daily_baselines()
     return {"baselines": baselines, "total_students": len(baselines)}
 
 
@@ -132,4 +137,4 @@ def get_recommendations(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Student {student_id!r} not found",
         )
-    return agent_store.build_agent(db).get_recommendations(student_id)
+    return agent_store.build_agent(db, school_id=scope).get_recommendations(student_id)
