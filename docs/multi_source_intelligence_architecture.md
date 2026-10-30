@@ -66,7 +66,7 @@ Adapters must reject non-finite numeric values, invalid timestamps, unknown sche
 2. Validate schema, timestamp, device assignment, and idempotency.
 3. Persist a minimal normalized observation with provenance and audit history.
 4. Apply deterministic source-specific validation and aggregation.
-5. Pass only approved school-level aggregates and evidence references to the six specialist agents.
+5. Pass only approved school-level aggregates and evidence references to the six specialist agents. WAI physiological readings are excluded; the orchestrator may receive only device-reporting coverage when at least 10 distinct students report in the 24-hour window.
 6. The Evidence agent records source/freshness limitations; the Ethics Review agent checks the combined output.
 7. Present findings for human review. No automatic student-level action.
 
@@ -85,11 +85,11 @@ Cross-source correlation may identify a reason to verify information, but it mus
 
 ## Current implementation gaps to close
 
-1. Bracelet management and simulated location/battery ping exist, but authenticated wearable-device credentials and a general observation history do not.
+1. Bracelet management and simulated location/battery ping exist. Authenticated WAI device credentials and typed observation history are now implemented; physical-hardware validation is still pending.
 2. The current `Student` model has no explicit `school_id`; this must be addressed before multi-school wearable ingestion can be safely enabled.
 3. The camera registry still has an in-memory/configuration component; persistent source registration remains a separate integration task.
 4. The actual WAI hardware sensor list, transport protocol, sampling rates, units, and firmware payload are not yet confirmed.
-5. Cross-source aggregate derivation and provenance-aware orchestrator input are not yet wired end-to-end.
+5. A privacy-preserving WAI coverage aggregate is now wired to the six-agent orchestrator. Physiological readings remain outside the agent context; broader cross-source aggregation remains pending.
 
 ## Implementation sequence
 
