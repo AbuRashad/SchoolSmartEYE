@@ -65,7 +65,7 @@ def test_wearable_ingestion_is_authenticated_persistent_and_idempotent(client, d
     assert body["battery_level"] == 91
     assert "student_id" not in body and "school_id" not in body
     assert body["data_status"] == "live_unverified"
-    assert body["validation_status"] == "accepted"
+    assert body["validation_status"] == "pending_hardware_verification"
 
     second = _ingest(client, provisioned, payload)
     assert second.status_code == 201
@@ -74,6 +74,7 @@ def test_wearable_ingestion_is_authenticated_persistent_and_idempotent(client, d
     history = client.get("/api/v1/wearables/BR-0001/observations")
     assert history.status_code == 200
     assert history.json()["count"] == 1
+    assert history.json()["items"][0]["validation_status"] == "pending_hardware_verification"
     with db_session_factory() as db:
         bracelet = db.get(orm.Bracelet, "BR-0001")
         assert bracelet.battery_level == 91
