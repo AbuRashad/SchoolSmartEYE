@@ -240,3 +240,17 @@ The existing live-stream endpoint/service remains a separate legacy path and has
 ## Implementation status
 
 This document records the approved architecture decision. The camera registry, ingestion APIs, health monitor, event analyzer, and review workflow still require implementation and tests.
+
+## Optional local ONNX detector adapter — initial integration boundary
+
+Added `app/services/camera_onnx_detector.py` as an optional CPU-only adapter:
+- Loads only an explicitly configured local ONNX file; it never downloads weights.
+- Requests `CPUExecutionProvider` and imports ONNX Runtime lazily, so the base application does not require the optional package.
+- Requires one NCHW, three-channel input and one post-NMS output tensor with rows `[x1, y1, x2, y2, confidence, class_id]` in input-image pixel coordinates.
+- Resizes directly to the configured model input dimensions and maps output boxes back to the supplied frame dimensions.
+- Rejects incompatible tensor shapes and non-finite output; filters unknown classes and low-confidence detections.
+- Model labels, input dimensions, and confidence threshold must be explicitly configured.
+
+Install the optional runtime only when a reviewed compatible model is selected: `pip install onnxruntime`.
+
+**Compatibility warning:** this is not a universal YOLO adapter. Raw YOLO head outputs, transposed `[1, 4+C, N]` tensors, normalized-coordinate outputs, letterboxed exports, and models with embedded NMS but a different output contract are intentionally rejected/not supported. Do not point it at an arbitrary ONNX file. The placeholder model used in tests is not a valid inference model; tests use a fake ONNX session to verify preprocessing and the declared output contract. No real ONNX inference, model accuracy, or camera performance has been validated.
