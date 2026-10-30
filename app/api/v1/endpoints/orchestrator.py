@@ -32,6 +32,17 @@ class AgentAnalysis(BaseModel):
     risks: list[str] = Field(default_factory=list)
 
 
+class ProviderAttempt(BaseModel):
+    """One attempt against one configured provider, for diagnostics."""
+    provider: str
+    outcome: Literal[
+        "ai_completed", "timeout", "auth_failed", "rate_limited",
+        "provider_error", "http_error", "connection_failed", "invalid_response",
+    ]
+    latency_ms: int = 0
+    http_status: int | None = None
+
+
 class AgentStage(BaseModel):
     name: Literal["analytics", "safety", "academic", "operations", "evidence", "ethics_review"]
     kind: Literal["deterministic", "llm_assisted"]
@@ -46,6 +57,13 @@ class AgentStage(BaseModel):
     recommendations: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     reviewed_stages: list[str] = Field(default_factory=list)
+    # Threshold provenance emitted by the deterministic agents (policy layer).
+    threshold_refs: list[str] = Field(default_factory=list)
+    policy_version: str | None = None
+    # Why this stage's model call succeeded or fell back.
+    failure_reason: str | None = None
+    latency_ms: int = 0
+    attempts: list[ProviderAttempt] = Field(default_factory=list)
 
 
 class ReportFinding(BaseModel):
@@ -65,6 +83,8 @@ class UnifiedReviewReport(BaseModel):
     limitations: list[str]
     ai_agent_count: int = 0
     ai_providers: list[Literal["cloud", "local"]] = Field(default_factory=list)
+    # Distinct reasons the AI layer produced nothing, e.g. provider_disabled.
+    fallback_reasons: list[str] = Field(default_factory=list)
     reviewed_agents: list[str] = Field(default_factory=list)
 
 
@@ -72,7 +92,7 @@ class OrchestrateResponse(BaseModel):
     request_id: str
     status: Literal["completed", "limited"]
     task: str
-    provider: Literal["deterministic", "ollama"]
+    provider: Literal["deterministic", "cloud", "local", "hybrid"]
     stages: list[AgentStage]
     evidence: list[EvidenceItem]
     report: UnifiedReviewReport
