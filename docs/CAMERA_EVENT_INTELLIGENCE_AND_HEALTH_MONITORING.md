@@ -254,3 +254,14 @@ Added `app/services/camera_onnx_detector.py` as an optional CPU-only adapter:
 Install the optional runtime only when a reviewed compatible model is selected: `pip install onnxruntime`.
 
 **Compatibility warning:** this is not a universal YOLO adapter. Raw YOLO head outputs, transposed `[1, 4+C, N]` tensors, normalized-coordinate outputs, letterboxed exports, and models with embedded NMS but a different output contract are intentionally rejected/not supported. Do not point it at an arbitrary ONNX file. The placeholder model used in tests is not a valid inference model; tests use a fake ONNX session to verify preprocessing and the declared output contract. No real ONNX inference, model accuracy, or camera performance has been validated.
+
+
+## Scene-local tracking — initial implementation
+
+Added `app/services/camera_scene_tracker.py`:
+- Greedy intersection-over-union (IoU) association across successive sampled frames.
+- Class-consistent matching, configurable IoU threshold, short missed-time expiry, and a hard cap on active tracks.
+- Random temporary track IDs scoped to the in-memory tracker instance; `reset()` clears the session.
+- No face, appearance, biometric, or cross-camera matching.
+
+This is a deliberately small baseline association layer, **not ByteTrack** and not a validated person-tracking model. IDs are ephemeral scene bookkeeping only; they must not be persisted as identities or used to infer who a person is. Occlusion, crowded crossings, camera movement, and long frame gaps can cause track switches or fragmentation. No camera footage or production performance has been validated.
