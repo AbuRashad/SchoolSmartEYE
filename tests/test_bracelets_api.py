@@ -47,3 +47,61 @@ def test_update_ping_delete_bracelet(client, seeded) -> None:
     assert client.patch("/api/v1/bracelets/BR-0001", json={"student_id": "STU-2024-0848"}).status_code == 409
     assert client.delete("/api/v1/bracelets/BR-0001").status_code == 204
     assert client.delete("/api/v1/bracelets/BR-0001").status_code == 404
+
+
+
+def test_bracelet_records_are_isolated_by_school(client, db_session_factory, seeded) -> None:
+    from app.db import models as orm
+
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="school-other", name="Other School"))
+        db.flush()
+        db.add(
+            orm.Student(
+                student_id="STU-OTHER-1", school_id="school-other", name="Other Student",
+                grade="Grade 8", class_section="8A", parent_id="P-OTHER",
+                photo_initial="O", is_active=True,
+            )
+        )
+        db.flush()
+        db.add(
+            orm.Bracelet(
+                bracelet_id="BR-OTHER", student_id="STU-OTHER-1",
+                mac_address="AA:BB:CC:DD:EE:99", battery_level=100, is_active=True,
+                firmware_version="1.0.0", notes="",
+            )
+        )
+        db.commit()
+
+    listed = client.get("/api/v1/bracelets")
+    assert listed.status_code == 200
+    assert all(row["bracelet_id"] != "BR-OTHER" for row in listed.json())
+    assert client.patch("/api/v1/bracelets/BR-OTHER", json={"battery_level": 1}).status_code == 404
+    assert client.delete("/api/v1/bracelets/BR-OTHER").status_code == 404
+    assert client.post(
+        "/api/v1/bracelets/BR-10",
+        json={
+            "bracelet_id": "BR-10", "student_id": "STU-OTHER-1",
+            "mac_address": "AA:BB:CC:DD:EE:10",
+        },
+    ).status_code == 400
+
+
+def test_bracelet_ping_rejects_zone_from_another_school(client, db_session_factory, seeded) -> None:
+    from app.db import models as orm
+
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="school-other", name="Other School"))
+        db.flush()
+        db.add(
+            orm.Zone(
+                school_id="school-other", zone_id="zone-other", label="Other",
+                zone_type="classroom", capacity=20, floor=1, grid_x=0, grid_y=0,
+            )
+        )
+        db.commit()
+
+    response = client.post(
+        "/api/v1/bracelets/BR-0001/ping", json={"zone_id": "zone-other"}
+    )
+    assert response.status_code == 400
