@@ -587,7 +587,8 @@ def seed_users(db: Session) -> bool:
     from app.db.models import School
     if db.get(School, "school-primary") is None:
         db.add(School(school_id="school-primary", name="Primary School"))
-        db.flush()\n    accounts = [
+        db.flush()
+    accounts = [
         ("teacher", "Demo Teacher", settings.demo_teacher_password),
         ("principal", "Demo Principal", settings.demo_principal_password),
         ("ministry", "Demo Ministry Officer", settings.demo_ministry_password),
