@@ -94,13 +94,11 @@ def _find_bracelet(db: Session, bracelet_id: str, school_id: str) -> orm.Bracele
     )
 
 
-def _serialize(row: orm.WearableObservation) -> dict[str, object]:
-    return {
+def _serialize(
+    row: orm.WearableObservation, *, include_identifiers: bool = True
+) -> dict[str, object]:
+    result: dict[str, object] = {
         "id": row.id,
-        "school_id": row.school_id,
-        "student_id": row.student_id,
-        "bracelet_id": row.bracelet_id,
-        "device_id": row.device_id,
         "observed_at": row.observed_at.isoformat(),
         "received_at": row.received_at.isoformat(),
         "schema_version": row.schema_version,
@@ -113,6 +111,14 @@ def _serialize(row: orm.WearableObservation) -> dict[str, object]:
         "data_status": row.data_status,
         "validation_status": row.validation_status,
     }
+    if include_identifiers:
+        result.update({
+            "school_id": row.school_id,
+            "student_id": row.student_id,
+            "bracelet_id": row.bracelet_id,
+            "device_id": row.device_id,
+        })
+    return result
 
 
 @router.post("/devices/{bracelet_id}", status_code=status.HTTP_201_CREATED)
@@ -283,8 +289,8 @@ def ingest_wearable_observation(
         )
         if existing is None:
             raise HTTPException(status_code=409, detail="Duplicate wearable observation key") from None
-        return _serialize(existing)
-    return _serialize(row)
+        return _serialize(existing, include_identifiers=False)
+    return _serialize(row, include_identifiers=False)
 
 
 @router.get("/overview")
