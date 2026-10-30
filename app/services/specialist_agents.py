@@ -69,6 +69,12 @@ def operations_agent(metrics: dict[str, int | float]) -> dict[str, Any]:
         flags.append("Reported system uptime is below 99%; check service health and source freshness.")
     if cameras == 0:
         flags.append("No active cameras are reported; verify whether this is expected.")
+    wearable_coverage = metrics.get("wearable_coverage_percent")
+    if wearable_coverage is not None and wearable_coverage < 95:
+        flags.append(
+            "WAI device reporting coverage is below 95%; check device connectivity and data freshness. "
+            "This is an operational coverage signal, not a student wellbeing assessment."
+        )
     resolved = metrics.get("alerts_resolved_today")
     if resolved is not None:
         flags.append(f"Reported alerts resolved today: {resolved}.")
