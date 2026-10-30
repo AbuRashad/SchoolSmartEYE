@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
-from app.api.deps import require_principal, require_teacher, require_teacher_stream, role_of
+from app.api.deps import require_school_principal, require_teacher, require_teacher_stream, role_of
 from app.core.governance_layer import SCOPE_LEVEL, Role
 from app.db.models import User, Zone
 from app.db.session import get_db
@@ -111,7 +111,7 @@ def list_cameras(user: User = Depends(require_teacher)) -> list[CameraInfo]:
     "",
     response_model=CameraInfo,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_principal)],
+    dependencies=[Depends(require_school_principal)],
 )
 def register_camera(
     payload: CameraCreate,
