@@ -584,7 +584,7 @@ def seed_users(db: Session) -> bool:
     """
     if not settings.seed_demo_users or db.scalar(select(func.count()).select_from(orm.User)):
         return False
-    accounts = [
+    from app.db.models import School\n    if db.get(School, "school-primary") is None:\n        db.add(School(school_id="school-primary", name="Primary School"))\n        db.flush()\n    accounts = [
         ("teacher", "Demo Teacher", settings.demo_teacher_password),
         ("principal", "Demo Principal", settings.demo_principal_password),
         ("ministry", "Demo Ministry Officer", settings.demo_ministry_password),
@@ -595,7 +595,7 @@ def seed_users(db: Session) -> bool:
         )
         return False
     db.add_all(
-        orm.User(username=role, full_name=name, hashed_password=hash_password(pw), role=role)
+        orm.User(username=role, full_name=name, hashed_password=hash_password(pw), role=role, school_id="school-primary")
         for role, name, pw in accounts
     )
     db.commit()
