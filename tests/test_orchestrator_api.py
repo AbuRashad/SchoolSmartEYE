@@ -27,7 +27,7 @@ def test_principal_can_call_orchestrator_and_result_requires_review(client: Test
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["provider"] == "deterministic"
+    assert payload["provider"] == "native"
     assert payload["requires_human_review"] is True
     assert payload["autonomous_action_taken"] is False
     assert [stage["name"] for stage in payload["stages"]] == [
