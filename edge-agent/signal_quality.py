@@ -92,10 +92,10 @@ def assess_signal_quality(
     if data_mode == "demo":
         flags.append("demo_data")
     blocking = {"out_of_range", "invalid_observation", "unsupported_by_profile",
-                "stale", "future_timestamp", "duplicate", "incomplete"}
+                "stale", "future_timestamp", "duplicate", "incomplete", "gap_detected"}
     blocked = bool(blocking.intersection(flags))
     return {
-        "quality_status": "review_required" if blocked or "gap_detected" in flags or data_mode == "demo" else "accepted_unverified",
+        "quality_status": "review_required" if blocked or data_mode == "demo" else "accepted_unverified",
         "flags": flags or ["no_quality_issue_detected"],
         "data_mode": data_mode,
         "eligible_for_live_coverage": data_mode == "live_unverified" and not blocked,
