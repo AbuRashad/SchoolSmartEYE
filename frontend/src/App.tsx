@@ -7,6 +7,7 @@ import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { KpiGauge } from "./components/KpiGauge";
 import { LiveAlertFeed } from "./components/LiveAlertFeed";
 import { LiveCameraGrid } from "./components/LiveCameraGrid";
+import { CameraHealthPanel } from "./components/CameraHealthPanel";
 import { MetricCard } from "./components/MetricCard";
 import { ControlPanel } from "./components/ControlPanel";
 import { ParentPortalFull } from "./components/ParentPortalFull";
@@ -217,6 +218,7 @@ function AppShell() {
                 </p>
               </section>
               <LiveCameraGrid />
+              <CameraHealthPanel />
             </>
           )}
 
