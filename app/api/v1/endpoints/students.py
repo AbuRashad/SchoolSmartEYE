@@ -181,16 +181,32 @@ def _serialize(s: orm.Student) -> StudentOut:
     )
 
 
-def _find_student(db: Session, student_id: str) -> orm.Student | None:
-    return db.get(orm.Student, student_id)
+def _school_id(user: orm.User) -> str:
+    if not user.school_id:
+        raise HTTPException(status_code=403, detail="A school-scoped account is required")
+    return user.school_id
+
+
+def _find_student(db: Session, student_id: str, school_id: str) -> orm.Student | None:
+    return db.scalar(
+        select(orm.Student).where(
+            orm.Student.student_id == student_id,
+            orm.Student.school_id == school_id,
+        )
+    )
 
 
 # ── Students ──────────────────────────────────────────────────────────────────
 
 
-@router.get("/students", response_model=list[StudentOut], dependencies=[Depends(require_teacher)])
-def list_students(db: Session = Depends(get_db)) -> list[StudentOut]:
-    rows = db.scalars(select(orm.Student).order_by(orm.Student.student_id)).all()
+@router.get("/students", response_model=list[StudentOut])
+def list_students(
+    db: Session = Depends(get_db), user: orm.User = Depends(require_teacher)
+) -> list[StudentOut]:
+    rows = db.scalars(
+        select(orm.Student).where(orm.Student.school_id == _school_id(user))
+        .order_by(orm.Student.student_id)
+    ).all()
     return [_serialize(s) for s in rows]
 
 
@@ -198,10 +214,14 @@ def list_students(db: Session = Depends(get_db)) -> list[StudentOut]:
     "/students",
     response_model=StudentOut,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_principal)],
-)
-def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> StudentOut:
-    if _find_student(db, payload.student_id) is not None:
+ )
+def create_student(
+    payload: StudentCreate,
+    db: Session = Depends(get_db),
+    user: orm.User = Depends(require_principal),
+) -> StudentOut:
+    school_id = _school_id(user)
+    if _find_student(db, payload.student_id, school_id) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Student {payload.student_id!r} already exists",
@@ -209,6 +229,7 @@ def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> Stu
     initial = payload.photo_initial or (payload.name[:1].upper() if payload.name else "?")
     student = orm.Student(
         student_id=payload.student_id,
+        school_id=school_id,
         name=payload.name,
         grade=payload.grade,
         class_section=payload.class_section,
@@ -228,13 +249,14 @@ def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> Stu
     return _serialize(student)
 
 
-@router.patch(
-    "/students/{student_id}", response_model=StudentOut, dependencies=[Depends(require_principal)]
-)
+@router.patch("/students/{student_id}", response_model=StudentOut)
 def update_student(
-    student_id: str, payload: StudentUpdate, db: Session = Depends(get_db)
+    student_id: str,
+    payload: StudentUpdate,
+    db: Session = Depends(get_db),
+    user: orm.User = Depends(require_principal),
 ) -> StudentOut:
-    student = _find_student(db, student_id)
+    student = _find_student(db, student_id, _school_id(user))
     if student is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
     for field, value in payload.model_dump(exclude_none=True).items():
@@ -246,10 +268,13 @@ def update_student(
 @router.delete(
     "/students/{student_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_principal)],
-)
-def delete_student(student_id: str, db: Session = Depends(get_db)) -> Response:
-    student = _find_student(db, student_id)
+ )
+def delete_student(
+    student_id: str,
+    db: Session = Depends(get_db),
+    user: orm.User = Depends(require_principal),
+) -> Response:
+    student = _find_student(db, student_id, _school_id(user))
     if student is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
     # Cascade: the student's bracelet and attendance records are removed too
@@ -366,10 +391,13 @@ def _safety_status_for(db: Session, student: orm.Student, last_zone: str | None)
 @router.get(
     "/students/{student_id}/profile",
     response_model=StudentProfile,
-    dependencies=[Depends(require_teacher)],
-)
-def student_profile(student_id: str, db: Session = Depends(get_db)) -> StudentProfile:
-    student = _find_student(db, student_id)
+ )
+def student_profile(
+    student_id: str,
+    db: Session = Depends(get_db),
+    user: orm.User = Depends(require_teacher),
+) -> StudentProfile:
+    student = _find_student(db, student_id, _school_id(user))
     if student is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
 
@@ -494,12 +522,12 @@ def student_profile(student_id: str, db: Session = Depends(get_db)) -> StudentPr
 @router.get(
     "/students/{student_id}/behavioral-history",
     response_model=list[EngagementSnapshotOut],
-    dependencies=[Depends(require_teacher)],
-)
+ )
 def student_behavioral_history(
     student_id: str,
     days: int = 30,
     db: Session = Depends(get_db),
+    user: orm.User = Depends(require_teacher),
 ) -> list[EngagementSnapshotOut]:
     """Return per-student engagement snapshots for the last N days (default 30),
     newest first.  Powered by Unit 15 — Pedagogical Behavioral Intelligence Agent.
@@ -507,7 +535,7 @@ def student_behavioral_history(
     if days < 1 or days > 365:
         raise HTTPException(status_code=400, detail="days must be between 1 and 365")
 
-    if _find_student(db, student_id) is None:
+    if _find_student(db, student_id, _school_id(user)) is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
 
     snapshots = _get_agent().get_behavioral_history(student_id, days=days)
