@@ -37,6 +37,8 @@ The orchestrator is the coordinator. Specialist outputs are advisory, evidence i
 - Store only the minimum required normalized measurements. Do not retain unrestricted raw payloads by default.
 - Distinguish device-health telemetry (battery, firmware, last-seen) from student-related observations.
 - Any wellbeing-related signal is a prompt for an authorised human to check context, never a diagnosis, behavioural label, disciplinary finding, or automated emergency determination.
+- The current wearable history API is principal-only and audits each read. A dedicated wellbeing/medical-access role, guardian consent/notice, retention policy, and school approvals are still required before production student use.
+- Numeric bounds in the ingestion schema are data-validation guardrails, not medical reference ranges or alert thresholds.
 
 ### School information systems
 - Attendance, academic aggregates, and operational records.
