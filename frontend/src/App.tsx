@@ -8,6 +8,7 @@ import { KpiGauge } from "./components/KpiGauge";
 import { LiveAlertFeed } from "./components/LiveAlertFeed";
 import { LiveCameraGrid } from "./components/LiveCameraGrid";
 import { CameraHealthPanel } from "./components/CameraHealthPanel";
+import { WearableOverviewPanel } from "./components/WearableOverviewPanel";
 import { MetricCard } from "./components/MetricCard";
 import { ControlPanel } from "./components/ControlPanel";
 import { ParentPortalFull } from "./components/ParentPortalFull";
@@ -101,6 +102,8 @@ function AppShell() {
                   </div>
                 </div>
               </section>
+
+              {can("principal") && <WearableOverviewPanel />}
 
               {/* Analytics metric row */}
               {analytics && (
