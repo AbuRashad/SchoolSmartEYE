@@ -25,12 +25,23 @@ class EvidenceItem(BaseModel):
     value: int | float
 
 
+class AgentAnalysis(BaseModel):
+    summary: str
+    observations: list[str] = Field(default_factory=list)
+    follow_up_questions: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+
+
 class AgentStage(BaseModel):
     name: Literal["analytics", "safety", "academic", "operations", "evidence", "ethics_review"]
     kind: Literal["deterministic", "llm_assisted"]
     status: Literal["completed", "limited"]
+    agent_role: str
+    provider: Literal["deterministic", "ollama"]
+    analysis_status: Literal["ai_completed", "deterministic_fallback"]
     summary: str | None = None
     advisory_summary: str | None = None
+    analysis: AgentAnalysis | None = None
     flags: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
@@ -52,6 +63,8 @@ class UnifiedReviewReport(BaseModel):
     findings: list[ReportFinding]
     evidence_count: int
     limitations: list[str]
+    ai_agent_count: int = 0
+    reviewed_agents: list[str] = Field(default_factory=list)
 
 
 class OrchestrateResponse(BaseModel):
@@ -72,10 +85,10 @@ def orchestrate_agents(
     payload: OrchestrateRequest,
     _user: User = Depends(require_principal),
 ) -> OrchestrateResponse:
-    """Coordinate specialists over allowlisted aggregate metrics.
+    """Coordinate specialist agents over allowlisted aggregate metrics.
 
     Principal and Ministry roles may call this endpoint. No student-level records
-    are fetched. Optional Ollama summaries do not change deterministic findings.
+    are fetched. AI analyses are advisory and cannot alter deterministic findings.
     """
     try:
         result = run_orchestration(payload.task, analytics_overview())
