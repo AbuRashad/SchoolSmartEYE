@@ -34,11 +34,11 @@ class AgentAnalysis(BaseModel):
 
 class AgentStage(BaseModel):
     name: Literal["analytics", "safety", "academic", "operations", "evidence", "ethics_review"]
-    kind: Literal["deterministic", "llm_assisted"]
+    kind: Literal["deterministic", "native_analysis"]
     status: Literal["completed", "limited"]
     agent_role: str
-    provider: Literal["deterministic", "cloud", "local", "hybrid"]
-    analysis_status: Literal["ai_completed", "deterministic_fallback"]
+    provider: Literal["deterministic", "native"]
+    analysis_status: Literal["native_completed", "deterministic_fallback"]
     summary: str | None = None
     advisory_summary: str | None = None
     analysis: AgentAnalysis | None = None
@@ -64,7 +64,7 @@ class UnifiedReviewReport(BaseModel):
     evidence_count: int
     limitations: list[str]
     ai_agent_count: int = 0
-    ai_providers: list[Literal["cloud", "local"]] = Field(default_factory=list)
+    ai_providers: list[Literal["native"]] = Field(default_factory=list)
     reviewed_agents: list[str] = Field(default_factory=list)
 
 
@@ -72,7 +72,7 @@ class OrchestrateResponse(BaseModel):
     request_id: str
     status: Literal["completed", "limited"]
     task: str
-    provider: Literal["deterministic", "ollama"]
+    provider: Literal["deterministic", "native"]
     stages: list[AgentStage]
     evidence: list[EvidenceItem]
     report: UnifiedReviewReport
