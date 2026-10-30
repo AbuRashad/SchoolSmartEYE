@@ -47,7 +47,7 @@ def test_crowding_candidate_uses_configurable_count_threshold():
     detector = FakeDetector([detection(x1=i * 50, x2=i * 50 + 20) for i in range(5)])
     engine = CameraEventIntelligenceEngine(detector, CameraEventConfig(crowding_threshold=5))
     snapshot = engine.analyze_frame(
-        camera_id="cam", zone_id="zone", frame=np.zeros((100, 100, 3), dtype=np.uint8),
+        camera_id="cam", zone_id="zone", frame=np.zeros((400, 400, 3), dtype=np.uint8),
         captured_at=datetime.now(timezone.utc),
     )
     assert [x.event_type for x in snapshot.findings] == [
