@@ -34,6 +34,18 @@ def role_of(user: User) -> Role | None:
     return ROLE_BY_NAME.get(user.role)
 
 
+def school_scope(user: User) -> str | None:
+    """Return the authenticated user's school, or None for ministry-wide reads."""
+    if role_of(user) is Role.MINISTRY:
+        return None
+    if not user.school_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A school-scoped account is required",
+        )
+    return user.school_id
+
+
 def _unauthorized(detail: str = "Not authenticated") -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -96,6 +108,21 @@ def require_roles_header_or_query(*roles: Role) -> Callable[..., User]:
         return _check_roles(user, roles)
 
     return _dependency
+
+
+def require_school_principal(user: User = Depends(get_current_user)) -> User:
+    """Require an actual school principal; ministry is read-only on school records."""
+    if role_of(user) is not Role.PRINCIPAL:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only a school principal may modify school records",
+        )
+    if not user.school_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A school-scoped account is required",
+        )
+    return user
 
 
 require_teacher = require_roles(Role.TEACHER)
