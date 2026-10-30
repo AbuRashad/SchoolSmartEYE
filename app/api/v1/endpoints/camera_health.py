@@ -15,7 +15,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_principal
+from app.api.deps import require_principal, require_teacher
 from app.db.models import CameraHealthSnapshot, GovernanceAuditEvent, User
 from app.db.session import get_db
 from app.services.camera_health_engine import CameraHealthMetrics, classify_camera_health
@@ -53,9 +53,10 @@ class CameraHealthIn(BaseModel):
         return value
 
 
-def _school_id(user: User) -> str:
-    if user.role != "principal" or not user.school_id:
-        raise HTTPException(status_code=403, detail="A principal assigned to a school is required")
+def _school_id(user: User, *, principal_only: bool = True) -> str:
+    allowed_roles = {"principal"} if principal_only else {"teacher", "principal"}
+    if user.role not in allowed_roles or not user.school_id:
+        raise HTTPException(status_code=403, detail="An authorised school account is required")
     return user.school_id
 
 
@@ -148,10 +149,10 @@ def camera_health_history(
     limit: int = Query(default=50, ge=1, le=100),
     before_id: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
-    user: User = Depends(require_principal),
+    user: User = Depends(require_teacher),
 ) -> dict[str, object]:
     """Return only this school's health history for the requested camera."""
-    school_id = _school_id(user)
+    school_id = _school_id(user, principal_only=False)
     statement = select(CameraHealthSnapshot).where(
         CameraHealthSnapshot.school_id == school_id,
         CameraHealthSnapshot.camera_id == camera_id,
