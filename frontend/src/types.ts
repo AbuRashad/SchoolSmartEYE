@@ -135,19 +135,11 @@ export type PortalNotification = {
 };
 
 export type StudentPortalData = {
-  name: string;
-  grade: string;
-  student_id: string;
-  photo_initial: string;
-  attendance_today: "present" | "absent" | "late";
-  arrival_time: string;
-  last_seen_zone: string;
-  dismissal_status: string;
-  safety_status: "safe" | "warning" | "unknown";
-  attendance_streak: number;
-  monthly_attendance: number;
-  notifications: PortalNotification[];
-  weekly_attendance: { day: string; present: boolean }[];
+  school_id: string;
+  available: false;
+  status: "identity_link_required";
+  message: string;
+  student: null;
 };
 
 // ── Control Panel ────────────────────────────────────────────────────────────
