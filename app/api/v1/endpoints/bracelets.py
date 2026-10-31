@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_principal, require_teacher
+from app.api.deps import get_current_school_id, require_principal, require_teacher
 from app.db import models as orm
 from app.db.session import get_db
 
@@ -85,8 +85,12 @@ class BraceletPing(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _find(db: Session, bracelet_id: str) -> orm.Bracelet | None:
-    return db.get(orm.Bracelet, bracelet_id)
+def _find(db: Session, bracelet_id: str, school_id: str) -> orm.Bracelet | None:
+    return db.scalar(
+        select(orm.Bracelet)
+        .join(orm.Student, orm.Student.student_id == orm.Bracelet.student_id)
+        .where(orm.Bracelet.bracelet_id == bracelet_id, orm.Student.school_id == school_id)
+    )
 
 
 def _low_battery_threshold() -> int:
@@ -112,12 +116,16 @@ def _serialize(b: orm.Bracelet) -> BraceletOut:
     )
 
 
-def _student_exists(db: Session, student_id: str) -> bool:
-    return db.get(orm.Student, student_id) is not None
+def _student_exists(db: Session, student_id: str, school_id: str) -> bool:
+    return db.scalar(select(orm.Student.student_id).where(
+        orm.Student.student_id == student_id, orm.Student.school_id == school_id
+    )) is not None
 
 
-def _student_has_other_bracelet(db: Session, student_id: str, bracelet_id: str | None) -> bool:
-    stmt = select(orm.Bracelet.bracelet_id).where(orm.Bracelet.student_id == student_id)
+def _student_has_other_bracelet(db: Session, student_id: str, bracelet_id: str | None, school_id: str) -> bool:
+    stmt = select(orm.Bracelet.bracelet_id).join(
+        orm.Student, orm.Student.student_id == orm.Bracelet.student_id
+    ).where(orm.Bracelet.student_id == student_id, orm.Student.school_id == school_id)
     if bracelet_id is not None:
         stmt = stmt.where(orm.Bracelet.bracelet_id != bracelet_id)
     return db.scalar(stmt) is not None
@@ -134,8 +142,15 @@ def _mac_in_use(db: Session, mac: str, bracelet_id: str | None) -> bool:
 
 
 @router.get("", response_model=list[BraceletOut], dependencies=[Depends(require_teacher)])
-def list_bracelets(db: Session = Depends(get_db)) -> list[BraceletOut]:
-    rows = db.scalars(select(orm.Bracelet).order_by(orm.Bracelet.bracelet_id)).all()
+def list_bracelets(
+    db: Session = Depends(get_db), school_id: str = Depends(get_current_school_id)
+) -> list[BraceletOut]:
+    rows = db.scalars(
+        select(orm.Bracelet)
+        .join(orm.Student, orm.Student.student_id == orm.Bracelet.student_id)
+        .where(orm.Student.school_id == school_id)
+        .order_by(orm.Bracelet.bracelet_id)
+    ).all()
     return [_serialize(b) for b in rows]
 
 
@@ -145,19 +160,23 @@ def list_bracelets(db: Session = Depends(get_db)) -> list[BraceletOut]:
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_principal)],
 )
-def create_bracelet(payload: BraceletCreate, db: Session = Depends(get_db)) -> BraceletOut:
-    if _find(db, payload.bracelet_id) is not None:
+def create_bracelet(
+    payload: BraceletCreate,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
+) -> BraceletOut:
+    if _find(db, payload.bracelet_id, school_id) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Bracelet {payload.bracelet_id!r} already exists",
         )
-    if not _student_exists(db, payload.student_id):
+    if not _student_exists(db, payload.student_id, school_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Student {payload.student_id!r} does not exist — add the student first",
         )
     # Enforce uniqueness of student_id (1 bracelet per student) and MAC
-    if _student_has_other_bracelet(db, payload.student_id, None):
+    if _student_has_other_bracelet(db, payload.student_id, None, school_id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Student {payload.student_id!r} already has a bracelet assigned",
@@ -190,16 +209,19 @@ def create_bracelet(payload: BraceletCreate, db: Session = Depends(get_db)) -> B
     "/{bracelet_id}", response_model=BraceletOut, dependencies=[Depends(require_principal)]
 )
 def update_bracelet(
-    bracelet_id: str, payload: BraceletUpdate, db: Session = Depends(get_db)
+    bracelet_id: str,
+    payload: BraceletUpdate,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
 ) -> BraceletOut:
-    bracelet = _find(db, bracelet_id)
+    bracelet = _find(db, bracelet_id, school_id)
     if bracelet is None:
         raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
 
     if payload.student_id is not None and payload.student_id != bracelet.student_id:
-        if not _student_exists(db, payload.student_id):
+        if not _student_exists(db, payload.student_id, school_id):
             raise HTTPException(status_code=400, detail=f"Student {payload.student_id!r} does not exist")
-        if _student_has_other_bracelet(db, payload.student_id, bracelet_id):
+        if _student_has_other_bracelet(db, payload.student_id, bracelet_id, school_id):
             raise HTTPException(
                 status_code=409,
                 detail=f"Student {payload.student_id!r} already has a bracelet assigned",
@@ -234,8 +256,12 @@ def update_bracelet(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_principal)],
 )
-def delete_bracelet(bracelet_id: str, db: Session = Depends(get_db)) -> Response:
-    bracelet = _find(db, bracelet_id)
+def delete_bracelet(
+    bracelet_id: str,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
+) -> Response:
+    bracelet = _find(db, bracelet_id, school_id)
     if bracelet is None:
         raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
     db.delete(bracelet)
@@ -247,16 +273,24 @@ def delete_bracelet(bracelet_id: str, db: Session = Depends(get_db)) -> Response
     "/{bracelet_id}/ping", response_model=BraceletOut, dependencies=[Depends(require_principal)]
 )
 def ping_bracelet(
-    bracelet_id: str, payload: BraceletPing, db: Session = Depends(get_db)
+    bracelet_id: str,
+    payload: BraceletPing,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
 ) -> BraceletOut:
     """Simulate a BLE/LoRa gateway heartbeat for this bracelet.
 
     Updates `last_seen_zone`, `last_seen_at`, and optionally `battery_level`.
     A real-world gateway would POST this payload whenever it observes the tag.
     """
-    bracelet = _find(db, bracelet_id)
+    bracelet = _find(db, bracelet_id, school_id)
     if bracelet is None:
         raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
+    # Zone records have no school ownership yet; do not attach unscoped zone data.
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Bracelet location updates are paused until zone ownership is migrated",
+    )
     # Zone must exist (light validation)
     if db.get(orm.Zone, payload.zone_id) is None:
         raise HTTPException(status_code=400, detail=f"Zone {payload.zone_id!r} does not exist")
