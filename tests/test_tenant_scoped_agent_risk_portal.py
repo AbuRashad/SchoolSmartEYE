@@ -2,9 +2,15 @@
 from datetime import date, timedelta
 
 from app.db import models as orm
-from app.services import attendance_risk
+from app.services import attendance_risk, seed_data
+import pytest
 
 API = "/api/v1"
+
+
+@pytest.fixture
+def seeded():
+    seed_data.populate()
 
 
 def _add_other_school(db):
