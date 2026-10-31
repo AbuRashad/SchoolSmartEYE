@@ -227,7 +227,7 @@ All paths are under `/api/v1`. See the [roles table](#-authentication--roles) fo
 |--------|--------------------|-----------------------------------------|
 | GET    | `/reports/list`    | List all generated reports              |
 | GET    | `/reports/stats`   | Incident statistics and zone risk data  |
-| GET    | `/portal/student`  | Student attendance and safety status    |
+| GET    | `/portal/student`  | School-scoped portal status; student profile stays unavailable until an authenticated parent/student link exists |
 
 ### Students, Zones & Bracelets (Control Panel)
 
