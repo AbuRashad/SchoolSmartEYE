@@ -147,10 +147,20 @@ _STUDENT_DATA = [
 ]
 
 
+def _ensure_demo_school(db: Session) -> str:
+    """Create the explicitly synthetic demo tenant; never backfill existing rows implicitly."""
+    school_id = "DEMO-SCHOOL-001"
+    if db.get(orm.School, school_id) is None:
+        db.add(orm.School(school_id=school_id, name="SchoolSmartEYE Demonstration School", is_active=True))
+        db.flush()
+    return school_id
+
+
 def _seed_students(db: Session) -> None:
+    school_id = _ensure_demo_school(db)
     db.add_all(
         orm.Student(
-            student_id=sid, name=name, grade=grade, class_section=cls,
+            student_id=sid, school_id=school_id, name=name, grade=grade, class_section=cls,
             parent_id=pid, photo_initial=initial, is_active=True,
         )
         for sid, name, grade, cls, pid, initial in _STUDENT_DATA
@@ -594,9 +604,16 @@ def seed_users(db: Session) -> bool:
             "Not seeding demo users: DEMO_*_PASSWORD still uses the published default in production."
         )
         return False
-    db.add_all(
+    school_id = _ensure_demo_school(db)
+    users = [
         orm.User(username=role, full_name=name, hashed_password=hash_password(pw), role=role)
         for role, name, pw in accounts
+    ]
+    db.add_all(users)
+    db.flush()
+    db.add_all(
+        orm.SchoolMembership(user_id=user.id, school_id=school_id, is_active=True)
+        for user in users
     )
     db.commit()
     return True
