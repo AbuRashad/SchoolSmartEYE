@@ -3,24 +3,11 @@ from __future__ import annotations
 
 # Explicit allow-list: every table here has organization_id and school_id.
 TENANT_TABLES = (
-    "ng_campuses",
-    "ng_memberships",
-    "ng_guardians",
-    "ng_students",
-    "ng_student_guardians",
-    "ng_classes",
-    "ng_enrollments",
-    "ng_attendance_events",
-    "ng_buildings",
-    "ng_zones",
-    "ng_cameras",
-    "ng_edge_devices",
-    "ng_camera_telemetry",
-    "ng_ai_events",
-    "ng_incidents",
-    "ng_human_reviews",
-    "ng_metric_observations",
-    "ng_consent_records",
+    "ng_campuses", "ng_memberships", "ng_guardians", "ng_students",
+    "ng_student_guardians", "ng_classes", "ng_enrollments",
+    "ng_attendance_events", "ng_buildings", "ng_zones", "ng_cameras",
+    "ng_edge_devices", "ng_camera_telemetry", "ng_ai_events", "ng_incidents",
+    "ng_human_reviews", "ng_metric_observations", "ng_consent_records",
     "ng_audit_events",
 )
 
@@ -51,6 +38,8 @@ def enable_tenant_rls_statements() -> tuple[str, ...]:
         "WITH CHECK (id = NULLIF(current_setting('app.organization_id', true), ''))",
         'ALTER TABLE "ng_users" ENABLE ROW LEVEL SECURITY',
         'ALTER TABLE "ng_users" FORCE ROW LEVEL SECURITY',
+        # User provisioning is intentionally outside the application RLS policy.
+        # An audited privileged onboarding path must create users/memberships.
         'CREATE POLICY "tenant_isolation" ON "ng_users" FOR SELECT '
         "USING (EXISTS (SELECT 1 FROM ng_memberships m "
         "WHERE m.user_id = ng_users.id "
@@ -58,23 +47,8 @@ def enable_tenant_rls_statements() -> tuple[str, ...]:
         "AND (current_setting('app.role', true) = 'ministry_reader' "
         "OR m.school_id = NULLIF(current_setting('app.school_id', true), '')) "
         "AND m.status = 'active'))",
-        # User provisioning is intentionally not granted by this policy; an
-        # audited privileged onboarding path must create users and memberships.
-        "SELECT 1",
     ))
     return tuple(statements)
-
-
-def _unused_placeholder_for_patch() -> tuple[str, ...]:
-    return (
-        "AND m.status = 'active')) "
-        "WITH CHECK (EXISTS (SELECT 1 FROM ng_memberships m "
-        "WHERE m.user_id = ng_users.id "
-        "AND m.organization_id = NULLIF(current_setting('app.organization_id', true), '') "
-        "AND (current_setting('app.role', true) = 'ministry_reader' "
-        "OR m.school_id = NULLIF(current_setting('app.school_id', true), '')) "
-        "AND m.status = 'active'))",
-    )
 
 
 def disable_tenant_rls_statements() -> tuple[str, ...]:
