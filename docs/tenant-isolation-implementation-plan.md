@@ -2,7 +2,9 @@
 
 ## Decision status
 
-Proposed design for review. This document does not change application behavior or authorize production migration. Implement only after reviewing the data model, current API consumers, and existing data/backfill requirements.
+Partially implemented on 2026-10-31. Migration `0003` introduces the `schools` and `school_memberships` tables plus nullable `students.school_id`; server-side membership resolution and school scoping are implemented for the pedagogical agent and attendance-risk endpoints. The student portal mock was removed until a real authenticated parent/student identity link exists.
+
+This is **not** complete tenant isolation and does not authorize production multi-school use. The migration intentionally does not backfill existing users or student records. Existing unassigned records must be mapped only through a verified ownership process. Remaining endpoints and school-owned tables still require inventory, scoping, and negative cross-tenant tests.
 
 ## Objective
 
@@ -84,3 +86,23 @@ For each endpoint family (students, profiles, behavioral history, attendance, no
 - No code changes or database migration are performed by this document.
 - No claim is made that the current system is production-ready or that the plan alone guarantees compliance.
 - No real student data should be imported until tenant enforcement and authorization tests are complete.
+
+
+## Implementation progress — 2026-10-31
+
+Completed:
+- Added `School` and `SchoolMembership` ORM models and Alembic revision `0003`.
+- Added `Student.school_id` as nullable during controlled backfill; no default-school assignment is performed for existing records.
+- Added a server-side resolver that validates any requested school against the authenticated user's active memberships, fails closed without membership, and rejects ambiguous multi-school scope.
+- Scoped pedagogical agent student lookup, snapshots, feedback reads/writes, metrics, and baselines to the resolved school.
+- Scoped individual and school-wide attendance risk queries through the Student join.
+- Removed the static mock student portal response; a real parent/student account link is still required.
+- Added negative regression tests for cross-school attendance aggregation, guessed student IDs, unauthorized school selection, and portal mock-data removal.
+
+Still required:
+- Scope every other student, bracelet, attendance, notification, zone, camera, incident, analytics, SSI, drill, report, and export endpoint.
+- Add tenant ownership or a validated parent relationship to every school-owned table and every in-memory/cache source.
+- Define a safe, reviewed backfill for existing users, students, and operational data. Never assign all existing rows to the demo school by default.
+- Add migration upgrade/downgrade tests against the supported database engines and full API isolation matrix tests.
+- Resolve parent/student authentication and membership before restoring portal profile data.
+- Complete security review before any real student data or multi-school pilot.
