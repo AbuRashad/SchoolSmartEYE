@@ -285,3 +285,97 @@ def test_ssi_history_and_polling_are_isolated_by_school(client, seeded, db_sessi
     assert response.status_code == 200
     assert response.json()["snapshots"] == 31
     assert response.json()["average"] != 12.5
+
+
+def test_incident_api_is_scoped_through_school_owned_zones(client, seeded, db_session_factory):
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="OTHER-SCHOOL", name="Other School", is_active=True))
+        db.add(orm.Zone(
+            zone_id="OTHER-ZONE", school_id="OTHER-SCHOOL", label="Other Zone",
+            zone_type="classroom", capacity=20, floor=1, grid_x=0, grid_y=0,
+        ))
+        db.add(orm.Incident(
+            incident_id="OTHER-INCIDENT", zone_id="OTHER-ZONE", severity="critical",
+            description="Other school's incident", detected_at=__import__("datetime").datetime.now(
+                __import__("datetime").timezone.utc
+            ), resolved=False,
+        ))
+        db.commit()
+
+    listed = client.get(f"{API}/incidents")
+    assert listed.status_code == 200
+    ids = {row["incident_id"] for row in listed.json()}
+    assert len(ids) == 5
+    assert "OTHER-INCIDENT" not in ids
+    assert client.get(f"{API}/incidents/OTHER-INCIDENT").status_code == 404
+    assert client.post(f"{API}/incidents/OTHER-INCIDENT/resolve").status_code == 404
+    denied_create = client.post(
+        f"{API}/incidents",
+        json={
+            "incident_id": "CROSS-ZONE-INCIDENT",
+            "zone_id": "OTHER-ZONE",
+            "severity": "high",
+            "description": "Must not be created in another school's zone",
+        },
+    )
+    assert denied_create.status_code == 404
+
+    created = client.post(
+        f"{API}/incidents",
+        json={
+            "incident_id": "DEMO-NEW-INCIDENT",
+            "zone_id": "zone-main-gate",
+            "severity": "medium",
+            "description": "Verified school-owned incident",
+        },
+    )
+    assert created.status_code == 201
+    resolved = client.post(f"{API}/incidents/DEMO-NEW-INCIDENT/resolve")
+    assert resolved.status_code == 200
+    assert resolved.json()["resolved"] is True
+
+
+def test_drill_api_is_scoped_and_assigns_school_server_side(client, seeded, db_session_factory):
+    from datetime import datetime, timezone
+
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="OTHER-SCHOOL", name="Other School", is_active=True))
+        db.add(orm.Drill(
+            drill_id="OTHER-DRILL", school_id="OTHER-SCHOOL", drill_type="fire",
+            scheduled_at=datetime.now(timezone.utc), completed=False,
+        ))
+        db.add(orm.Drill(
+            drill_id="LEGACY-DRILL", school_id=None, drill_type="evacuation",
+            scheduled_at=datetime.now(timezone.utc), completed=False,
+        ))
+        db.commit()
+
+    listed = client.get(f"{API}/drills")
+    assert listed.status_code == 200
+    ids = {row["drill_id"] for row in listed.json()}
+    assert ids == {"DRL-001", "DRL-002", "DRL-003"}
+    assert client.get(f"{API}/drills/OTHER-DRILL").status_code == 404
+    assert client.get(f"{API}/drills/LEGACY-DRILL").status_code == 404
+    assert client.patch(
+        f"{API}/drills/OTHER-DRILL/complete",
+        json={"response_time_seconds": 30},
+    ).status_code == 404
+
+    created = client.post(
+        f"{API}/drills",
+        json={
+            "drill_id": "DEMO-NEW-DRILL",
+            "drill_type": "evacuation",
+            "scheduled_at": datetime.now(timezone.utc).isoformat(),
+            "notes": "School-scoped test drill",
+        },
+    )
+    assert created.status_code == 201
+    completed = client.patch(
+        f"{API}/drills/DEMO-NEW-DRILL/complete",
+        json={"response_time_seconds": 75, "notes": "Completed successfully"},
+    )
+    assert completed.status_code == 200
+    assert completed.json()["completed"] is True
+    with db_session_factory() as db:
+        assert db.get(orm.Drill, "DEMO-NEW-DRILL").school_id == "DEMO-SCHOOL-001"
