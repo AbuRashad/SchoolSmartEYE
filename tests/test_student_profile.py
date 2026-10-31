@@ -139,5 +139,5 @@ def test_zone_labels_are_cached_in_the_session(zone, db_session_factory) -> None
     with db_session_factory() as db, patch.object(db, "scalars", wraps=db.scalars) as scalars:
         assert _zone_label(db, zone.zone_id, "DEMO-SCHOOL-001") == zone.label
         assert _zone_label(db, zone.zone_id) == zone.label
-        assert _zone_label(db, "missing-zone", "DEMO-SCHOOL-001" == "missing-zone"
+        assert _zone_label(db, "missing-zone", "DEMO-SCHOOL-001") is None
         assert scalars.call_count == 1
