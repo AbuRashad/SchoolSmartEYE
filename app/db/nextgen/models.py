@@ -84,7 +84,7 @@ class Membership(NextBase, TimestampMixin):
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("ng_users.id", ondelete="CASCADE"), nullable=False, index=True)
-    organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("ng_organizations.id"), nullable=False, index=True)
     school_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     role: Mapped[str] = mapped_column(String(32), nullable=False)  # ministry_reader | school_admin | principal | teacher | reviewer
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
@@ -189,11 +189,40 @@ class AttendanceEvent(NextBase):
     recorded_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("ng_users.id"))
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
 
+class Building(NextBase, TimestampMixin):
+    __tablename__ = "ng_buildings"
+    __table_args__ = (
+        ForeignKeyConstraint(["campus_id", "school_id", "organization_id"], ["ng_campuses.id", "ng_campuses.school_id", "ng_campuses.organization_id"], ondelete="RESTRICT"),
+        UniqueConstraint("id", "school_id", "organization_id", name="uq_ng_building_scope"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    school_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    campus_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+
+
+class Zone(NextBase, TimestampMixin):
+    __tablename__ = "ng_zones"
+    __table_args__ = (
+        ForeignKeyConstraint(["building_id", "school_id", "organization_id"], ["ng_buildings.id", "ng_buildings.school_id", "ng_buildings.organization_id"], ondelete="RESTRICT"),
+        UniqueConstraint("id", "school_id", "organization_id", name="uq_ng_zone_scope"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    school_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    building_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    zone_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    capacity: Mapped[int | None] = mapped_column(Integer)
+
+
 class Camera(NextBase, TimestampMixin):
     __tablename__ = "ng_cameras"
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
         ForeignKeyConstraint(["campus_id", "school_id", "organization_id"], ["ng_campuses.id", "ng_campuses.school_id", "ng_campuses.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["zone_id", "school_id", "organization_id"], ["ng_zones.id", "ng_zones.school_id", "ng_zones.organization_id"], ondelete="RESTRICT"),
         UniqueConstraint("id", "school_id", "organization_id", name="uq_ng_camera_scope"),
         UniqueConstraint("school_id", "camera_code", name="uq_ng_camera_code"),
     )
@@ -201,6 +230,7 @@ class Camera(NextBase, TimestampMixin):
     organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     school_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     campus_id: Mapped[str | None] = mapped_column(ForeignKey("ng_campuses.id"))
+    zone_id: Mapped[str | None] = mapped_column(String(36))
     camera_code: Mapped[str] = mapped_column(String(64), nullable=False)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
     zone_label: Mapped[str | None] = mapped_column(String(120))
@@ -347,7 +377,7 @@ class AuditEvent(NextBase):
         Index("ix_ng_audit_scope_time", "organization_id", "school_id", "occurred_at"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("ng_organizations.id"), nullable=False, index=True)
     school_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     actor_user_id: Mapped[str | None] = mapped_column(ForeignKey("ng_users.id"))
     action: Mapped[str] = mapped_column(String(80), nullable=False)
