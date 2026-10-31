@@ -91,3 +91,12 @@ def test_first_migration_guard_allows_only_empty_alembic_version_table():
                 assert_empty_target(connection)
     finally:
         engine.dispose()
+
+
+def test_database_identity_normalizes_default_postgresql_port():
+    legacy = "postgresql+psycopg://legacy_user:secret@db.example/school_live"
+    with pytest.raises(RuntimeError, match="same database"):
+        validate_next_database_url(
+            "postgresql+psycopg://next_user:other@db.example:5432/school_live",
+            legacy,
+        )
