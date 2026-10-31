@@ -21,7 +21,8 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_school_id, require_principal, require_teacher, require_teacher_stream, role_of
 from app.core.governance_layer import SCOPE_LEVEL, Role
-from app.db.models import User
+from app.db.models import Camera, User, Zone
+from app.db.session import get_db
 from app.services.camera_ingestion import CameraSource, ingestion_service
 from app.units.unit_01.module import StreamStatus
 
@@ -93,6 +94,22 @@ def _info_for(camera_id: str) -> CameraInfo | None:
     )
 
 
+
+
+def _camera_record(db: Session, camera_id: str, school_id: str) -> Camera | None:
+    return db.scalar(
+        select(Camera).join(Zone, Zone.zone_id == Camera.zone_id).where(
+            Camera.camera_id == camera_id, Zone.school_id == school_id
+        )
+    )
+
+
+def _require_school_zone(db: Session, zone_id: str, school_id: str) -> Zone:
+    zone = db.scalar(select(Zone).where(Zone.zone_id == zone_id, Zone.school_id == school_id))
+    if zone is None:
+        raise HTTPException(status_code=404, detail="Zone not found in this school")
+    return zone
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
@@ -108,7 +125,10 @@ def list_cameras(
     role = role_of(user)
     can_see_source = role is not None and SCOPE_LEVEL[role] >= SCOPE_LEVEL[Role.PRINCIPAL]
     out: list[CameraInfo] = []
+    owned_ids = set(db.scalars(select(Camera.camera_id).join(Zone, Zone.zone_id == Camera.zone_id).where(Zone.school_id == school_id, Camera.is_active.is_(True))))
     for src in ingestion_service.list_sources():
+        if src.camera_id not in owned_ids:
+            continue
         info = _info_for(src.camera_id)
         if info is not None:
             out.append(info if can_see_source else info.model_copy(update={"source_url": "hidden"}))
@@ -133,7 +153,10 @@ def register_camera(
         source_url=payload.source_url,
         anonymize_faces=payload.anonymize_faces,
     )
+    db.add(Camera(camera_id=payload.camera_id, zone_id=payload.zone_id, label=payload.label))
+    db.flush()
     ingestion_service.register(source, autostart=True)
+    db.commit()
     info = _info_for(payload.camera_id)
     if info is None:  # pragma: no cover
         raise HTTPException(status_code=500, detail="Camera registration failed")
@@ -151,6 +174,8 @@ def unregister_camera(
     _require_school_owned_camera_registry(school_id)
     if not ingestion_service.unregister(camera_id):
         raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
+    db.delete(record)
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
