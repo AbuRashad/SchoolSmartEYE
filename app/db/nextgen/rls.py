@@ -51,12 +51,22 @@ def enable_tenant_rls_statements() -> tuple[str, ...]:
         "WITH CHECK (id = NULLIF(current_setting('app.organization_id', true), ''))",
         'ALTER TABLE "ng_users" ENABLE ROW LEVEL SECURITY',
         'ALTER TABLE "ng_users" FORCE ROW LEVEL SECURITY',
-        'CREATE POLICY "tenant_isolation" ON "ng_users" '
+        'CREATE POLICY "tenant_isolation" ON "ng_users" FOR SELECT '
         "USING (EXISTS (SELECT 1 FROM ng_memberships m "
         "WHERE m.user_id = ng_users.id "
         "AND m.organization_id = NULLIF(current_setting('app.organization_id', true), '') "
         "AND (current_setting('app.role', true) = 'ministry_reader' "
         "OR m.school_id = NULLIF(current_setting('app.school_id', true), '')) "
+        "AND m.status = 'active'))",
+        # User provisioning is intentionally not granted by this policy; an
+        # audited privileged onboarding path must create users and memberships.
+        "SELECT 1",
+    ))
+    return tuple(statements)
+
+
+def _unused_placeholder_for_patch() -> tuple[str, ...]:
+    return (
         "AND m.status = 'active')) "
         "WITH CHECK (EXISTS (SELECT 1 FROM ng_memberships m "
         "WHERE m.user_id = ng_users.id "
@@ -64,8 +74,7 @@ def enable_tenant_rls_statements() -> tuple[str, ...]:
         "AND (current_setting('app.role', true) = 'ministry_reader' "
         "OR m.school_id = NULLIF(current_setting('app.school_id', true), '')) "
         "AND m.status = 'active'))",
-    ))
-    return tuple(statements)
+    )
 
 
 def disable_tenant_rls_statements() -> tuple[str, ...]:
