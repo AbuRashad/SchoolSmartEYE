@@ -106,6 +106,7 @@ Completed:
 - Disabled dashboard REST and WebSocket feeds because their snapshot/cache manager is process-global.
 - Disabled hard-coded global analytics and report metrics until data provenance and school scope are implemented.
 - Disabled simulated SSI, global unit-health/alert summaries, and process-global runtime settings until per-school source/configuration storage exists.
+- Audited runtime-settings consumers: camera ingestion uses the process singleton for stream FPS/JPEG/reconnect behavior; bracelet and student profile summaries use its battery threshold. The settings API remains fail-closed for both reads and writes. Per-school settings require persisted school-keyed configuration and explicit propagation into each consumer before re-enabling the API.
 - Added cross-school camera registration/lifecycle denial tests. Dashboard, analytics, reports, SSI, unit-health and process-global settings remain fail-closed until their source data is partitioned by school.
 
 Still required:
