@@ -424,12 +424,17 @@ def student_profile(student_id: str, db: Session = Depends(get_db)) -> StudentPr
     monthly_pct = round((present_count / total_count) * 100.0, 1) if total_count else 0.0
     streak = _compute_streak(records_by_date, today)
 
-    # Notification, incident, zone-label and engagement stores are not yet tenant-scoped.
-    # Do not expose cross-school data through this aggregate profile.
+    # Notifications, incidents and zone labels are withheld until those records
+    # carry verified school ownership. Student-keyed attendance/engagement remain scoped.
     ntf_items: list[NotificationItem] = []
     unread = 0
     open_incidents = 0
-    eng_summary = None
+    eng_summary_obj = _get_agent().get_engagement_summary(student_id)
+    eng_summary = (
+        EngagementSummary(**eng_summary_obj.to_dict())
+        if eng_summary_obj is not None
+        else None
+    )
 
     return StudentProfile(
         student_id=student.student_id,
