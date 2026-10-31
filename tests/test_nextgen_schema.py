@@ -1,7 +1,9 @@
+import pytest
 from sqlalchemy import create_engine, inspect, text
 
 from app.db.nextgen.base import NextBase
 from app.db.nextgen import models  # noqa: F401
+from app.db.nextgen.safety import assert_empty_target, validate_next_database_url
 from app.db.nextgen.session import make_next_engine
 
 
@@ -36,18 +38,65 @@ def test_empty_schema_can_be_created_without_inserting_demo_data():
     try:
         NextBase.metadata.create_all(engine)
         inspector = inspect(engine)
-        assert "ng_schools" in inspector.get_table_names()
+        tables = [name for name in inspector.get_table_names() if name.startswith("ng_")]
+        assert "ng_schools" in tables
+        assert "ng_students" in tables
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT COUNT(*) FROM ng_schools")).scalar_one() == 0
-            assert connection.execute(text("SELECT COUNT(*) FROM ng_students")).scalar_one() == 0
+            for table_name in tables:
+                count = connection.execute(text(f'SELECT COUNT(*) FROM "{table_name}"')).scalar_one()
+                assert count == 0, table_name
     finally:
         engine.dispose()
 
 
 def test_next_database_requires_explicit_postgresql_url():
-    try:
+    with pytest.raises(RuntimeError, match="NEXT_DATABASE_URL"):
         make_next_engine("")
-    except RuntimeError as exc:
-        assert "NEXT_DATABASE_URL" in str(exc)
-    else:
-        raise AssertionError("The secondary database must be opt-in")
+
+
+def test_next_database_must_be_postgresql_and_distinct_from_legacy():
+    legacy = "postgresql+psycopg://legacy_user:secret@db.example:5432/school_live"
+    with pytest.raises(RuntimeError, match="same database"):
+        validate_next_database_url(
+            "postgresql+psycopg://next_user:other@db.example:5432/school_live",
+            legacy,
+        )
+
+    assert validate_next_database_url(
+        "postgresql://next_user:secret@db.example:5432/school_next",
+        legacy,
+    ).startswith("postgresql+psycopg://")
+
+
+def test_first_migration_guard_rejects_existing_user_tables():
+    engine = create_engine("sqlite:///:memory:")
+    try:
+        with engine.begin() as connection:
+            assert_empty_target(connection)
+            connection.execute(text("CREATE TABLE existing_students (id INTEGER PRIMARY KEY)"))
+            with pytest.raises(RuntimeError, match="must be empty"):
+                assert_empty_target(connection)
+    finally:
+        engine.dispose()
+
+
+def test_first_migration_guard_allows_only_empty_alembic_version_table():
+    engine = create_engine("sqlite:///:memory:")
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"))
+            assert_empty_target(connection)
+            connection.execute(text("INSERT INTO alembic_version VALUES ('old_revision')"))
+            with pytest.raises(RuntimeError, match="Alembic history"):
+                assert_empty_target(connection)
+    finally:
+        engine.dispose()
+
+
+def test_database_identity_normalizes_default_postgresql_port():
+    legacy = "postgresql+psycopg://legacy_user:secret@db.example/school_live"
+    with pytest.raises(RuntimeError, match="same database"):
+        validate_next_database_url(
+            "postgresql+psycopg://next_user:other@db.example:5432/school_live",
+            legacy,
+        )
