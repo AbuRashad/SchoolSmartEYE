@@ -104,10 +104,11 @@ Completed:
 - Disabled camera registry, snapshot, and stream APIs with explicit 503 responses because camera ingestion is process-global and not backed by a school-owned persistent record.
 - Disabled dashboard REST and WebSocket feeds because their snapshot/cache manager is process-global.
 - Disabled hard-coded global analytics and report metrics until data provenance and school scope are implemented.
-- Added regression tests for dashboard/analytics/camera fail-closed behavior.
+- Disabled simulated SSI, global unit-health/alert summaries, and process-global runtime settings until per-school source/configuration storage exists.
+- Added regression tests for dashboard/analytics/camera/SSI/unit-health/settings fail-closed behavior.
 
 Still required:
-- Implement school-owned persistence and verified ownership for zones, cameras, incidents, notifications, SSI snapshots, and drills; then re-enable camera/dashboard/analytics/report endpoints with school-filtered queries and per-school streaming/cache partitions.
+- Implement school-owned persistence and verified ownership for zones, cameras, incidents, notifications, SSI snapshots, and drills, plus per-school runtime settings; then re-enable camera/dashboard/analytics/report/SSI/unit-health endpoints with school-filtered queries and per-school streaming/cache partitions.
 - Scope every remaining attendance-write, notification, zone, camera, incident, analytics, SSI, drill, report, and export endpoint.
 - Add tenant ownership or a validated parent relationship to every school-owned table and every in-memory/cache source; restore withheld profile fields only after their source records are safely scoped.
 - Define a safe, reviewed backfill for existing users, students, and operational data. Never assign all existing rows to the demo school by default.
