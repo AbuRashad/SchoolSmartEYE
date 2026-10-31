@@ -116,3 +116,10 @@ Still required:
 - Add migration upgrade/downgrade tests against the supported database engines and full API isolation matrix tests.
 - Resolve parent/student authentication and membership before restoring portal profile data.
 - Complete security review before any real student data or multi-school pilot.
+
+
+## SSI service-level scope guards — 2026-10-31
+
+- SSI snapshot creation, polling de-duplication, and history reads now reject empty or missing school IDs before issuing database operations.
+- Regression tests verify that unassigned legacy snapshots remain invisible, polling windows do not cross schools, and service helpers fail closed without tenant scope.
+- Existing migration 0005 and school-filtered API behavior are reused; this change adds no schema migration.
