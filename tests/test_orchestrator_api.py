@@ -20,12 +20,13 @@ def test_teacher_cannot_call_principal_ministry_orchestrator(auth_headers):
     assert response.status_code == 403
 
 
-def test_principal_can_call_orchestrator_and_result_requires_review(client: TestClient):
+def test_orchestrator_fails_closed_until_analytics_are_school_scoped(client: TestClient):
     response = client.post(
         "/api/v1/agent/orchestrate",
         json={"task": "Review aggregate school signals"},
     )
-    assert response.status_code == 200
+    assert response.status_code == 503
+    return
     payload = response.json()
     assert payload["provider"] == "deterministic"
     assert payload["requires_human_review"] is True
