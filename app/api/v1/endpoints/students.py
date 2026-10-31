@@ -382,8 +382,11 @@ def student_profile(student_id: str, db: Session = Depends(get_db), school_id: s
 
     # Index attendance by date for quick lookup
     student_records = db.scalars(
-        select(orm.AttendanceRecord).where(
-            orm.AttendanceRecord.student_id == student_id,
+        select(orm.AttendanceRecord)
+        .join(orm.Student, orm.Student.student_id == orm.AttendanceRecord.student_id)
+        .where(
+            orm.Student.school_id == school_id,
+            orm.Student.student_id == student_id,
             orm.AttendanceRecord.date >= today - timedelta(days=365),
         )
     ).all()
