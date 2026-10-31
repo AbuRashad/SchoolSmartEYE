@@ -103,14 +103,6 @@ def get_current_school_id(
     return resolve_school_scope(db, user)
 
 
-def get_current_school_id_header_or_query(
-    user: User = Depends(get_current_user_header_or_query),
-    db: Session = Depends(get_db),
-) -> str:
-    """Resolve tenant membership for media routes accepting query-string JWTs."""
-    return resolve_school_scope(db, user)
-
-
 def get_current_user_header_or_query(
     token: str | None = Depends(oauth2_scheme),
     access_token: str | None = Query(default=None, description="JWT for <img>/<video> tags that cannot send headers"),
