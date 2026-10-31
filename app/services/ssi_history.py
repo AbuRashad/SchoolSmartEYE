@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import models as orm
 
-TREND_SLOPE_THRESHOLD = 0.1  # SSI points per day treated as a real trend
+TREND_SLOPE_THRESHOLD = 0.1
 ANOMALY_Z_THRESHOLD = 2.0
 
 
@@ -25,6 +25,8 @@ def record_snapshot(
     source: str = "live",
     recorded_at: datetime | None = None,
 ) -> orm.SSISnapshot:
+    if not school_id:
+        raise ValueError("school_id is required for SSI snapshots")
     snap = orm.SSISnapshot(
         school_id=school_id,
         recorded_at=recorded_at or datetime.now(timezone.utc),
@@ -43,21 +45,29 @@ def record_snapshot(
 def record_if_due(
     db: Session, school_id: str, ssi: float, min_interval_seconds: int = 300, **kwargs
 ) -> bool:  # noqa: ANN003
-    """Record a snapshot only within the specified school's history."""
-    last = db.scalar(select(orm.SSISnapshot)
+    """Apply the polling interval independently inside one school's history."""
+    if not school_id:
+        raise ValueError("school_id is required for SSI snapshots")
+    last = db.scalar(
+        select(orm.SSISnapshot)
         .where(
             orm.SSISnapshot.school_id == school_id,
             orm.SSISnapshot.source == kwargs.get("source", "live"),
         )
         .order_by(orm.SSISnapshot.recorded_at.desc())
-        .limit(1))
-    if last is not None and (datetime.now(timezone.utc) - last.recorded_at).total_seconds() < min_interval_seconds:
+        .limit(1)
+    )
+    if last is not None and (
+        datetime.now(timezone.utc) - last.recorded_at
+    ).total_seconds() < min_interval_seconds:
         return False
     record_snapshot(db, school_id, ssi, **kwargs)
     return True
 
 
 def get_history(db: Session, school_id: str, days: int = 30) -> list[orm.SSISnapshot]:
+    if not school_id:
+        raise ValueError("school_id is required for SSI history")
     since = datetime.now(timezone.utc) - timedelta(days=days)
     return list(
         db.scalars(
@@ -72,7 +82,6 @@ def get_history(db: Session, school_id: str, days: int = 30) -> list[orm.SSISnap
 
 
 def _slope(daily: list[tuple[str, float]]) -> float:
-    """Least-squares SSI slope per calendar day."""
     n = len(daily)
     if n < 2:
         return 0.0
@@ -84,15 +93,14 @@ def _slope(daily: list[tuple[str, float]]) -> float:
 
 
 def daily_series(snapshots: list[orm.SSISnapshot]) -> list[tuple[str, float]]:
-    """Average SSI per UTC calendar day, oldest first."""
     buckets: dict[str, list[float]] = {}
-    for s in snapshots:
-        buckets.setdefault(s.recorded_at.date().isoformat(), []).append(s.ssi)
-    return [(d, fmean(v)) for d, v in sorted(buckets.items())]
+    for snapshot in snapshots:
+        buckets.setdefault(snapshot.recorded_at.date().isoformat(), []).append(snapshot.ssi)
+    return [(day, fmean(values)) for day, values in sorted(buckets.items())]
 
 
 def compute_trend(daily: list[tuple[str, float]]) -> dict[str, object]:
-    values = [v for _, v in daily]
+    values = [value for _, value in daily]
     if len(values) < 3:
         return {"direction": "insufficient_data", "slope_per_day": 0.0, "points": len(values)}
     slope = _slope(daily)
@@ -108,30 +116,32 @@ def compute_trend(daily: list[tuple[str, float]]) -> dict[str, object]:
 def detect_anomalies(
     daily: list[tuple[str, float]], z_threshold: float = ANOMALY_Z_THRESHOLD
 ) -> list[dict[str, object]]:
-    """Days whose SSI deviates more than `z_threshold` std-devs from the period mean."""
-    values = [v for _, v in daily]
+    values = [value for _, value in daily]
     if len(values) < 5:
         return []
     mean, sd = fmean(values), pstdev(values)
     if sd == 0:
         return []
     return [
-        {"date": d, "ssi": round(v, 2), "z_score": round((v - mean) / sd, 2)}
-        for d, v in daily
-        if abs(v - mean) / sd >= z_threshold
+        {"date": day, "ssi": round(value, 2), "z_score": round((value - mean) / sd, 2)}
+        for day, value in daily
+        if abs(value - mean) / sd >= z_threshold
     ]
 
 
 def summarize(db: Session, school_id: str, days: int = 30) -> dict[str, object]:
-    snaps = get_history(db, school_id, days)
-    daily = daily_series(snaps)
+    snapshots = get_history(db, school_id, days)
+    daily = daily_series(snapshots)
     trend = compute_trend(daily)
-    values = [v for _, v in daily]
+    values = [value for _, value in daily]
     return {
-        "scores": [{"day": i + 1, "date": d, "ssi": round(v, 2)} for i, (d, v) in enumerate(daily)],
+        "scores": [
+            {"day": index + 1, "date": day, "ssi": round(value, 2)}
+            for index, (day, value) in enumerate(daily)
+        ],
         "average": round(fmean(values), 2) if values else None,
         "trend": trend["direction"],
         "trend_detail": trend,
         "anomalies": detect_anomalies(daily),
-        "snapshots": len(snaps),
+        "snapshots": len(snapshots),
     }
