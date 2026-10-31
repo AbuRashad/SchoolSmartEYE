@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import get_current_school_id, require_teacher
 
-from app.units.unit_01.module import UNIT_01_NAME, VideoCaptureUnit
+from app.units.unit_01.module import UNIT_01_NAME
 from app.units.unit_02.module import UNIT_02_NAME
 from app.units.unit_03.module import UNIT_03_NAME
 from app.units.unit_04.module import UNIT_04_NAME
@@ -13,7 +13,7 @@ from app.units.unit_05.module import UNIT_05_NAME
 from app.units.unit_06.module import UNIT_06_NAME
 from app.units.unit_07.module import UNIT_07_NAME
 from app.units.unit_08.module import UNIT_08_NAME
-from app.units.unit_09.module import UNIT_09_NAME, AlertResponseUnit
+from app.units.unit_09.module import UNIT_09_NAME
 from app.units.unit_10.module import UNIT_10_NAME
 from app.units.unit_11.module import UNIT_11_NAME
 from app.units.unit_12.module import UNIT_12_NAME
@@ -51,16 +51,6 @@ _UNIT_NAMES = [
     (14, UNIT_14_NAME, "Arab Governance Layer"),
     (15, UNIT_15_NAME, "Pedagogical Behavioral Intelligence"),
 ]
-
-_capture_unit = VideoCaptureUnit()
-_alert_unit = AlertResponseUnit()
-
-# Pre-register demo camera streams
-_capture_unit.register_stream("cam-01", "main-campus", "Main Gate")
-_capture_unit.register_stream("cam-02", "main-campus", "Corridor A")
-_capture_unit.register_stream("cam-03", "main-campus", "Learning Commons")
-_capture_unit.register_stream("cam-04", "main-campus", "Playground")
-
 
 @router.get("")
 def list_units() -> list[dict[str, object]]:
