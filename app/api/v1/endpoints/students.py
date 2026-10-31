@@ -1,7 +1,7 @@
 """Students & zones CRUD used by the Control Panel.
 
-Students, bracelets, attendance and notifications are stored in the SQL
-database (see `app.db`); zones and incidents are still in-memory demo data.
+Students, bracelets, attendance, notifications, and zones are stored in SQL.
+Incident-derived profile fields remain withheld until incidents have school ownership.
 """
 from __future__ import annotations
 
@@ -279,30 +279,43 @@ _PRESENT_STATUSES = (AttendanceStatus.PRESENT.value, AttendanceStatus.LATE.value
 def _zone_label(db: Session, zone_id: str | None, school_id: str) -> str | None:
     if not zone_id:
         return None
-    zone = db.scalar(select(orm.Zone).where(orm.Zone.zone_id == zone_id, orm.Zone.school_id == school_id))
-    return zone.label if zone is not None else None
+    cache_key = f"school_zone_labels:{school_id}"
+    zone_labels = db.info.get(cache_key)
+    if zone_labels is None:
+        zone_labels = {
+            zone.zone_id: zone.label
+            for zone in db.scalars(select(orm.Zone).where(orm.Zone.school_id == school_id))
+        }
+        db.info[cache_key] = zone_labels
+    return zone_labels.get(zone_id)
 
 
-def _bracelet_summary(db: Session, bracelet: orm.Bracelet | None, school_id: str) -> BraceletSummary | None:
+def _bracelet_summary(
+    db: Session, bracelet: orm.Bracelet | None, school_id: str
+) -> BraceletSummary | None:
     if bracelet is None:
         return None
     from app.core.runtime_settings import get_runtime_settings
+
     threshold = get_runtime_settings().bracelet_low_battery_percent
+    zone_label = _zone_label(db, bracelet.last_seen_zone, school_id)
     return BraceletSummary(
         bracelet_id=bracelet.bracelet_id,
         mac_address=bracelet.mac_address,
         battery_level=bracelet.battery_level,
         is_active=bracelet.is_active,
-        last_seen_zone=bracelet.last_seen_zone,
-        last_seen_zone_label=_zone_label(db, bracelet.last_seen_zone, school_id),
-        last_seen_at=bracelet.last_seen_at.isoformat() if bracelet.last_seen_at else None,
+        last_seen_zone=bracelet.last_seen_zone if zone_label else None,
+        last_seen_zone_label=zone_label,
+        last_seen_at=bracelet.last_seen_at.isoformat() if bracelet.last_seen_at and zone_label else None,
         firmware_version=bracelet.firmware_version,
         notes=bracelet.notes,
         low_battery=bracelet.battery_level <= threshold,
     )
 
 
-def _to_attendance_day(db: Session, rec: orm.AttendanceRecord | None, day: date, school_id: str) -> AttendanceDay:
+def _to_attendance_day(
+    db: Session, rec: orm.AttendanceRecord | None, day: date, school_id: str
+) -> AttendanceDay:
     if rec is None:
         return AttendanceDay(
             date=day.isoformat(),
@@ -312,13 +325,14 @@ def _to_attendance_day(db: Session, rec: orm.AttendanceRecord | None, day: date,
             last_seen_zone=None,
             last_seen_zone_label=None,
         )
+    zone_label = _zone_label(db, rec.last_seen_zone, school_id)
     return AttendanceDay(
         date=day.isoformat(),
         status=rec.status,
         arrival_time=rec.arrival_time.isoformat() if rec.arrival_time else None,
         departure_time=rec.departure_time.isoformat() if rec.departure_time else None,
-        last_seen_zone=rec.last_seen_zone,
-        last_seen_zone_label=_zone_label(db, rec.last_seen_zone, school_id),
+        last_seen_zone=rec.last_seen_zone if zone_label else None,
+        last_seen_zone_label=zone_label,
     )
 
 
@@ -385,6 +399,8 @@ def student_profile(student_id: str, db: Session = Depends(get_db), school_id: s
     bracelet = student.bracelet
     if last_zone is None and bracelet is not None:
         last_zone = bracelet.last_seen_zone
+    if last_zone is not None and _zone_label(db, last_zone, school_id) is None:
+        last_zone = None
 
     # Weekly (last 7 days, oldest → newest)
     weekly: list[AttendanceDay] = []
@@ -399,7 +415,7 @@ def student_profile(student_id: str, db: Session = Depends(get_db), school_id: s
     for offset in range(0, 30):
         d = today - timedelta(days=offset)
         rec = records_by_date.get(d)
-        recent.append(_to_attendance_day(db, rec, d))
+        recent.append(_to_attendance_day(db, rec, d, school_id))
         if rec is not None:
             total_count += 1
             if rec.status in _PRESENT_STATUSES:
