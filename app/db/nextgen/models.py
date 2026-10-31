@@ -42,7 +42,6 @@ class Organization(NextBase, TimestampMixin):
 
 class School(NextBase, TimestampMixin):
     __tablename__ = "ng_schools"
-    __table_args__ = (UniqueConstraint("id", "organization_id", name="uq_ng_school_org"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(ForeignKey("ng_organizations.id"), nullable=False, index=True)
     code: Mapped[str] = mapped_column(String(48), nullable=False)
@@ -168,7 +167,7 @@ class Enrollment(NextBase, TimestampMixin):
     student_id: Mapped[str] = mapped_column(ForeignKey("ng_students.id"), nullable=False, index=True)
     class_id: Mapped[str] = mapped_column(ForeignKey("ng_classes.id"), nullable=False, index=True)
     starts_on: Mapped[date] = mapped_column(Date, nullable=False)
-    ends_on: Mapped[Date | None] = mapped_column(Date)
+    ends_on: Mapped[date | None] = mapped_column(Date)
 
 
 class AttendanceEvent(NextBase):
@@ -176,6 +175,7 @@ class AttendanceEvent(NextBase):
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
         ForeignKeyConstraint(["student_id", "school_id", "organization_id"], ["ng_students.id", "ng_students.school_id", "ng_students.organization_id"], ondelete="RESTRICT"),
+        UniqueConstraint("school_id", "idempotency_key", name="uq_ng_attendance_idempotency"),
         Index("ix_ng_attendance_school_time", "school_id", "occurred_at"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -188,12 +188,6 @@ class AttendanceEvent(NextBase):
     source_id: Mapped[str | None] = mapped_column(String(100))
     recorded_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("ng_users.id"))
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
-    __table_args__ = (
-        ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
-        UniqueConstraint("school_id", "idempotency_key", name="uq_ng_attendance_idempotency"),
-        Index("ix_ng_attendance_school_time", "school_id", "occurred_at"),
-    )
-
 
 class Camera(NextBase, TimestampMixin):
     __tablename__ = "ng_cameras"
