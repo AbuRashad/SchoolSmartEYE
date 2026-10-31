@@ -2,7 +2,7 @@
 
 ## Decision status
 
-Partially implemented on 2026-10-31. Migration `0003` introduces the `schools` and `school_memberships` tables plus nullable `students.school_id`; server-side membership resolution and school scoping are implemented for the pedagogical agent and attendance-risk endpoints. The student portal mock was removed until a real authenticated parent/student identity link exists.
+Partially implemented on 2026-10-31. Migration `0003` introduces the `schools` and `school_memberships` tables plus nullable `students.school_id`; server-side membership resolution and school scoping are implemented for the pedagogical agent, attendance-risk, and student CRUD/profile/behavioral-history endpoints. The student portal mock was removed until a real authenticated parent/student identity link exists. The `/zones` endpoint now fails closed with 503 until zones have verified school ownership.
 
 This is **not** complete tenant isolation and does not authorize production multi-school use. The migration intentionally does not backfill existing users or student records. Existing unassigned records must be mapped only through a verified ownership process. Remaining endpoints and school-owned tables still require inventory, scoping, and negative cross-tenant tests.
 
@@ -97,11 +97,12 @@ Completed:
 - Scoped pedagogical agent student lookup, snapshots, feedback reads/writes, metrics, and baselines to the resolved school.
 - Scoped individual and school-wide attendance risk queries through the Student join.
 - Removed the static mock student portal response; a real parent/student account link is still required.
-- Added negative regression tests for cross-school attendance aggregation, guessed student IDs, unauthorized school selection, and portal mock-data removal.
+- Added negative regression tests for cross-school attendance aggregation, guessed student IDs, unauthorized school selection, portal mock-data removal, and student CRUD/profile/history isolation.
+- Added a fail-closed response for `/zones` because the current Zone model has no school ownership.
 
 Still required:
-- Scope every other student, bracelet, attendance, notification, zone, camera, incident, analytics, SSI, drill, report, and export endpoint.
-- Add tenant ownership or a validated parent relationship to every school-owned table and every in-memory/cache source.
+- Scope every remaining bracelet, attendance-write, notification, zone, camera, incident, analytics, SSI, drill, report, and export endpoint.
+- Add tenant ownership or a validated parent relationship to every school-owned table and every in-memory/cache source; restore withheld profile fields only after their source records are safely scoped.
 - Define a safe, reviewed backfill for existing users, students, and operational data. Never assign all existing rows to the demo school by default.
 - Add migration upgrade/downgrade tests against the supported database engines and full API isolation matrix tests.
 - Resolve parent/student authentication and membership before restoring portal profile data.
