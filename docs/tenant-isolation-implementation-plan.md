@@ -110,7 +110,7 @@ Completed:
 
 Still required:
 - Implement verified ownership for remaining operational stores and per-school runtime settings; then re-enable dashboard/analytics/report/live-SSI/unit-health endpoints with school-filtered queries and per-school streaming/cache partitions.
-- Scope every remaining attendance-write, notification-management, incident-management, analytics, SSI, drill, report, and export endpoint.
+- Incident list/detail/create/resolve and drill list/detail/create/complete endpoints are implemented with server-resolved school scope. Notification management remains withheld until parent/student identity and recipient authorization are complete. Continue auditing attendance-write, analytics, SSI, report, and export endpoints.
 - Add tenant ownership or a validated parent relationship to every remaining school-owned table and every in-memory/cache source; add class-level authorization and audit logging.
 - Define a safe, reviewed backfill for existing users, students, and operational data. Never assign all existing rows to the demo school by default.
 - Add migration upgrade/downgrade tests against the supported database engines and full API isolation matrix tests.
@@ -123,3 +123,13 @@ Still required:
 - SSI snapshot creation, polling de-duplication, and history reads now reject empty or missing school IDs before issuing database operations.
 - Regression tests verify that unassigned legacy snapshots remain invisible, polling windows do not cross schools, and service helpers fail closed without tenant scope.
 - Existing migration 0005 and school-filtered API behavior are reused; this change adds no schema migration.
+
+
+## Incident and drill API isolation progress — 2026-10-31
+
+- Added incident list/detail/create/resolve endpoints. Every incident query joins its persisted zone and filters by the authenticated school's `school_id`; creation rejects zones outside that school.
+- Added drill list/detail/create/complete endpoints. Every drill read and mutation filters by the authenticated school's `school_id`; new drills receive school ownership from the server, never from request data.
+- Legacy incidents attached to unassigned zones and drills with null school ownership are not returned.
+- Added cross-school denial tests for guessed incident/drill IDs, foreign-zone incident creation, and server-side tenant assignment.
+- No notification-management API was added: existing profile notification reads are scoped through the student relationship, while standalone parent access remains blocked pending verified parent/student identity links.
+- Automated test execution and production deployment remain pending.
