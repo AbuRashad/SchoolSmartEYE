@@ -53,8 +53,7 @@ def test_ssi_history_insufficient_data(db_session_factory, anon_client) -> None:
         summary = ssi_history.summarize(db)
     assert summary["trend"] == "insufficient_data"
     assert summary["average"] is None and summary["scores"] == []
-    response = anon_client.get(f"{API}/ssi/history").json()
-    assert response["average"] is None and response["scores"] == []
+    assert anon_client.get(f"{API}/ssi/history").status_code == 401
 
 
 def test_ssi_trend_uses_elapsed_calendar_days() -> None:
@@ -68,16 +67,13 @@ def test_ssi_trend_uses_elapsed_calendar_days() -> None:
     assert trend["direction"] == "stable"
 
 
-def test_ssi_endpoints_use_stored_history(anon_client, db_session_factory, auth_headers) -> None:
+def test_ssi_endpoints_fail_closed_until_school_scoped(anon_client, client, db_session_factory, auth_headers) -> None:
     seed_data.populate()
-    h = anon_client.get(f"{API}/ssi/history").json()
-    assert len(h["scores"]) == 30 and h["trend"] in {"improving", "stable", "declining"}
-    assert anon_client.get(f"{API}/ssi/live").status_code == 200
-    anon_client.get(f"{API}/ssi/live")  # throttled: second call must not add another row
+    assert client.get(f"{API}/ssi/history").status_code == 503
+    assert client.get(f"{API}/ssi/live").status_code == 503
+    assert client.get(f"{API}/dashboard/summary").status_code == 503
     with db_session_factory() as db:
-        live = db.query(orm.SSISnapshot).filter_by(source="live").count()
-    assert live == 1
-    assert anon_client.get(f"{API}/dashboard/summary", headers=auth_headers("teacher")).json()["ssiTrend"]
+        assert db.query(orm.SSISnapshot).filter_by(source="live").count() == 0
 
 
 def test_attendance_risk_scoring(db_session_factory) -> None:
