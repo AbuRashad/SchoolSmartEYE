@@ -58,7 +58,7 @@ This is not a production-readiness certification. Real camera/edge-agent operati
 - Earlier branch baseline: frontend production build passed; Python suite passed.
 - Camera anonymization regression: Python workflow passed on commit `8803e6a67aeb37cdafd50b2fc216b8eba9da4150`.
 - Production seed guard regression: Python workflow passed on commit `d4b2f78a83abb2663e7500799cfb582b8bd08909`.
-- Production-forced anonymization and its regression test were committed after those runs; their CI run is pending at the time this report was written.
+- Production-forced anonymization and its regression test passed the Python test workflow on commit `7b8e28047fde7e3700aaab7476041b5ccb5faecc` (run `41163971503`).
 - Frontend was not changed by the backend privacy fixes; the most recent frontend build for the existing UI batch passed.
 - No live RTSP/ONVIF camera, edge-agent device, wearable hardware, external penetration test, or production deployment was available for validation.
 
