@@ -564,15 +564,17 @@ def seed_operational(db: Session) -> bool:
 
 
 def _seed_ssi_history(db: Session) -> None:
-    """30 days of deterministic SSI history so trends work out of the box."""
+    """30 days of deterministic SSI history for the explicit demo school."""
+    school_id = _ensure_demo_school(db)
     rng = np.random.default_rng(7)
     now = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
     for day in range(30):
         val = float(np.clip(78.0 + day * 0.15 + rng.normal(0, 3.5), 45, 100))
-        db.add(orm.SSISnapshot(recorded_at=now - timedelta(days=29 - day), ssi=round(val, 2), source="seed"))
+        db.add(orm.SSISnapshot(school_id=school_id, recorded_at=now - timedelta(days=29 - day), ssi=round(val, 2), source="seed"))
 
 
 def _seed_drills(db: Session) -> None:
+    school_id = _ensure_demo_school(db)
     now = datetime.now(timezone.utc)
     specs = [
         ("DRL-001", "fire", -21, True, 95.0),
@@ -582,7 +584,7 @@ def _seed_drills(db: Session) -> None:
     for drill_id, kind, offset, done, resp in specs:
         when = now + timedelta(days=offset)
         db.add(orm.Drill(
-            drill_id=drill_id, drill_type=kind, scheduled_at=when, completed=done,
+            drill_id=drill_id, school_id=school_id, drill_type=kind, scheduled_at=when, completed=done,
             completed_at=when if done else None, response_time_seconds=resp,
         ))
 
