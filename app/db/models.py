@@ -141,6 +141,8 @@ class Zone(Base):
     __tablename__ = "zones"
 
     zone_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    # Nullable until legacy zones receive a verified school ownership mapping.
+    school_id: Mapped[str | None] = mapped_column(ForeignKey("schools.school_id"), nullable=True, index=True)
     label: Mapped[str] = mapped_column(String(128))
     zone_type: Mapped[str] = mapped_column(String(32))
     capacity: Mapped[int] = mapped_column(Integer, default=0)
