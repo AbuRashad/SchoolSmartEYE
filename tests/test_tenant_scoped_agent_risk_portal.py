@@ -1,5 +1,5 @@
 """Negative tests for school scoping in agent, attendance-risk, and portal APIs."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app.db import models as orm
 from app.services import attendance_risk, seed_data, ssi_history
@@ -296,9 +296,7 @@ def test_incident_api_is_scoped_through_school_owned_zones(client, seeded, db_se
         ))
         db.add(orm.Incident(
             incident_id="OTHER-INCIDENT", zone_id="OTHER-ZONE", severity="critical",
-            description="Other school's incident", detected_at=__import__("datetime").datetime.now(
-                __import__("datetime").timezone.utc
-            ), resolved=False,
+            description="Other school's incident", detected_at=datetime.now(timezone.utc), resolved=False,
         ))
         db.commit()
 
@@ -336,8 +334,6 @@ def test_incident_api_is_scoped_through_school_owned_zones(client, seeded, db_se
 
 
 def test_drill_api_is_scoped_and_assigns_school_server_side(client, seeded, db_session_factory):
-    from datetime import datetime, timezone
-
     with db_session_factory() as db:
         db.add(orm.School(school_id="OTHER-SCHOOL", name="Other School", is_active=True))
         db.add(orm.Drill(
