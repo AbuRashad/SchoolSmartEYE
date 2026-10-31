@@ -63,6 +63,15 @@ class CameraSource:
         return asdict(self)
 
 
+def _anonymize_frame_or_reject(frame: np.ndarray, camera_id: str) -> np.ndarray | None:
+    """Fail closed: never publish an un-anonymized frame when privacy processing fails."""
+    try:
+        return anonymize_minor_faces(frame)
+    except Exception:  # noqa: BLE001
+        logger.exception("Face anonymization failed for camera %s; dropping frame", camera_id)
+        return None
+
+
 # ── Background worker ──────────────────────────────────────────────────────────
 
 
@@ -107,7 +116,8 @@ class CameraStreamWorker:
             daemon=True,
         )
         self._thread.start()
-        logger.info("Camera worker started: %s -> %s", self.source.camera_id, self.source.source_url)
+        # Never write source URLs to logs: RTSP URLs may contain reusable credentials.
+        logger.info("Camera worker started: %s", self.source.camera_id)
 
     def stop(self, timeout: float = 5.0) -> None:
         self._stop_event.set()
@@ -171,7 +181,7 @@ class CameraStreamWorker:
         while not self._stop_event.is_set():
             cap = self._open_capture()
             if cap is None:
-                self._mark_offline(f"Failed to open source {self.source.source_url!r}")
+                self._mark_offline("Failed to open configured camera source")
                 if self._stop_event.wait(self._reconnect_seconds):
                     break
                 continue
@@ -203,12 +213,14 @@ class CameraStreamWorker:
 
                     # Apply Arab Governance Layer face anonymization (Unit 14)
                     if self.source.anonymize_faces:
-                        try:
-                            frame = anonymize_minor_faces(frame)
-                        except Exception:
-                            # Anonymization must never crash the ingestion loop;
-                            # log and fall through with the raw frame.
-                            logger.exception("Face anonymization failed for %s", self.source.camera_id)
+                        anonymized = _anonymize_frame_or_reject(frame, self.source.camera_id)
+                        if anonymized is None:
+                            # Privacy takes precedence over availability: drop this frame.
+                            stream = self._capture_unit.get_stream(self.source.camera_id)
+                            if stream is not None:
+                                stream.mark_frame_dropped()
+                            continue
+                        frame = anonymized
 
                     # Encode JPEG
                     ok_enc, buf = cv2.imencode(".jpg", frame, encode_params)
