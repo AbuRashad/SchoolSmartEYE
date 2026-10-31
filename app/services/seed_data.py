@@ -607,12 +607,16 @@ def seed_users(db: Session) -> bool:
 
 
 def populate(db: Session | None = None) -> None:
-    """Populate demo data.
+    """Populate demo data in non-production environments only.
 
-    In-memory demo stores are filled once per process; database tables are
-    filled only when empty. Idempotent — calling multiple times will not
-    duplicate data.
+    Production deployments must be provisioned with real school records and
+    administrator accounts; synthetic students, attendance, cameras, zones,
+    incidents, reports and demo users are never inserted automatically.
     """
+    if settings.is_production:
+        logger.info("Skipping all demo seed data because APP_ENV=production")
+        return
+
     if not teachers:  # in-memory demo data not yet loaded
         _seed_teachers()
         _seed_reports()
