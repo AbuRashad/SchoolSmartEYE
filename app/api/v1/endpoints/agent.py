@@ -7,8 +7,8 @@ Exposes:
   GET  /agent/baselines         — daily per-student engagement baselines
   GET  /agent/recommendations/{student_id} — history/feedback-aware recommendations
 
-Feedback is persisted in the database. Writing feedback requires teacher+ access;
-read endpoints stay public for frontend compatibility.
+Feedback is persisted in the database. Every endpoint requires teacher+ access
+and an active server-side school membership; no endpoint reads across schools.
 """
 from __future__ import annotations
 
