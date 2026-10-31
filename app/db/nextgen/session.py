@@ -7,17 +7,13 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
+from app.db.nextgen.safety import validate_next_database_url
 
 
 def make_next_engine(url: str) -> Engine:
-    """Create the secondary engine without touching the legacy engine."""
-    if not url:
-        raise RuntimeError("NEXT_DATABASE_URL is not configured")
-    if url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if not url.startswith("postgresql+psycopg://"):
-        raise RuntimeError("The next-generation database must use PostgreSQL with psycopg")
-    return create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5)
+    """Create the secondary engine only for a distinct PostgreSQL database."""
+    validated_url = validate_next_database_url(url, settings.database_url)
+    return create_engine(validated_url, pool_pre_ping=True, pool_size=5, max_overflow=5)
 
 
 @lru_cache(maxsize=1)
