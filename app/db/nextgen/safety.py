@@ -10,7 +10,7 @@ def _database_identity(url: str) -> tuple[str, str, int | None, str | None]:
     return (
         parsed.get_backend_name(),
         (parsed.host or "").strip().lower(),
-        parsed.port,
+        parsed.port or (5432 if parsed.get_backend_name() == "postgresql" else None),
         parsed.database,
     )
 
