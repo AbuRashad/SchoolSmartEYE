@@ -174,8 +174,9 @@ def test_bracelet_endpoints_follow_the_owning_students_school(
 
 
 def test_camera_and_zone_dependent_services_fail_closed(client, seeded):
+    camera_list = client.get(f"{API}/cameras")
+    assert camera_list.status_code == 200
     for path in (
-        f"{API}/cameras",
         f"{API}/analytics/overview",
         f"{API}/dashboard/summary",
         f"{API}/dashboard/alerts",
@@ -196,3 +197,45 @@ def test_global_operational_feeds_fail_closed_until_school_partitioned(client, s
     ):
         response = client.get(path)
         assert response.status_code == 503, f"{path} returned {response.status_code}"
+
+
+
+def test_camera_registration_requires_zone_from_authenticated_school(
+    client, seeded, db_session_factory
+):
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="OTHER-SCHOOL", name="Other School", is_active=True))
+        db.add(orm.Zone(
+            zone_id="OTHER-ZONE-001",
+            school_id="OTHER-SCHOOL",
+            label="Other Campus Gate",
+            zone_type="entrance",
+            capacity=20,
+            floor=0,
+            grid_x=0,
+            grid_y=0,
+        ))
+        db.add(orm.Camera(
+            camera_id="OTHER-CAMERA-001",
+            zone_id="OTHER-ZONE-001",
+            label="Other Campus Camera",
+            is_active=True,
+        ))
+        db.commit()
+
+    denied_create = client.post(
+        f"{API}/cameras",
+        json={
+            "camera_id": "CROSS-TENANT-CAMERA",
+            "zone_id": "OTHER-ZONE-001",
+            "label": "Intruder Camera",
+            "source_url": "0",
+        },
+    )
+    denied_start = client.post(f"{API}/cameras/OTHER-CAMERA-001/start")
+    denied_stop = client.post(f"{API}/cameras/OTHER-CAMERA-001/stop")
+    denied_delete = client.delete(f"{API}/cameras/OTHER-CAMERA-001")
+    assert denied_create.status_code == 404
+    assert denied_start.status_code == 404
+    assert denied_stop.status_code == 404
+    assert denied_delete.status_code == 404
