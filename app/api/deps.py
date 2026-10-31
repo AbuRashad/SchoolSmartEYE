@@ -61,6 +61,48 @@ def get_current_user(
     return _user_from_token(token, db)
 
 
+def resolve_school_scope(
+    db: Session,
+    user: User,
+    requested_school_id: str | None = None,
+) -> str:
+    """Resolve an active school membership; never infer or trust an unverified tenant ID."""
+    from app.db.models import School, SchoolMembership
+
+    memberships = list(db.scalars(
+        select(SchoolMembership.school_id)
+        .join(School, School.school_id == SchoolMembership.school_id)
+        .where(
+            SchoolMembership.user_id == user.id,
+            SchoolMembership.is_active.is_(True),
+            School.is_active.is_(True),
+        )
+    ))
+    allowed = set(memberships)
+    if requested_school_id:
+        if requested_school_id not in allowed:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="School scope not found")
+        return requested_school_id
+    if len(allowed) == 1:
+        return next(iter(allowed))
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="An active school membership is required for this resource",
+        )
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Select one of your active school memberships",
+    )
+
+
+def get_current_school_id(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> str:
+    return resolve_school_scope(db, user)
+
+
 def get_current_user_header_or_query(
     token: str | None = Depends(oauth2_scheme),
     access_token: str | None = Query(default=None, description="JWT for <img>/<video> tags that cannot send headers"),
