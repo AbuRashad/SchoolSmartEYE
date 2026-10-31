@@ -99,9 +99,11 @@ Completed:
 - Removed the static mock student portal response; a real parent/student account link is still required.
 - Added negative regression tests for cross-school attendance aggregation, guessed student IDs, unauthorized school selection, portal mock-data removal, and student CRUD/profile/history isolation.
 - Added a fail-closed response for `/zones` because the current Zone model has no school ownership.
+- Scoped bracelet list/create/update/delete through the owning student's school; paused bracelet ping until the referenced zone can be verified as belonging to the same school.
+- Added cross-school bracelet regression tests.
 
 Still required:
-- Scope every remaining bracelet, attendance-write, notification, zone, camera, incident, analytics, SSI, drill, report, and export endpoint.
+- Scope every remaining attendance-write, notification, zone, camera, incident, analytics, SSI, drill, report, and export endpoint.
 - Add tenant ownership or a validated parent relationship to every school-owned table and every in-memory/cache source; restore withheld profile fields only after their source records are safely scoped.
 - Define a safe, reviewed backfill for existing users, students, and operational data. Never assign all existing rows to the demo school by default.
 - Add migration upgrade/downgrade tests against the supported database engines and full API isolation matrix tests.
