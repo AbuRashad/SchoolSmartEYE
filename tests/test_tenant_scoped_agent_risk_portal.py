@@ -84,3 +84,52 @@ def test_student_portal_does_not_return_mock_or_unlinked_student_data(client):
     assert body["school_id"] == "DEMO-SCHOOL-001"
     assert "name" not in body
     assert "student_id" not in body
+
+
+def test_student_crud_is_school_scoped_and_assigns_authenticated_school(
+    client, seeded, db_session_factory
+):
+    with db_session_factory() as db:
+        _add_other_school(db)
+
+    listed = client.get(f"{API}/students")
+    assert listed.status_code == 200
+    listed_ids = {row["student_id"] for row in listed.json()}
+    assert "OTHER-STUDENT-001" not in listed_ids
+
+    guessed_profile = client.get(f"{API}/students/OTHER-STUDENT-001/profile")
+    guessed_history = client.get(f"{API}/students/OTHER-STUDENT-001/behavioral-history")
+    guessed_update = client.patch(
+        f"{API}/students/OTHER-STUDENT-001",
+        json={"name": "Tampered"},
+    )
+    guessed_delete = client.delete(f"{API}/students/OTHER-STUDENT-001")
+    assert guessed_profile.status_code == 404
+    assert guessed_history.status_code == 404
+    assert guessed_update.status_code == 404
+    assert guessed_delete.status_code == 404
+
+
+def test_new_student_is_assigned_to_server_resolved_school(
+    client, seeded, db_session_factory
+):
+    response = client.post(
+        f"{API}/students",
+        json={
+            "student_id": "NEW-TENANT-STUDENT",
+            "name": "New Student",
+            "grade": "Grade 7",
+            "class_section": "7A",
+            "parent_id": "NEW-PARENT",
+        },
+    )
+    assert response.status_code == 201
+    with db_session_factory() as db:
+        student = db.get(orm.Student, "NEW-TENANT-STUDENT")
+        assert student is not None
+        assert student.school_id == "DEMO-SCHOOL-001"
+
+
+def test_zones_endpoint_fails_closed_until_school_ownership_exists(client, seeded):
+    response = client.get(f"{API}/zones")
+    assert response.status_code == 503
