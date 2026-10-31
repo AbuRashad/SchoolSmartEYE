@@ -44,6 +44,8 @@ class Student(Base):
     __tablename__ = "students"
 
     student_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    # Nullable during migration; school-scoped APIs must fail closed for unassigned rows.
+    school_id: Mapped[str | None] = mapped_column(ForeignKey("schools.school_id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(128))
     grade: Mapped[str] = mapped_column(String(64))
     class_section: Mapped[str] = mapped_column(String(32))
@@ -106,6 +108,14 @@ class Notification(Base):
     read: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class School(Base):
+    __tablename__ = "schools"
+
+    school_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -114,6 +124,16 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(128), default="")
     hashed_password: Mapped[str] = mapped_column(String(256))
     role: Mapped[str] = mapped_column(String(16))  # teacher | principal | ministry
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class SchoolMembership(Base):
+    __tablename__ = "school_memberships"
+    __table_args__ = (UniqueConstraint("user_id", "school_id", name="uq_school_membership_user_school"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id", ondelete="CASCADE"), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
