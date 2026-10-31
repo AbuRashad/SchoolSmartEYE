@@ -349,18 +349,34 @@ def _compute_streak(records_by_date: dict[date, orm.AttendanceRecord], today: da
     return streak
 
 
-def _safety_status_for(db: Session, student: orm.Student, last_zone: str | None, school_id: str) -> str:
-    if not student.is_active:
-        return SafetyStatus.UNKNOWN.value
-    if not last_zone:
-        return SafetyStatus.UNKNOWN.value
-    # Open incidents in same zone → degrade status
-    zone_incidents = list(
+def _open_incidents_in_school_zone(
+    db: Session, zone_id: str | None, school_id: str
+) -> list[orm.Incident]:
+    if not zone_id:
+        return []
+    return list(
         db.scalars(
-            select(orm.Incident).join(orm.Zone, orm.Zone.zone_id == orm.Incident.zone_id).where(orm.Incident.zone_id == last_zone, orm.Zone.school_id == school_id, orm.Incident.resolved.is_(False))
+            select(orm.Incident)
+            .join(orm.Zone, orm.Zone.zone_id == orm.Incident.zone_id)
+            .where(
+                orm.Incident.zone_id == zone_id,
+                orm.Zone.school_id == school_id,
+                orm.Incident.resolved.is_(False),
+            )
         )
     )
-    if any(i.severity in (IncidentSeverity.CRITICAL.value, IncidentSeverity.HIGH.value) for i in zone_incidents):
+
+
+def _safety_status_for(
+    db: Session, student: orm.Student, last_zone: str | None, school_id: str
+) -> str:
+    if not student.is_active or not last_zone:
+        return SafetyStatus.UNKNOWN.value
+    zone_incidents = _open_incidents_in_school_zone(db, last_zone, school_id)
+    if any(
+        incident.severity in (IncidentSeverity.CRITICAL.value, IncidentSeverity.HIGH.value)
+        for incident in zone_incidents
+    ):
         return SafetyStatus.CRITICAL.value
     if zone_incidents:
         return SafetyStatus.WARNING.value
