@@ -14,7 +14,7 @@ The next-generation database is a separate, initially empty PostgreSQL database.
 
 ## Initial domains
 
-Organizations and schools; campuses; users and scoped memberships; students and guardians; classes and enrollments; attendance events; cameras and edge devices; camera telemetry; AI events; incidents and human reviews; provenance-aware metric observations; consent records; and audit events.
+Organizations and schools; campuses, buildings, and zones; users and scoped memberships; students and guardians; classes and enrollments; attendance events; cameras and edge devices; camera telemetry; AI events; incidents and human reviews; provenance-aware metric observations; consent records; and audit events.
 
 Tenant-owned tables carry both `organization_id` and `school_id`, with composite school/organization foreign keys to prevent cross-tenant school assignment. Ministry-level memberships can be organization-scoped with no school_id. Ministry reporting must be implemented as aggregate-only service queries; this schema alone does not grant access.
 
