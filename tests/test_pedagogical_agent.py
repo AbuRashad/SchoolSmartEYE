@@ -56,7 +56,7 @@ def test_build_agent_can_skip_persisted_feedback(monkeypatch: pytest.MonkeyPatch
     load_feedback = Mock(side_effect=AssertionError("feedback should not be loaded"))
     monkeypatch.setattr(agent_store, "load_feedback", load_feedback)
 
-    agent = agent_store.build_agent(Mock(), include_feedback=False)
+    agent = agent_store.build_agent(Mock(), "test-school", include_feedback=False)
 
     load_feedback.assert_not_called()
     assert agent._feedback_log == []
