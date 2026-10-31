@@ -63,6 +63,7 @@ def _today() -> date:
 
 
 def _seed_zones(db: Session) -> None:
+    school_id = _ensure_demo_school(db)
     zone_defs = (
         [
             SchoolZone("zone-main-gate", "Main Gate", ZoneType.ENTRANCE, capacity=50, floor=0, coordinates=(0, 0)),
@@ -81,7 +82,7 @@ def _seed_zones(db: Session) -> None:
     )
     db.add_all(
         orm.Zone(
-            zone_id=z.zone_id, label=z.label, zone_type=z.zone_type.value,
+            zone_id=z.zone_id, school_id=school_id, label=z.label, zone_type=z.zone_type.value,
             capacity=z.capacity, floor=z.floor, grid_x=z.coordinates[0], grid_y=z.coordinates[1],
         )
         for z in zone_defs
