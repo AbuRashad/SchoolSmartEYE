@@ -160,12 +160,15 @@ Roles follow the RBAC hierarchy of the governance layer: **Teacher → Principal
 
 | Access level | Endpoints |
 |--------------|-----------|
-| Public       | `/health`, `/auth/login`, `/portal/*`, `/dashboard/*`, `/ssi/*`, `/units/*`, `/analytics/*`, `/agent/*` (except `POST /agent/feedback`, teacher+) |
+| Public       | `/health`, `/auth/login`, `/units` (static unit metadata only) |
+| Teacher+     | School-scoped student, bracelet, agent and attendance-risk reads; other live operational feeds remain temporarily unavailable |
+| Principal+   | School-scoped student and bracelet management |
+| Ministry     | `/reports/*` (currently returns 503 until school-scoped report sources are implemented) |
 | Teacher+     | Read students, profiles, zones, bracelets, settings, camera list and camera streams |
 | Principal+   | Create / update / delete students and bracelets, bracelet ping, change settings, register / delete / start / stop cameras |
 | Ministry     | `/reports/*` |
 
-Camera streams are used by `<img>` tags that cannot send headers, so `snapshot.jpg` and `stream.mjpg` also accept the token as `?access_token=<jwt>`. Teachers see camera `source_url` as `hidden` (it may contain RTSP credentials).
+**Tenant-isolation status:** Camera registry/streaming, dashboard feeds, SSI, analytics, report metrics, unit health/alerts, and process-global runtime settings are temporarily fail-closed (HTTP 503) until their underlying records and caches are partitioned by verified school ownership. This is deliberate: shared demo or process-global data must not be exposed as if it belonged to the signed-in school. Static `/units` metadata remains available. Camera streaming will be re-enabled after per-school camera persistence and stream partitioning are implemented.
 
 ### Security-related settings
 
@@ -182,7 +185,7 @@ Camera streams are used by `<img>` tags that cannot send headers, so `snapshot.j
 
 **Control Panel → Students** lists students with search, grade / section / status filters, and an *Add Student* drawer (principal+). Click a student name or the eye icon to open the profile modal with the tabs **Overview · Attendance · Bracelet · Notifications · Engagement (Unit 15) · Edit** (Edit and activate / delete are principal+).
 
-The modal is backed by `GET /api/v1/students/{student_id}/profile`, which aggregates: student info, assigned bracelet (battery, last-seen zone), today's attendance, last 7 days and 30 days, monthly attendance %, attendance streak, notifications, safety status (degraded by open incidents in the last-seen zone) and last-seen zone label.
+The modal is backed by `GET /api/v1/students/{student_id}/profile`. It currently returns school-scoped student, bracelet and attendance information; notifications, incident-derived safety status, and zone labels are withheld until those source records have verified school ownership.
 
 ---
 
@@ -202,31 +205,31 @@ All paths are under `/api/v1`. See the [roles table](#-authentication--roles) fo
 
 | Method    | Endpoint              | Description                                    |
 |-----------|-----------------------|------------------------------------------------|
-| GET       | `/dashboard/summary`  | School name, SSI score, benchmark             |
-| GET       | `/dashboard/alerts`   | Live alert feed (coherence, anomaly, density) |
-| GET       | `/dashboard/heatmap`  | Risk heatmap cells with zone labels           |
-| GET       | `/dashboard/live`     | Full snapshot (REST polling fallback)         |
-| WebSocket | `/dashboard/ws`       | Real-time dashboard stream                    |
+| GET       | `/dashboard/summary`  | Temporarily unavailable (503) pending school-scoped sources |
+| GET       | `/dashboard/alerts`   | Temporarily unavailable (503) pending per-school alert queues |
+| GET       | `/dashboard/heatmap`  | Temporarily unavailable (503) pending school-scoped heatmap data |
+| GET       | `/dashboard/live`     | Temporarily unavailable (503) pending per-school snapshots |
+| WebSocket | `/dashboard/ws`       | Refused until the stream manager is partitioned by school |
 
-**WebSocket messages:** send `refresh`, `subscribe`, `ping` to receive snapshot JSON; send `close` to disconnect.
+
 
 ### School Safety Index, Units, Analytics
 
 | Method | Endpoint                | Description                                  |
 |--------|-------------------------|----------------------------------------------|
-| GET    | `/ssi/live`             | Real-time SSI computed from sensor inputs    |
-| GET    | `/ssi/history`          | 30-day SSI trend with improvement analysis   |
+| GET    | `/ssi/live`             | Temporarily unavailable (503) until live signals are school-scoped |
+| GET    | `/ssi/history`          | Temporarily unavailable (503) until snapshots are school-scoped |
 | GET    | `/units`                | Metadata for the system units                |
 | GET    | `/units/capture/health` | Unit 01 camera stream health                 |
 | GET    | `/units/alerts/summary` | Unit 09 alert queue summary                  |
-| GET    | `/analytics/overview`   | KPI metrics (attendance, cameras, etc.)      |
+| GET    | `/analytics/overview`   | Temporarily unavailable (503) until metrics have school-scoped provenance |
 
 ### Reports (Ministry) and Parent Portal
 
 | Method | Endpoint           | Description                             |
 |--------|--------------------|-----------------------------------------|
-| GET    | `/reports/list`    | List all generated reports              |
-| GET    | `/reports/stats`   | Incident statistics and zone risk data  |
+| GET    | `/reports/list`    | Temporarily unavailable (503) pending school-scoped reports |
+| GET    | `/reports/stats`   | Temporarily unavailable (503) pending school-scoped reports |
 | GET    | `/portal/student`  | School-scoped portal status; student profile stays unavailable until an authenticated parent/student link exists |
 
 ### Students, Zones & Bracelets (Control Panel)
@@ -350,13 +353,13 @@ Each registered camera appears as an MJPEG tile updated in real time.
 
 | Method | Endpoint                                          | Description                             |
 |--------|---------------------------------------------------|-----------------------------------------|
-| GET    | `/api/v1/cameras`                                 | List registered live cameras + status (teacher+) |
-| POST   | `/api/v1/cameras`                                 | Register a new camera at runtime (principal+) |
-| DELETE | `/api/v1/cameras/{camera_id}`                     | Unregister & stop a camera (principal+) |
-| POST   | `/api/v1/cameras/{camera_id}/start`               | Restart a stopped worker (principal+)   |
-| POST   | `/api/v1/cameras/{camera_id}/stop`                | Stop a worker (principal+)              |
-| GET    | `/api/v1/cameras/{camera_id}/snapshot.jpg`        | One-shot latest JPEG (teacher+, `?access_token=` allowed) |
-| GET    | `/api/v1/cameras/{camera_id}/stream.mjpg`         | Live MJPEG multipart stream (teacher+, `?access_token=` allowed) |
+| GET    | `/api/v1/cameras`                                 | Temporarily unavailable (503) pending school-owned camera registry |
+| POST   | `/api/v1/cameras`                                 | Temporarily unavailable (503) pending school-owned camera registry |
+| DELETE | `/api/v1/cameras/{camera_id}`                     | Temporarily unavailable (503) pending school-owned camera registry |
+| POST   | `/api/v1/cameras/{camera_id}/start`               | Temporarily unavailable (503) pending school-owned camera registry |
+| POST   | `/api/v1/cameras/{camera_id}/stop`                | Temporarily unavailable (503) pending school-owned camera registry |
+| GET    | `/api/v1/cameras/{camera_id}/snapshot.jpg`        | Temporarily unavailable (503) pending school-owned camera registry |
+| GET    | `/api/v1/cameras/{camera_id}/stream.mjpg`         | Temporarily unavailable (503) pending school-owned camera registry |
 
 ### Tuning (in `.env`)
 
