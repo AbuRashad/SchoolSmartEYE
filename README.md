@@ -114,6 +114,7 @@ Students, bracelets, attendance records, notifications, users, zones, cameras, i
 | `DB_AUTO_CREATE` | `true` | Create missing tables at startup |
 
 **SQLite** works out of the box (the `*.db` file is git-ignored).
+For an **existing database**, run `alembic upgrade head` before starting the updated application. `DB_AUTO_CREATE=true` creates missing tables but does not add new columns to existing tables. The tenant migrations add school membership and school ownership fields through revision `0005`; they intentionally leave legacy ownership fields nullable. Do not bulk-assign old records to the demo school without a verified mapping.
 
 **PostgreSQL** only needs a different URL and a driver:
 
