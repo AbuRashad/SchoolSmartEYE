@@ -15,14 +15,15 @@ from __future__ import annotations
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db import models as orm
 from app.db.session import get_db
+from app.db.models import User
 from app.models import EngagementState
-from app.api.deps import require_teacher
+from app.api.deps import get_current_user, require_teacher, resolve_school_scope
 from app.services import agent_store
 
 router = APIRouter(prefix="/agent", tags=["agent"], dependencies=[Depends(require_teacher)])
@@ -53,11 +54,15 @@ class FeedbackResponse(BaseModel):
 
 @router.get("/insights")
 def get_session_insights(
-    session_id: Optional[str] = None, db: Session = Depends(get_db)
+    session_id: Optional[str] = None,
+    school_id: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, object]:
     """Return AI session summary: top engaged students, disengagement flags, and
     audio-visual mismatches.  Optionally filter to a specific session_id."""
-    return agent_store.build_agent(db).get_session_insights(session_id=session_id)
+    scope = resolve_school_scope(db, current_user, school_id)
+    return agent_store.build_agent(db, scope).get_session_insights(session_id=session_id)
 
 
 @router.post(
@@ -66,15 +71,24 @@ def get_session_insights(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_teacher)],
 )
-def submit_feedback(payload: FeedbackPayload, db: Session = Depends(get_db)) -> FeedbackResponse:
+def submit_feedback(
+    payload: FeedbackPayload,
+    school_id: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FeedbackResponse:
     """Accept a teacher annotation confirming or correcting a Unit 15 prediction.
 
     Each submission is stored in the database and appended to
     `<video_log_dir>/agent_performance.jsonl` for audit and offline analysis.
     """
-    agent = agent_store.build_agent(db, include_feedback=False)
-    # Verify student exists
-    student = db.get(orm.Student, payload.student_id)
+    scope = resolve_school_scope(db, current_user, school_id)
+    agent = agent_store.build_agent(db, scope, include_feedback=False)
+    # Resolve the student inside the authenticated user's school only.
+    student = db.scalar(select(orm.Student).where(
+        orm.Student.student_id == payload.student_id,
+        orm.Student.school_id == scope,
+    ))
     if student is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -102,25 +116,43 @@ def submit_feedback(payload: FeedbackPayload, db: Session = Depends(get_db)) -> 
 
 
 @router.get("/feedback/metrics")
-def get_feedback_metrics(db: Session = Depends(get_db)) -> dict[str, object]:
-    """Return precision/recall-style accuracy metrics derived from teacher feedback."""
-    agent = agent_store.build_agent(db)
+def get_feedback_metrics(
+    school_id: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, object]:
+    """Return school-scoped precision/recall-style teacher feedback metrics."""
+    scope = resolve_school_scope(db, current_user, school_id)
+    agent = agent_store.build_agent(db, scope)
     return {**agent.compute_feedback_metrics(), "calibration": agent.get_feedback_calibration()}
 
 
 @router.get("/baselines")
-def get_baselines(db: Session = Depends(get_db)) -> dict[str, object]:
-    """Return the most recent nightly-computed per-student daily engagement baselines."""
-    baselines = agent_store.build_agent(db, include_feedback=False).compute_daily_baselines()
+def get_baselines(
+    school_id: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, object]:
+    """Return per-student baselines for the authenticated school only."""
+    scope = resolve_school_scope(db, current_user, school_id)
+    baselines = agent_store.build_agent(db, scope, include_feedback=False).compute_daily_baselines()
     return {"baselines": baselines, "total_students": len(baselines)}
 
 
 @router.get("/recommendations/{student_id}")
-def get_recommendations(student_id: str, db: Session = Depends(get_db)) -> dict[str, object]:
-    """Recommended actions for a student, informed by history and prior teacher feedback."""
-    if db.get(orm.Student, student_id) is None:
+def get_recommendations(
+    student_id: str,
+    school_id: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, object]:
+    """Recommended actions for a student inside the authenticated school only."""
+    scope = resolve_school_scope(db, current_user, school_id)
+    if db.scalar(select(orm.Student.student_id).where(
+        orm.Student.student_id == student_id, orm.Student.school_id == scope
+    )) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Student {student_id!r} not found",
         )
-    return agent_store.build_agent(db).get_recommendations(student_id)
+    return agent_store.build_agent(db, scope).get_recommendations(student_id)
