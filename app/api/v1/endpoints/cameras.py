@@ -1,14 +1,4 @@
-"""Live camera REST + MJPEG streaming endpoints.
-
-Endpoints:
-    GET    /api/v1/cameras                          → list registered live cameras
-    POST   /api/v1/cameras                          → register a new camera (and start)
-    DELETE /api/v1/cameras/{camera_id}              → unregister & stop
-    POST   /api/v1/cameras/{camera_id}/start        → restart worker
-    POST   /api/v1/cameras/{camera_id}/stop         → stop worker (keep registration)
-    GET    /api/v1/cameras/{camera_id}/snapshot.jpg → latest JPEG (one-shot)
-    GET    /api/v1/cameras/{camera_id}/stream.mjpg  → live MJPEG multipart stream
-"""
+"""School-scoped live camera REST and MJPEG endpoints."""
 from __future__ import annotations
 
 import asyncio
@@ -18,8 +8,17 @@ from typing import AsyncIterator
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_school_id, require_principal, require_teacher, require_teacher_stream, role_of
+from app.api.deps import (
+    get_current_school_id,
+    require_principal,
+    require_teacher,
+    require_teacher_stream,
+    resolve_school_scope,
+    role_of,
+)
 from app.core.governance_layer import SCOPE_LEVEL, Role
 from app.db.models import Camera, User, Zone
 from app.db.session import get_db
@@ -27,21 +26,16 @@ from app.services.camera_ingestion import CameraSource, ingestion_service
 from app.units.unit_01.module import StreamStatus
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/cameras", tags=["cameras"])
-
 _MJPEG_BOUNDARY = "frame"
 
 
-# ── Schemas ───────────────────────────────────────────────────────────────────
-
-
 class CameraCreate(BaseModel):
-    camera_id: str = Field(..., min_length=1, max_length=64, description="Unique short id, e.g. 'cam-gate'")
-    zone_id: str = Field(..., min_length=1, description="Zone id from /api/v1/dashboard/live (e.g. 'zone-main-gate')")
-    label: str = Field(..., min_length=1, description="Human-readable name shown in the UI")
-    source_url: str = Field(..., min_length=1, description="RTSP/HTTP URL, USB index ('0'), or file path")
-    anonymize_faces: bool = Field(default=True, description="Apply Unit 14 face anonymization to every frame")
+    camera_id: str = Field(..., min_length=1, max_length=64)
+    zone_id: str = Field(..., min_length=1)
+    label: str = Field(..., min_length=1, max_length=128)
+    source_url: str = Field(..., min_length=1)
+    anonymize_faces: bool = True
 
 
 class CameraInfo(BaseModel):
@@ -58,19 +52,21 @@ class CameraInfo(BaseModel):
     last_error: str | None
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-
-def _require_school_owned_camera_registry(school_id: str) -> None:
-    """Fail closed: camera ingestion is process-global and has no verified school owner."""
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail={
-            "code": "SCHOOL_SCOPED_CAMERA_REGISTRY_UNAVAILABLE",
-            "message": "Camera operations are paused until camera and zone ownership is persisted and school-scoped.",
-            "school_id": school_id,
-        },
+def _camera_record(db: Session, camera_id: str, school_id: str) -> Camera | None:
+    return db.scalar(
+        select(Camera)
+        .join(Zone, Zone.zone_id == Camera.zone_id)
+        .where(Camera.camera_id == camera_id, Zone.school_id == school_id)
     )
+
+
+def _require_school_zone(db: Session, zone_id: str, school_id: str) -> Zone:
+    zone = db.scalar(
+        select(Zone).where(Zone.zone_id == zone_id, Zone.school_id == school_id)
+    )
+    if zone is None:
+        raise HTTPException(status_code=404, detail="Zone not found in this school")
+    return zone
 
 
 def _info_for(camera_id: str) -> CameraInfo | None:
@@ -94,45 +90,31 @@ def _info_for(camera_id: str) -> CameraInfo | None:
     )
 
 
-
-
-def _camera_record(db: Session, camera_id: str, school_id: str) -> Camera | None:
-    return db.scalar(
-        select(Camera).join(Zone, Zone.zone_id == Camera.zone_id).where(
-            Camera.camera_id == camera_id, Zone.school_id == school_id
-        )
-    )
-
-
-def _require_school_zone(db: Session, zone_id: str, school_id: str) -> Zone:
-    zone = db.scalar(select(Zone).where(Zone.zone_id == zone_id, Zone.school_id == school_id))
-    if zone is None:
-        raise HTTPException(status_code=404, detail="Zone not found in this school")
-    return zone
-
-# ── Endpoints ─────────────────────────────────────────────────────────────────
-
-
 @router.get("", response_model=list[CameraInfo])
 def list_cameras(
-    user: User = Depends(require_teacher), school_id: str = Depends(get_current_school_id)
+    user: User = Depends(require_teacher),
+    db: Session = Depends(get_db),
 ) -> list[CameraInfo]:
-    _require_school_owned_camera_registry(school_id)
-    """List all registered live cameras with current status.
-
-    `source_url` may embed credentials, so it is only revealed to principal+.
-    """
+    school_id = resolve_school_scope(db, user)
+    owned_ids = set(
+        db.scalars(
+            select(Camera.camera_id)
+            .join(Zone, Zone.zone_id == Camera.zone_id)
+            .where(Zone.school_id == school_id, Camera.is_active.is_(True))
+        )
+    )
     role = role_of(user)
     can_see_source = role is not None and SCOPE_LEVEL[role] >= SCOPE_LEVEL[Role.PRINCIPAL]
-    out: list[CameraInfo] = []
-    owned_ids = set(db.scalars(select(Camera.camera_id).join(Zone, Zone.zone_id == Camera.zone_id).where(Zone.school_id == school_id, Camera.is_active.is_(True))))
-    for src in ingestion_service.list_sources():
-        if src.camera_id not in owned_ids:
+    output: list[CameraInfo] = []
+    for source in ingestion_service.list_sources():
+        if source.camera_id not in owned_ids:
             continue
-        info = _info_for(src.camera_id)
+        info = _info_for(source.camera_id)
         if info is not None:
-            out.append(info if can_see_source else info.model_copy(update={"source_url": "hidden"}))
-    return out
+            output.append(
+                info if can_see_source else info.model_copy(update={"source_url": "hidden"})
+            )
+    return output
 
 
 @router.post(
@@ -142,10 +124,13 @@ def list_cameras(
     dependencies=[Depends(require_principal)],
 )
 def register_camera(
-    payload: CameraCreate, school_id: str = Depends(get_current_school_id)
+    payload: CameraCreate,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
 ) -> CameraInfo:
-    _require_school_owned_camera_registry(school_id)
-    """Register a new live camera and start streaming from it."""
+    _require_school_zone(db, payload.zone_id, school_id)
+    if db.get(Camera, payload.camera_id) is not None:
+        raise HTTPException(status_code=409, detail="Camera ID is already registered")
     source = CameraSource(
         camera_id=payload.camera_id,
         zone_id=payload.zone_id,
@@ -153,12 +138,23 @@ def register_camera(
         source_url=payload.source_url,
         anonymize_faces=payload.anonymize_faces,
     )
-    db.add(Camera(camera_id=payload.camera_id, zone_id=payload.zone_id, label=payload.label))
+    record = Camera(
+        camera_id=payload.camera_id,
+        zone_id=payload.zone_id,
+        label=payload.label,
+        is_active=True,
+    )
+    db.add(record)
     db.flush()
-    ingestion_service.register(source, autostart=True)
-    db.commit()
+    try:
+        ingestion_service.register(source, autostart=True)
+        db.commit()
+    except Exception:
+        db.rollback()
+        ingestion_service.unregister(payload.camera_id)
+        raise
     info = _info_for(payload.camera_id)
-    if info is None:  # pragma: no cover
+    if info is None:
         raise HTTPException(status_code=500, detail="Camera registration failed")
     return info
 
@@ -169,26 +165,34 @@ def register_camera(
     dependencies=[Depends(require_principal)],
 )
 def unregister_camera(
-    camera_id: str, school_id: str = Depends(get_current_school_id)
+    camera_id: str,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
 ) -> Response:
-    _require_school_owned_camera_registry(school_id)
-    if not ingestion_service.unregister(camera_id):
+    record = _camera_record(db, camera_id, school_id)
+    if record is None:
         raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
+    ingestion_service.unregister(camera_id)
     db.delete(record)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
-    "/{camera_id}/start", response_model=CameraInfo, dependencies=[Depends(require_principal)]
+    "/{camera_id}/start",
+    response_model=CameraInfo,
+    dependencies=[Depends(require_principal)],
 )
 def start_camera(
-    camera_id: str, school_id: str = Depends(get_current_school_id)
+    camera_id: str,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
 ) -> CameraInfo:
-    _require_school_owned_camera_registry(school_id)
+    if _camera_record(db, camera_id, school_id) is None:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     worker = ingestion_service.get_worker(camera_id)
     if worker is None:
-        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} is not loaded")
     worker.start()
     info = _info_for(camera_id)
     assert info is not None
@@ -196,15 +200,20 @@ def start_camera(
 
 
 @router.post(
-    "/{camera_id}/stop", response_model=CameraInfo, dependencies=[Depends(require_principal)]
+    "/{camera_id}/stop",
+    response_model=CameraInfo,
+    dependencies=[Depends(require_principal)],
 )
 def stop_camera(
-    camera_id: str, school_id: str = Depends(get_current_school_id)
+    camera_id: str,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
 ) -> CameraInfo:
-    _require_school_owned_camera_registry(school_id)
+    if _camera_record(db, camera_id, school_id) is None:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     worker = ingestion_service.get_worker(camera_id)
     if worker is None:
-        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} is not loaded")
     worker.stop()
     stream = ingestion_service.capture_unit.get_stream(camera_id)
     if stream is not None:
@@ -217,22 +226,21 @@ def stop_camera(
 @router.get(
     "/{camera_id}/snapshot.jpg",
     responses={200: {"content": {"image/jpeg": {}}}, 404: {}, 503: {}},
-    dependencies=[Depends(require_teacher_stream)],
 )
 def snapshot(
-    camera_id: str, school_id: str = Depends(get_current_school_id)
+    camera_id: str,
+    user: User = Depends(require_teacher_stream),
+    db: Session = Depends(get_db),
 ) -> Response:
-    _require_school_owned_camera_registry(school_id)
-    """Return the latest JPEG frame from the camera (one-shot)."""
+    school_id = resolve_school_scope(db, user)
+    if _camera_record(db, camera_id, school_id) is None:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
     worker = ingestion_service.get_worker(camera_id)
     if worker is None:
-        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} is not loaded")
     jpeg = worker.get_latest_jpeg()
     if jpeg is None:
-        raise HTTPException(
-            status_code=503,
-            detail=f"No frame available yet for {camera_id!r} — camera may still be connecting.",
-        )
+        raise HTTPException(status_code=503, detail="No frame is currently available")
     return Response(
         content=jpeg,
         media_type="image/jpeg",
@@ -241,22 +249,17 @@ def snapshot(
 
 
 async def _mjpeg_generator(camera_id: str) -> AsyncIterator[bytes]:
-    """Async generator producing multipart/x-mixed-replace MJPEG frames."""
     boundary = f"--{_MJPEG_BOUNDARY}\r\n".encode("ascii")
     worker = ingestion_service.get_worker(camera_id)
     if worker is None:
         return
-
     last_frame_id = id(None)
     while True:
-        # Run the blocking wait in a thread so we don't stall the event loop
         jpeg = await asyncio.to_thread(worker.wait_next_frame, 5.0)
         if jpeg is None or id(jpeg) == last_frame_id:
-            # heartbeat / wait for new frame
             await asyncio.sleep(0.05)
             continue
         last_frame_id = id(jpeg)
-
         yield boundary
         yield (
             f"Content-Type: image/jpeg\r\n"
@@ -269,16 +272,17 @@ async def _mjpeg_generator(camera_id: str) -> AsyncIterator[bytes]:
 @router.get(
     "/{camera_id}/stream.mjpg",
     responses={200: {"content": {"multipart/x-mixed-replace": {}}}, 404: {}},
-    dependencies=[Depends(require_teacher_stream)],
 )
 def stream_mjpeg(
-    camera_id: str, school_id: str = Depends(get_current_school_id)
+    camera_id: str,
+    user: User = Depends(require_teacher_stream),
+    db: Session = Depends(get_db),
 ) -> StreamingResponse:
-    _require_school_owned_camera_registry(school_id)
-    """Live MJPEG multipart stream — drop straight into an `<img>` tag."""
-    worker = ingestion_service.get_worker(camera_id)
-    if worker is None:
+    school_id = resolve_school_scope(db, user)
+    if _camera_record(db, camera_id, school_id) is None:
         raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} not found")
+    if ingestion_service.get_worker(camera_id) is None:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id!r} is not loaded")
     return StreamingResponse(
         _mjpeg_generator(camera_id),
         media_type=f"multipart/x-mixed-replace; boundary={_MJPEG_BOUNDARY}",
