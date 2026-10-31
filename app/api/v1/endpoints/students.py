@@ -276,19 +276,14 @@ def list_zones(db: Session = Depends(get_db), school_id: str = Depends(get_curre
 _PRESENT_STATUSES = (AttendanceStatus.PRESENT.value, AttendanceStatus.LATE.value)
 
 
-def _zone_label(db: Session, zone_id: str | None) -> str | None:
+def _zone_label(db: Session, zone_id: str | None, school_id: str) -> str | None:
     if not zone_id:
         return None
-    zone_labels = db.info.get("zone_label_map")
-    if zone_labels is None:
-        zone_labels = {
-            zone.zone_id: zone.label for zone in db.scalars(select(orm.Zone))
-        }
-        db.info["zone_label_map"] = zone_labels
-    return zone_labels.get(zone_id, zone_id)
+    zone = db.scalar(select(orm.Zone).where(orm.Zone.zone_id == zone_id, orm.Zone.school_id == school_id))
+    return zone.label if zone is not None else None
 
 
-def _bracelet_summary(db: Session, bracelet: orm.Bracelet | None) -> BraceletSummary | None:
+def _bracelet_summary(db: Session, bracelet: orm.Bracelet | None, school_id: str) -> BraceletSummary | None:
     if bracelet is None:
         return None
     from app.core.runtime_settings import get_runtime_settings
@@ -299,7 +294,7 @@ def _bracelet_summary(db: Session, bracelet: orm.Bracelet | None) -> BraceletSum
         battery_level=bracelet.battery_level,
         is_active=bracelet.is_active,
         last_seen_zone=bracelet.last_seen_zone,
-        last_seen_zone_label=None,
+        last_seen_zone_label=_zone_label(db, bracelet.last_seen_zone, school_id),
         last_seen_at=bracelet.last_seen_at.isoformat() if bracelet.last_seen_at else None,
         firmware_version=bracelet.firmware_version,
         notes=bracelet.notes,
@@ -307,7 +302,7 @@ def _bracelet_summary(db: Session, bracelet: orm.Bracelet | None) -> BraceletSum
     )
 
 
-def _to_attendance_day(db: Session, rec: orm.AttendanceRecord | None, day: date) -> AttendanceDay:
+def _to_attendance_day(db: Session, rec: orm.AttendanceRecord | None, day: date, school_id: str) -> AttendanceDay:
     if rec is None:
         return AttendanceDay(
             date=day.isoformat(),
@@ -323,7 +318,7 @@ def _to_attendance_day(db: Session, rec: orm.AttendanceRecord | None, day: date)
         arrival_time=rec.arrival_time.isoformat() if rec.arrival_time else None,
         departure_time=rec.departure_time.isoformat() if rec.departure_time else None,
         last_seen_zone=rec.last_seen_zone,
-        last_seen_zone_label=None,
+        last_seen_zone_label=_zone_label(db, rec.last_seen_zone, school_id),
     )
 
 
@@ -340,7 +335,7 @@ def _compute_streak(records_by_date: dict[date, orm.AttendanceRecord], today: da
     return streak
 
 
-def _safety_status_for(db: Session, student: orm.Student, last_zone: str | None) -> str:
+def _safety_status_for(db: Session, student: orm.Student, last_zone: str | None, school_id: str) -> str:
     if not student.is_active:
         return SafetyStatus.UNKNOWN.value
     if not last_zone:
@@ -348,7 +343,7 @@ def _safety_status_for(db: Session, student: orm.Student, last_zone: str | None)
     # Open incidents in same zone → degrade status
     zone_incidents = list(
         db.scalars(
-            select(orm.Incident).where(orm.Incident.zone_id == last_zone, orm.Incident.resolved.is_(False))
+            select(orm.Incident).join(orm.Zone, orm.Zone.zone_id == orm.Incident.zone_id).where(orm.Incident.zone_id == last_zone, orm.Zone.school_id == school_id, orm.Incident.resolved.is_(False))
         )
     )
     if any(i.severity in (IncidentSeverity.CRITICAL.value, IncidentSeverity.HIGH.value) for i in zone_incidents):
@@ -395,7 +390,7 @@ def student_profile(student_id: str, db: Session = Depends(get_db), school_id: s
     weekly: list[AttendanceDay] = []
     for offset in range(6, -1, -1):
         d = today - timedelta(days=offset)
-        weekly.append(_to_attendance_day(db, records_by_date.get(d), d))
+        weekly.append(_to_attendance_day(db, records_by_date.get(d), d, school_id))
 
     # Last 30 days (newest → oldest)
     recent: list[AttendanceDay] = []
@@ -435,7 +430,11 @@ def student_profile(student_id: str, db: Session = Depends(get_db), school_id: s
         for row in notification_rows
     ]
     unread = sum(1 for row in notification_rows if not row.read)
-    open_incidents = 0
+    open_incidents = db.scalar(
+        select(func.count()).select_from(orm.Incident)
+        .join(orm.Zone, orm.Zone.zone_id == orm.Incident.zone_id)
+        .where(orm.Incident.zone_id == last_zone, orm.Zone.school_id == school_id, orm.Incident.resolved.is_(False))
+    ) if last_zone else 0
     eng_summary_obj = _get_agent().get_engagement_summary(student_id)
     eng_summary = (
         EngagementSummary(**eng_summary_obj.to_dict())
@@ -451,19 +450,19 @@ def student_profile(student_id: str, db: Session = Depends(get_db), school_id: s
         parent_id=student.parent_id,
         photo_initial=student.photo_initial,
         is_active=student.is_active,
-        safety_status=SafetyStatus.UNKNOWN.value,
+        safety_status=_safety_status_for(db, student, last_zone, school_id),
         today_status=today_status,
         arrival_time=arrival_iso,
         departure_time=departure_iso,
         last_seen_zone=last_zone,
-        last_seen_zone_label=None,
+        last_seen_zone_label=_zone_label(db, last_zone, school_id),
         attendance_streak=streak,
         monthly_attendance_pct=monthly_pct,
         last_30_days_present=present_count,
         last_30_days_total=total_count,
         weekly_attendance=weekly,
         recent_attendance=recent,
-        bracelet=_bracelet_summary(db, bracelet),
+        bracelet=_bracelet_summary(db, bracelet, school_id),
         notifications=ntf_items,
         unread_notifications=unread,
         open_incidents_in_last_zone=open_incidents,
