@@ -80,7 +80,9 @@ def verify_configured_next_database(engine: Engine | None = None) -> dict[str, A
         return {
             "status": "not_ready",
             "read_only": True,
-            "message": str(exc),
+            "error_type": type(exc).__name__,
+            "message": str(exc) if isinstance(exc, RuntimeError) else
+            "NEXT_DATABASE_URL is invalid. Check its PostgreSQL URL format without sharing credentials.",
         }
 
     owned_engine = engine is None
