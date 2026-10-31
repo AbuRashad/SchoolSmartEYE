@@ -52,11 +52,14 @@ def _make_service(
     )
 
 
-def test_build_agent_can_skip_persisted_feedback(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_agent_can_skip_persisted_feedback(
+    monkeypatch: pytest.MonkeyPatch, db_session_factory
+) -> None:
     load_feedback = Mock(side_effect=AssertionError("feedback should not be loaded"))
     monkeypatch.setattr(agent_store, "load_feedback", load_feedback)
 
-    agent = agent_store.build_agent(Mock(), "test-school", include_feedback=False)
+    with db_session_factory() as db:
+        agent = agent_store.build_agent(db, "test-school", include_feedback=False)
 
     load_feedback.assert_not_called()
     assert agent._feedback_log == []
