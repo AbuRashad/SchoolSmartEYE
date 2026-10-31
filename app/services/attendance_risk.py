@@ -68,26 +68,47 @@ def score_records(records: list[orm.AttendanceRecord], window_days: int = 14) ->
     }
 
 
-def student_risk(db: Session, student_id: str, window_days: int = 14) -> dict[str, object]:
+def student_risk(
+    db: Session, school_id: str, student_id: str, window_days: int = 14
+) -> dict[str, object]:
+    """Score one student only when the student belongs to the supplied authorized school."""
     since = date.today() - timedelta(days=window_days * 2)
-    recs = list(
-        db.scalars(
-            select(orm.AttendanceRecord).where(
-                orm.AttendanceRecord.student_id == student_id,
-                orm.AttendanceRecord.date >= since,
-            )
+    recs = list(db.scalars(
+        select(orm.AttendanceRecord)
+        .join(orm.Student, orm.Student.student_id == orm.AttendanceRecord.student_id)
+        .where(
+            orm.Student.school_id == school_id,
+            orm.Student.student_id == student_id,
+            orm.Student.is_active.is_(True),
+            orm.AttendanceRecord.date >= since,
         )
-    )
+    ))
     return {"student_id": student_id, **score_records(recs, window_days)}
 
 
-def school_risk(db: Session, window_days: int = 14) -> list[dict[str, object]]:
-    """All active students ranked by descending risk."""
+def school_risk(db: Session, school_id: str, window_days: int = 14) -> list[dict[str, object]]:
+    """Rank only active students and attendance records belonging to one school."""
     since = date.today() - timedelta(days=window_days * 2)
     by_student: dict[str, list[orm.AttendanceRecord]] = {}
-    for r in db.scalars(select(orm.AttendanceRecord).where(orm.AttendanceRecord.date >= since)):
+    records = db.scalars(
+        select(orm.AttendanceRecord)
+        .join(orm.Student, orm.Student.student_id == orm.AttendanceRecord.student_id)
+        .where(
+            orm.Student.school_id == school_id,
+            orm.Student.is_active.is_(True),
+            orm.AttendanceRecord.date >= since,
+        )
+    )
+    for r in records:
         by_student.setdefault(r.student_id, []).append(r)
-    students = {s.student_id: s for s in db.scalars(select(orm.Student).where(orm.Student.is_active))}
+    students = {
+        s.student_id: s for s in db.scalars(
+            select(orm.Student).where(
+                orm.Student.school_id == school_id,
+                orm.Student.is_active.is_(True),
+            )
+        )
+    }
     out = []
     for sid, s in students.items():
         out.append({"student_id": sid, "name": s.name, **score_records(by_student.get(sid, []), window_days)})
