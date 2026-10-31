@@ -191,3 +191,17 @@ def test_offline_until_first_frame(service: CameraIngestionService) -> None:
         assert worker.get_latest_jpeg() is None
     finally:
         service.unregister("cam-bogus")
+
+
+
+def test_anonymization_failure_rejects_frame(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A detector failure must never allow the original frame to reach a stream."""
+    from app.services import camera_ingestion
+
+    def fail_anonymization(_frame: np.ndarray) -> np.ndarray:
+        raise RuntimeError("detector unavailable")
+
+    monkeypatch.setattr(camera_ingestion, "anonymize_minor_faces", fail_anonymization)
+    frame = np.zeros((32, 32, 3), dtype=np.uint8)
+
+    assert camera_ingestion._anonymize_frame_or_reject(frame, "cam-privacy-test") is None
