@@ -15,6 +15,7 @@ ANOMALY_Z_THRESHOLD = 2.0
 
 def record_snapshot(
     db: Session,
+    school_id: str,
     ssi: float,
     *,
     anomaly_coefficient: float | None = None,
@@ -25,6 +26,7 @@ def record_snapshot(
     recorded_at: datetime | None = None,
 ) -> orm.SSISnapshot:
     snap = orm.SSISnapshot(
+        school_id=school_id,
         recorded_at=recorded_at or datetime.now(timezone.utc),
         ssi=float(ssi),
         anomaly_coefficient=anomaly_coefficient,
@@ -38,24 +40,32 @@ def record_snapshot(
     return snap
 
 
-def record_if_due(db: Session, ssi: float, min_interval_seconds: int = 300, **kwargs) -> bool:  # noqa: ANN003
-    """Record a live snapshot unless one was stored recently (bounds writes from polling)."""
+def record_if_due(
+    db: Session, school_id: str, ssi: float, min_interval_seconds: int = 300, **kwargs
+) -> bool:  # noqa: ANN003
+    """Record a snapshot only within the specified school's history."""
     last = db.scalar(select(orm.SSISnapshot)
-        .where(orm.SSISnapshot.source == kwargs.get("source", "live"))
+        .where(
+            orm.SSISnapshot.school_id == school_id,
+            orm.SSISnapshot.source == kwargs.get("source", "live"),
+        )
         .order_by(orm.SSISnapshot.recorded_at.desc())
         .limit(1))
     if last is not None and (datetime.now(timezone.utc) - last.recorded_at).total_seconds() < min_interval_seconds:
         return False
-    record_snapshot(db, ssi, **kwargs)
+    record_snapshot(db, school_id, ssi, **kwargs)
     return True
 
 
-def get_history(db: Session, days: int = 30) -> list[orm.SSISnapshot]:
+def get_history(db: Session, school_id: str, days: int = 30) -> list[orm.SSISnapshot]:
     since = datetime.now(timezone.utc) - timedelta(days=days)
     return list(
         db.scalars(
             select(orm.SSISnapshot)
-            .where(orm.SSISnapshot.recorded_at >= since)
+            .where(
+                orm.SSISnapshot.school_id == school_id,
+                orm.SSISnapshot.recorded_at >= since,
+            )
             .order_by(orm.SSISnapshot.recorded_at)
         )
     )
@@ -112,8 +122,8 @@ def detect_anomalies(
     ]
 
 
-def summarize(db: Session, days: int = 30) -> dict[str, object]:
-    snaps = get_history(db, days)
+def summarize(db: Session, school_id: str, days: int = 30) -> dict[str, object]:
+    snaps = get_history(db, school_id, days)
     daily = daily_series(snaps)
     trend = compute_trend(daily)
     values = [v for _, v in daily]
