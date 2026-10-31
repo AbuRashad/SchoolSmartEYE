@@ -41,3 +41,20 @@ revision, unexpected tables, and that every next-generation business table has
 zero rows. It is read-only and never creates a database or changes schema/data.
 Do not treat a `ready` result as authorization to connect application traffic or
 perform a cutover; those require separate review and explicit approval.
+
+
+## PostgreSQL row-level security
+
+Revision `ng_0002` enables and forces row-level security (RLS) for every
+allow-listed tenant-owned table, plus organization and user identity tables.
+The policies consume transaction-local values set by
+`app.db.nextgen.scope.apply_tenant_scope(session, context)`. Apply scope after
+the transaction begins and before any tenant query. The context must be built
+from the authenticated principal and a database-verified active membership.
+
+The runtime database role must not be a superuser and must not have
+`BYPASSRLS`. Prefer a dedicated least-privilege application role that does not
+own these tables. RLS enforces tenant boundaries; application authorization
+still enforces role permissions (read/write/manage). Never treat RLS as a
+replacement for authentication or RBAC. Test with the actual runtime role
+before connecting application traffic.
