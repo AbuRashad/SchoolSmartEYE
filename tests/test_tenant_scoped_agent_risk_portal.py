@@ -130,9 +130,15 @@ def test_new_student_is_assigned_to_server_resolved_school(
         assert student.school_id == "DEMO-SCHOOL-001"
 
 
-def test_zones_endpoint_fails_closed_until_school_ownership_exists(client, seeded):
+def test_zones_endpoint_returns_only_authenticated_school_zones(client, seeded, db_session_factory):
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="OTHER-SCHOOL", name="Other School", is_active=True))
+        db.add(orm.Zone(zone_id="OTHER-ZONE-001", school_id="OTHER-SCHOOL", label="Other Zone", zone_type="entrance", capacity=10, floor=0, grid_x=0, grid_y=0))
+        db.commit()
     response = client.get(f"{API}/zones")
-    assert response.status_code == 503
+    assert response.status_code == 200
+    assert len(response.json()) == 12
+    assert "OTHER-ZONE-001" not in {row["zone_id"] for row in response.json()}
 
 
 def test_bracelet_endpoints_follow_the_owning_students_school(
