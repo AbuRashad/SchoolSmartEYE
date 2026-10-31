@@ -2,9 +2,9 @@
 
 ## Decision status
 
-Partially implemented on 2026-10-31. Migrations `0003` and `0004` introduce school membership, nullable `students.school_id`, and nullable `zones.school_id`. Server-side membership and tenant scoping are implemented for the pedagogical agent, attendance-risk, student CRUD/profile/history, zones, bracelet CRUD/ping, and camera routes. The student portal mock was removed until a real authenticated parent/student identity link exists. Existing unassigned students/zones are not auto-backfilled.
+Partially implemented on 2026-10-31. Migrations `0003`–`0005` introduce school membership and nullable ownership fields for students, zones, SSI snapshots, and drills. Server-side membership and tenant scoping are implemented for the pedagogical agent, attendance-risk, student CRUD/profile/history, zones, bracelet CRUD/ping, camera routes, and SSI history. The student portal mock was removed until a real authenticated parent/student identity link exists. Existing unassigned students/zones are not auto-backfilled.
 
-This is **not** complete tenant isolation and does not authorize production multi-school use. The migration intentionally does not backfill existing users or student records. Existing unassigned records must be mapped only through a verified ownership process. Remaining endpoints and school-owned tables still require inventory, scoping, and negative cross-tenant tests.
+This is **not** complete tenant isolation and does not authorize production multi-school use. The migrations intentionally do not backfill existing users, student records, zones, SSI snapshots, or drills. Existing unassigned records must be mapped only through a verified ownership process. Remaining endpoints and school-owned tables still require inventory, scoping, and negative cross-tenant tests.
 
 ## Objective
 
@@ -99,6 +99,7 @@ Completed:
 - Removed the static mock student portal response; a real parent/student account link is still required.
 - Added negative regression tests for cross-school attendance aggregation, guessed student IDs, unauthorized school selection, portal mock-data removal, and student CRUD/profile/history isolation.
 - Added `zones.school_id` via migration `0004`, assigned newly seeded demo zones to the demo school, and filtered `/zones` by authenticated school. Legacy zones remain unassigned until verified mapping.
+- Added `school_id` to SSI snapshots and drills via migration `0005`; new demo rows are assigned to the demo school and SSI history queries are filtered by school. Legacy rows are not auto-backfilled; live SSI remains disabled.
 - Scoped bracelet list/create/update/delete through the owning student's school; bracelet ping now verifies the target zone belongs to that same school.
 - Added cross-school bracelet regression tests.
 - Scoped camera list/register/start/stop/delete/snapshot/stream through persisted camera records joined to a school-owned zone; registration rejects cross-school zones and unregistered camera sources are not exposed.
@@ -108,7 +109,7 @@ Completed:
 - Added cross-school camera registration/lifecycle denial tests. Dashboard, analytics, reports, SSI, unit-health and process-global settings remain fail-closed until their source data is partitioned by school.
 
 Still required:
-- Implement verified ownership for incidents, SSI snapshots, drills and remaining operational stores, plus per-school runtime settings; then re-enable dashboard/analytics/report/SSI/unit-health endpoints with school-filtered queries and per-school streaming/cache partitions.
+- Implement verified ownership for remaining operational stores and per-school runtime settings; then re-enable dashboard/analytics/report/live-SSI/unit-health endpoints with school-filtered queries and per-school streaming/cache partitions.
 - Scope every remaining attendance-write, notification-management, incident-management, analytics, SSI, drill, report, and export endpoint.
 - Add tenant ownership or a validated parent relationship to every remaining school-owned table and every in-memory/cache source; add class-level authorization and audit logging.
 - Define a safe, reviewed backfill for existing users, students, and operational data. Never assign all existing rows to the demo school by default.
