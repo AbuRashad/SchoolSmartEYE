@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # Create missing tables on startup. Set to false when schema is managed by
     # Alembic (`alembic upgrade head`).
     db_auto_create: bool = Field(default=True)
+    # Independent PostgreSQL target for the empty next-generation database.
+    # Leave unset until a separate database has been provisioned.
+    next_database_url: str = Field(default="")
 
     # ── Live camera ingestion ─────────────────────────────────────────────
     # Path to a JSON file listing real cameras to auto-register on startup.
