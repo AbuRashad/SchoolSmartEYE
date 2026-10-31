@@ -96,6 +96,7 @@ Completed:
 - Added a server-side resolver that validates any requested school against the authenticated user's active memberships, fails closed without membership, and rejects ambiguous multi-school scope.
 - Scoped pedagogical agent student lookup, snapshots, feedback reads/writes, metrics, and baselines to the resolved school.
 - Scoped individual and school-wide attendance risk queries through the Student join.
+- Scoped student-profile attendance history through an explicit `AttendanceRecord` → `Student` join filtered by the authenticated `school_id`.
 - Removed the static mock student portal response; a real parent/student account link is still required.
 - Added negative regression tests for cross-school attendance aggregation, guessed student IDs, unauthorized school selection, portal mock-data removal, and student CRUD/profile/history isolation.
 - Added `zones.school_id` via migration `0004`, assigned newly seeded demo zones to the demo school, and filtered `/zones` by authenticated school. Legacy zones remain unassigned until verified mapping.
@@ -134,3 +135,10 @@ Still required:
 - Added cross-school denial tests for guessed incident/drill IDs, foreign-zone incident creation, and server-side tenant assignment.
 - No notification-management API was added: existing profile notification reads are scoped through the student relationship, while standalone parent access remains blocked pending verified parent/student identity links.
 - Automated test execution and production deployment remain pending.
+
+
+## Student profile attendance query hardening — 2026-10-31
+
+- The profile attendance-history query now joins the owning `Student` row and filters by the authenticated school's `school_id` in the same SQL statement.
+- This is defense in depth alongside the profile's initial school-scoped student lookup; it avoids relying solely on globally unique student IDs as the tenant boundary.
+- No schema change or data migration was needed.
