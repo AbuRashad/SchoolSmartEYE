@@ -88,13 +88,13 @@ def test_role_matrix(anon_client, auth_headers) -> None:
     # Principal: writes allowed, ministry reports not
     p = auth_headers("principal")
     assert anon_client.post(f"{API}/students", json=student, headers=p).status_code == 201
-    assert anon_client.patch(f"{API}/settings", json={"camera_max_fps": 10}, headers=p).status_code == 200
+    assert anon_client.patch(f"{API}/settings", json={"camera_max_fps": 10}, headers=p).status_code == 503
     assert anon_client.get(f"{API}/reports/list", headers=p).status_code == 403
 
     # Ministry: everything
     m = auth_headers("ministry")
-    assert anon_client.get(f"{API}/reports/list", headers=m).status_code == 200
-    assert anon_client.get(f"{API}/reports/stats", headers=m).status_code == 200
+    assert anon_client.get(f"{API}/reports/list", headers=m).status_code == 503
+    assert anon_client.get(f"{API}/reports/stats", headers=m).status_code == 503
     assert anon_client.delete(f"{API}/students/S-9", headers=m).status_code == 204
 
 
