@@ -1,7 +1,9 @@
 """Units overview endpoint — provides health and metadata for all 15 system units."""
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.api.deps import get_current_school_id, require_teacher
 
 from app.units.unit_01.module import UNIT_01_NAME, VideoCaptureUnit
 from app.units.unit_02.module import UNIT_02_NAME
@@ -20,6 +22,17 @@ from app.units.unit_14.module import UNIT_14_NAME
 from app.units.unit_15.module import UNIT_15_NAME
 
 router = APIRouter(prefix="/units", tags=["units"])
+
+
+def _unit_health_unavailable(school_id: str) -> None:
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={
+            "code": "SCHOOL_SCOPED_UNIT_HEALTH_UNAVAILABLE",
+            "message": "Unit health and alert queues are process-global and are withheld until partitioned by school.",
+            "school_id": school_id,
+        },
+    )
 
 _UNIT_NAMES = [
     (1, UNIT_01_NAME, "Video Capture"),
@@ -64,12 +77,16 @@ def list_units() -> list[dict[str, object]]:
 
 
 @router.get("/capture/health")
-def capture_health() -> dict[str, object]:
-    """Unit 01 – real-time camera stream health."""
-    return _capture_unit.health_summary()
+def capture_health(
+    _user=Depends(require_teacher), school_id: str = Depends(get_current_school_id)
+) -> dict[str, object]:
+    """Unit 01 health is unavailable until streams are partitioned by school."""
+    _unit_health_unavailable(school_id)
 
 
 @router.get("/alerts/summary")
-def alerts_summary() -> dict[str, object]:
-    """Unit 09 – pending alert queue summary."""
-    return _alert_unit.summary()
+def alerts_summary(
+    _user=Depends(require_teacher), school_id: str = Depends(get_current_school_id)
+) -> dict[str, object]:
+    """Unit 09 alert queues are unavailable until partitioned by school."""
+    _unit_health_unavailable(school_id)
