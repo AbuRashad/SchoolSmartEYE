@@ -161,14 +161,11 @@ Roles follow the RBAC hierarchy of the governance layer: **Teacher → Principal
 | Access level | Endpoints |
 |--------------|-----------|
 | Public       | `/health`, `/auth/login`, `/units` (static unit metadata only) |
-| Teacher+     | School-scoped student, bracelet, agent and attendance-risk reads; other live operational feeds remain temporarily unavailable |
-| Principal+   | School-scoped student and bracelet management |
-| Ministry     | `/reports/*` (currently returns 503 until school-scoped report sources are implemented) |
-| Teacher+     | Read students, profiles, zones, bracelets, settings, camera list and camera streams |
-| Principal+   | Create / update / delete students and bracelets, bracelet ping, change settings, register / delete / start / stop cameras |
-| Ministry     | `/reports/*` |
+| Teacher+     | School-scoped student/profile/history, zones, bracelet reads, camera list/snapshot/stream, agent and attendance-risk reads |
+| Principal+   | School-scoped student and bracelet CRUD, bracelet ping, camera register/delete/start/stop |
+| Ministry     | `/reports/*` (temporarily returns 503 until school-scoped report sources are implemented) |
 
-**Tenant-isolation status:** Camera registry/streaming, dashboard feeds, SSI, analytics, report metrics, unit health/alerts, and process-global runtime settings are temporarily fail-closed (HTTP 503) until their underlying records and caches are partitioned by verified school ownership. This is deliberate: shared demo or process-global data must not be exposed as if it belonged to the signed-in school. Static `/units` metadata remains available. Camera streaming will be re-enabled after per-school camera persistence and stream partitioning are implemented.
+**Tenant-isolation status:** Camera registry, registration, lifecycle, snapshots, and streams now require a persisted camera joined to a zone owned by the authenticated school. Dashboard feeds/WebSocket, SSI, analytics, report metrics, unit health/alerts, and process-global runtime settings remain temporarily fail-closed (HTTP 503) until their underlying records and caches are partitioned by verified school ownership. Static `/units` metadata remains available.
 
 ### Security-related settings
 
@@ -220,8 +217,8 @@ All paths are under `/api/v1`. See the [roles table](#-authentication--roles) fo
 | GET    | `/ssi/live`             | Temporarily unavailable (503) until live signals are school-scoped |
 | GET    | `/ssi/history`          | Temporarily unavailable (503) until snapshots are school-scoped |
 | GET    | `/units`                | Metadata for the system units                |
-| GET    | `/units/capture/health` | Unit 01 camera stream health                 |
-| GET    | `/units/alerts/summary` | Unit 09 alert queue summary                  |
+| GET    | `/units/capture/health` | Temporarily unavailable (503) pending per-school stream health |
+| GET    | `/units/alerts/summary` | Temporarily unavailable (503) pending per-school alert queues |
 | GET    | `/analytics/overview`   | Temporarily unavailable (503) until metrics have school-scoped provenance |
 
 ### Reports (Ministry) and Parent Portal
@@ -353,13 +350,13 @@ Each registered camera appears as an MJPEG tile updated in real time.
 
 | Method | Endpoint                                          | Description                             |
 |--------|---------------------------------------------------|-----------------------------------------|
-| GET    | `/api/v1/cameras`                                 | Temporarily unavailable (503) pending school-owned camera registry |
-| POST   | `/api/v1/cameras`                                 | Temporarily unavailable (503) pending school-owned camera registry |
-| DELETE | `/api/v1/cameras/{camera_id}`                     | Temporarily unavailable (503) pending school-owned camera registry |
-| POST   | `/api/v1/cameras/{camera_id}/start`               | Temporarily unavailable (503) pending school-owned camera registry |
-| POST   | `/api/v1/cameras/{camera_id}/stop`                | Temporarily unavailable (503) pending school-owned camera registry |
-| GET    | `/api/v1/cameras/{camera_id}/snapshot.jpg`        | Temporarily unavailable (503) pending school-owned camera registry |
-| GET    | `/api/v1/cameras/{camera_id}/stream.mjpg`         | Temporarily unavailable (503) pending school-owned camera registry |
+| GET    | `/api/v1/cameras`                                 | List cameras linked to zones in the authenticated school (teacher+) |
+| POST   | `/api/v1/cameras`                                 | Register camera against a school-owned zone (principal+) |
+| DELETE | `/api/v1/cameras/{camera_id}`                     | Unregister a camera owned by the authenticated school (principal+) |
+| POST   | `/api/v1/cameras/{camera_id}/start`               | Start an owned camera worker (principal+) |
+| POST   | `/api/v1/cameras/{camera_id}/stop`                | Stop an owned camera worker (principal+) |
+| GET    | `/api/v1/cameras/{camera_id}/snapshot.jpg`        | One-shot JPEG after school membership check (teacher+) |
+| GET    | `/api/v1/cameras/{camera_id}/stream.mjpg`         | School-checked MJPEG stream (teacher+) |
 
 ### Tuning (in `.env`)
 
