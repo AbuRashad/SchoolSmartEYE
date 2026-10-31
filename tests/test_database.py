@@ -66,3 +66,16 @@ def test_school_metrics_come_from_database(db_session_factory) -> None:
         metrics = seed_data.get_school_metrics(db)
     assert metrics.total_students == 10
     assert metrics.present_today == 9  # one student is LATE
+
+
+
+def test_populate_skips_demo_records_in_production(db_session_factory, monkeypatch) -> None:
+    """Production startup must never insert synthetic student or operational records."""
+    monkeypatch.setattr(seed_data.settings, "app_env", "production")
+
+    with db_session_factory() as db:
+        seed_data.populate(db)
+        assert db.scalar(select(func.count()).select_from(orm.Student)) == 0
+        assert db.scalar(select(func.count()).select_from(orm.User)) == 0
+        assert db.scalar(select(func.count()).select_from(orm.Zone)) == 0
+        assert db.scalar(select(func.count()).select_from(orm.Camera)) == 0
