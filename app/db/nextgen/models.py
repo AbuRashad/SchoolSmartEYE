@@ -57,7 +57,10 @@ class School(NextBase, TimestampMixin):
 
 class Campus(NextBase, TimestampMixin):
     __tablename__ = "ng_campuses"
-    __table_args__ = (ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),)
+    __table_args__ = (
+        ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        UniqueConstraint("id", "school_id", "organization_id", name="uq_ng_campus_scope"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     school_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
@@ -90,7 +93,10 @@ class Membership(NextBase, TimestampMixin):
 
 class Guardian(NextBase, TimestampMixin):
     __tablename__ = "ng_guardians"
-    __table_args__ = (ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),)
+    __table_args__ = (
+        ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        UniqueConstraint("id", "school_id", "organization_id", name="uq_ng_guardian_scope"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     school_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
@@ -103,6 +109,7 @@ class Student(NextBase, TimestampMixin):
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
         UniqueConstraint("school_id", "student_number", name="uq_ng_student_number"),
+        UniqueConstraint("id", "school_id", "organization_id", name="uq_ng_student_scope"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
@@ -118,6 +125,8 @@ class StudentGuardian(NextBase):
     __tablename__ = "ng_student_guardians"
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["student_id", "school_id", "organization_id"], ["ng_students.id", "ng_students.school_id", "ng_students.organization_id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["guardian_id", "school_id", "organization_id"], ["ng_guardians.id", "ng_guardians.school_id", "ng_guardians.organization_id"], ondelete="CASCADE"),
         UniqueConstraint("student_id", "guardian_id", name="uq_ng_student_guardian"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -134,6 +143,7 @@ class AcademicClass(NextBase, TimestampMixin):
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
         UniqueConstraint("school_id", "academic_year", "class_code", name="uq_ng_class_year_code"),
+        UniqueConstraint("id", "school_id", "organization_id", name="uq_ng_class_scope"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
@@ -148,6 +158,8 @@ class Enrollment(NextBase, TimestampMixin):
     __tablename__ = "ng_enrollments"
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["student_id", "school_id", "organization_id"], ["ng_students.id", "ng_students.school_id", "ng_students.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["class_id", "school_id", "organization_id"], ["ng_classes.id", "ng_classes.school_id", "ng_classes.organization_id"], ondelete="RESTRICT"),
         UniqueConstraint("student_id", "class_id", name="uq_ng_enrollment_student_class"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -186,6 +198,8 @@ class Camera(NextBase, TimestampMixin):
     __tablename__ = "ng_cameras"
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["campus_id", "school_id", "organization_id"], ["ng_campuses.id", "ng_campuses.school_id", "ng_campuses.organization_id"], ondelete="RESTRICT"),
+        UniqueConstraint("id", "school_id", "organization_id", name="uq_ng_camera_scope"),
         UniqueConstraint("school_id", "camera_code", name="uq_ng_camera_code"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -202,6 +216,8 @@ class EdgeDevice(NextBase, TimestampMixin):
     __tablename__ = "ng_edge_devices"
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["camera_id", "school_id", "organization_id"], ["ng_cameras.id", "ng_cameras.school_id", "ng_cameras.organization_id"], ondelete="RESTRICT"),
+        UniqueConstraint("id", "school_id", "organization_id", name="uq_ng_edge_scope"),
         UniqueConstraint("school_id", "device_code", name="uq_ng_edge_device_code"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -218,6 +234,8 @@ class CameraTelemetry(NextBase):
     __tablename__ = "ng_camera_telemetry"
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["camera_id", "school_id", "organization_id"], ["ng_cameras.id", "ng_cameras.school_id", "ng_cameras.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["edge_device_id", "school_id", "organization_id"], ["ng_edge_devices.id", "ng_edge_devices.school_id", "ng_edge_devices.organization_id"], ondelete="RESTRICT"),
         UniqueConstraint("school_id", "idempotency_key", name="uq_ng_camera_telemetry_idempotency"),
         Index("ix_ng_camera_telemetry_time", "school_id", "observed_at"),
     )
@@ -238,6 +256,8 @@ class AIEvent(NextBase):
     __tablename__ = "ng_ai_events"
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["camera_id", "school_id", "organization_id"], ["ng_cameras.id", "ng_cameras.school_id", "ng_cameras.organization_id"], ondelete="RESTRICT"),
+        UniqueConstraint("id", "school_id", "organization_id", name="uq_ng_ai_event_scope"),
         Index("ix_ng_ai_events_school_detected", "school_id", "detected_at"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -257,7 +277,10 @@ class AIEvent(NextBase):
 
 class Incident(NextBase, TimestampMixin):
     __tablename__ = "ng_incidents"
-    __table_args__ = (ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),)
+    __table_args__ = (
+        ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["ai_event_id", "school_id", "organization_id"], ["ng_ai_events.id", "ng_ai_events.school_id", "ng_ai_events.organization_id"], ondelete="RESTRICT"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(String(36), nullable=False)
     school_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
@@ -272,7 +295,10 @@ class Incident(NextBase, TimestampMixin):
 
 class HumanReview(NextBase):
     __tablename__ = "ng_human_reviews"
-    __table_args__ = (ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),)
+    __table_args__ = (
+        ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["ai_event_id", "school_id", "organization_id"], ["ng_ai_events.id", "ng_ai_events.school_id", "ng_ai_events.organization_id"], ondelete="RESTRICT"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(String(36), nullable=False)
     school_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
