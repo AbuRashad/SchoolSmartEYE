@@ -24,14 +24,22 @@ async def _nightly_harvesting_loop() -> None:
         await asyncio.sleep(_HARVEST_INTERVAL_SECONDS)
         try:
             # Import lazily to avoid circular import at module level
+            from sqlalchemy import select
+            from app.db import models as orm
             from app.db.session import SessionLocal
             from app.services import agent_store
+            total_baselines = 0
             with SessionLocal() as db:
-                agent = agent_store.build_agent(db, include_feedback=False)
-            baselines = agent.compute_daily_baselines()
+                school_ids = list(db.scalars(
+                    select(orm.School.school_id).where(orm.School.is_active.is_(True))
+                ))
+                for school_id in school_ids:
+                    agent = agent_store.build_agent(db, school_id, include_feedback=False)
+                    total_baselines += len(agent.compute_daily_baselines())
             logger.info(
-                "Daily knowledge harvesting complete: %d student baseline(s) updated",
-                len(baselines),
+                "Daily school-scoped knowledge harvesting complete: %d baseline(s) across %d school(s)",
+                total_baselines,
+                len(school_ids),
             )
         except Exception:  # noqa: BLE001
             logger.exception("Daily knowledge harvesting failed")
