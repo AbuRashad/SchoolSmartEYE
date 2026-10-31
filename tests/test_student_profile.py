@@ -81,6 +81,9 @@ def test_profile_aggregates_all_sections(client, zone, db_session_factory) -> No
                              notification_type="safety", sent_at=now - timedelta(hours=2), read=False),
             orm.Notification(notification_id="N3", parent_id="PAR-E2E-1", student_id=SID, message="Report",
                              notification_type="info", sent_at=now - timedelta(days=1), read=True),
+            # Same student, but wrong recipient: must never appear in the profile.
+            orm.Notification(notification_id="N4", parent_id="PAR-OTHER", student_id=SID, message="Misrouted",
+                             notification_type="safety", sent_at=now - timedelta(minutes=30), read=False),
         ])
         db.commit()
 
@@ -103,6 +106,7 @@ def test_profile_aggregates_all_sections(client, zone, db_session_factory) -> No
     assert d["bracelet"]["low_battery"] is True and d["bracelet"]["battery_level"] == 12
     assert d["bracelet"]["last_seen_zone_label"] == zone.label
     assert [n["notification_id"] for n in d["notifications"]] == ["N1", "N2", "N3"]
+    assert "N4" not in [n["notification_id"] for n in d["notifications"]]
     assert d["unread_notifications"] == 2
     assert d["safety_status"] == "critical"
     assert d["open_incidents_in_last_zone"] == 1
