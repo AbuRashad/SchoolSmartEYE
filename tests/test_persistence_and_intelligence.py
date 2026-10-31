@@ -146,7 +146,7 @@ def test_agent_can_be_built_without_loading_feedback(db_session_factory, monkeyp
 def test_feedback_submission_and_baselines_skip_feedback_history(
     anon_client, auth_headers, seeded, monkeypatch
 ) -> None:
-    monkeypatch.setattr(agent_store, "load_feedback", lambda db: pytest.fail("feedback was loaded"))
+    monkeypatch.setattr(agent_store, "load_feedback", lambda db, school_id: pytest.fail("feedback was loaded"))
     payload = {
         "session_id": "SES-NO-HISTORY",
         "student_id": "STU-2024-0847",
