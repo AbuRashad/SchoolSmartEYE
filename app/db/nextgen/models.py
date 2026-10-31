@@ -6,11 +6,11 @@ No demo rows or legacy data are created by this metadata.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, Float, ForeignKey, ForeignKeyConstraint, Index,
+    Boolean, DateTime, Float, ForeignKey, ForeignKeyConstraint, Index,
     Integer, JSON, String, Text, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -110,7 +110,7 @@ class Student(NextBase, TimestampMixin):
     student_number: Mapped[str] = mapped_column(String(64), nullable=False)
     given_name: Mapped[str] = mapped_column(String(100), nullable=False)
     family_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    birth_date: Mapped[Date | None] = mapped_column(Date)
+    birth_date: Mapped[date | None] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
 
 
@@ -155,7 +155,7 @@ class Enrollment(NextBase, TimestampMixin):
     school_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     student_id: Mapped[str] = mapped_column(ForeignKey("ng_students.id"), nullable=False, index=True)
     class_id: Mapped[str] = mapped_column(ForeignKey("ng_classes.id"), nullable=False, index=True)
-    starts_on: Mapped[Date] = mapped_column(Date, nullable=False)
+    starts_on: Mapped[date] = mapped_column(Date, nullable=False)
     ends_on: Mapped[Date | None] = mapped_column(Date)
 
 
