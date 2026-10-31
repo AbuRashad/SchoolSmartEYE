@@ -205,3 +205,15 @@ def test_anonymization_failure_rejects_frame(monkeypatch: pytest.MonkeyPatch) ->
     frame = np.zeros((32, 32, 3), dtype=np.uint8)
 
     assert camera_ingestion._anonymize_frame_or_reject(frame, "cam-privacy-test") is None
+
+
+
+def test_production_forces_camera_anonymization(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A source-level opt-out must not disable face anonymization in production."""
+    from app.core.config import settings
+    from app.services.camera_ingestion import _must_anonymize
+
+    monkeypatch.setattr(settings, "app_env", "production")
+    source = CameraSource("cam-production", "zone-test", "Production", "0", anonymize_faces=False)
+
+    assert _must_anonymize(source) is True
