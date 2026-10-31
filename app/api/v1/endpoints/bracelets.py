@@ -286,14 +286,12 @@ def ping_bracelet(
     bracelet = _find(db, bracelet_id, school_id)
     if bracelet is None:
         raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
-    # Zone records have no school ownership yet; do not attach unscoped zone data.
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="Bracelet location updates are paused until zone ownership is migrated",
-    )
-    # Zone must exist (light validation)
-    if db.get(orm.Zone, payload.zone_id) is None:
+    # A location may only be assigned to a zone owned by this same school.
+    zone = db.get(orm.Zone, payload.zone_id)
+    if zone is None:
         raise HTTPException(status_code=400, detail=f"Zone {payload.zone_id!r} does not exist")
+    if zone.school_id != school_id:
+        raise HTTPException(status_code=404, detail="Zone not found in this school")
     bracelet.last_seen_zone = payload.zone_id
     bracelet.last_seen_at = datetime.now(timezone.utc)
     if payload.battery_level is not None:
