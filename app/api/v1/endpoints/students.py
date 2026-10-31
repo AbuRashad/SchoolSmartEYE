@@ -22,24 +22,9 @@ from app.models import (
     SafetyStatus,
 )
 from app.services import seed_data
-from app.services.pedagogical_agent import PedagogicalAgentService
+from app.services.agent_store import build_agent
 
 router = APIRouter(tags=["control"])
-
-# Lazy singleton for the pedagogical agent service (backed by seed_data stores)
-_agent: PedagogicalAgentService | None = None
-
-
-def _get_agent() -> PedagogicalAgentService:
-    global _agent  # noqa: PLW0603
-    if _agent is None:
-        from app.core.config import settings
-        _agent = PedagogicalAgentService(
-            snapshots=seed_data.engagement_snapshots,
-            feedback_log=[],  # profile only reads engagement snapshots
-            video_log_dir=settings.video_log_dir,
-        )
-    return _agent
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -467,7 +452,7 @@ def student_profile(student_id: str, db: Session = Depends(get_db), school_id: s
         .join(orm.Zone, orm.Zone.zone_id == orm.Incident.zone_id)
         .where(orm.Incident.zone_id == last_zone, orm.Zone.school_id == school_id, orm.Incident.resolved.is_(False))
     ) if last_zone else 0
-    eng_summary_obj = _get_agent().get_engagement_summary(student_id)
+    eng_summary_obj = build_agent(db, school_id, include_feedback=False).get_engagement_summary(student_id)
     eng_summary = (
         EngagementSummary(**eng_summary_obj.to_dict())
         if eng_summary_obj is not None
@@ -525,7 +510,7 @@ def student_behavioral_history(
     if _find_student(db, student_id, school_id) is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
 
-    snapshots = _get_agent().get_behavioral_history(student_id, days=days)
+    snapshots = build_agent(db, school_id, include_feedback=False).get_behavioral_history(student_id, days=days)
     return [
         EngagementSnapshotOut(
             student_id=s.student_id,
