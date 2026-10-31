@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.api.deps import require_principal
+from app.api.deps import get_current_school_id, require_principal
 from app.api.v1.endpoints.analytics import analytics_overview
 from app.db.models import User
 from app.services.agent_orchestrator import run_orchestration
@@ -84,6 +84,7 @@ class OrchestrateResponse(BaseModel):
 def orchestrate_agents(
     payload: OrchestrateRequest,
     _user: User = Depends(require_principal),
+    school_id: str = Depends(get_current_school_id),
 ) -> OrchestrateResponse:
     """Coordinate specialist agents over allowlisted aggregate metrics.
 
@@ -91,7 +92,7 @@ def orchestrate_agents(
     are fetched. AI analyses are advisory and cannot alter deterministic findings.
     """
     try:
-        result = run_orchestration(payload.task, analytics_overview())
+        result = run_orchestration(payload.task, analytics_overview(school_id))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
     return OrchestrateResponse.model_validate(result)
