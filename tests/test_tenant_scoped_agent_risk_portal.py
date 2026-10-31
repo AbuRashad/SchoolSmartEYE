@@ -133,3 +133,41 @@ def test_new_student_is_assigned_to_server_resolved_school(
 def test_zones_endpoint_fails_closed_until_school_ownership_exists(client, seeded):
     response = client.get(f"{API}/zones")
     assert response.status_code == 503
+
+
+def test_bracelet_endpoints_follow_the_owning_students_school(
+    client, seeded, db_session_factory
+):
+    with db_session_factory() as db:
+        _add_other_school(db)
+        db.add(orm.Bracelet(
+            bracelet_id="OTHER-BRACELET-001",
+            student_id="OTHER-STUDENT-001",
+            mac_address="AA:BB:CC:DD:EE:99",
+            battery_level=80,
+            is_active=True,
+            firmware_version="1.0.0",
+            notes="",
+        ))
+        db.commit()
+
+    listed = client.get(f"{API}/bracelets")
+    assert listed.status_code == 200
+    assert "OTHER-BRACELET-001" not in {row["bracelet_id"] for row in listed.json()}
+
+    guessed_update = client.patch(
+        f"{API}/bracelets/OTHER-BRACELET-001",
+        json={"notes": "unauthorized"},
+    )
+    guessed_delete = client.delete(f"{API}/bracelets/OTHER-BRACELET-001")
+    cross_school_assignment = client.post(
+        f"{API}/bracelets",
+        json={
+            "bracelet_id": "CROSS-SCHOOL-BRACELET",
+            "student_id": "OTHER-STUDENT-001",
+            "mac_address": "AA:BB:CC:DD:EE:98",
+        },
+    )
+    assert guessed_update.status_code == 404
+    assert guessed_delete.status_code == 404
+    assert cross_school_assignment.status_code == 400
