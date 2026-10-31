@@ -184,3 +184,15 @@ def test_camera_and_zone_dependent_services_fail_closed(client, seeded):
     ):
         response = client.get(path)
         assert response.status_code == 503, f"{path} returned {response.status_code}"
+
+
+def test_global_operational_feeds_fail_closed_until_school_partitioned(client, seeded):
+    for path in (
+        f"{API}/ssi/live",
+        f"{API}/ssi/history",
+        f"{API}/units/capture/health",
+        f"{API}/units/alerts/summary",
+        f"{API}/settings",
+    ):
+        response = client.get(path)
+        assert response.status_code == 503, f"{path} returned {response.status_code}"
