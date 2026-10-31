@@ -411,3 +411,27 @@ def test_runtime_settings_read_and_write_remain_disabled_until_tenant_storage(cl
     assert write_response.status_code == 503
     assert write_response.json()["detail"]["code"] == "SCHOOL_SCOPED_SETTINGS_UNAVAILABLE"
     assert after == before
+
+def test_school_built_pedagogical_agent_excludes_other_school_snapshots(
+    seeded, db_session_factory, monkeypatch
+):
+    from dataclasses import replace
+    from app.services import agent_store, seed_data
+
+    with db_session_factory() as db:
+        _add_other_school(db)
+        demo_snapshot = seed_data.engagement_snapshots[0]
+        foreign_snapshot = replace(demo_snapshot, student_id="OTHER-STUDENT-001")
+        monkeypatch.setattr(
+            seed_data,
+            "engagement_snapshots",
+            [demo_snapshot, foreign_snapshot],
+        )
+
+        scoped_agent = agent_store.build_agent(
+            db, "DEMO-SCHOOL-001", include_feedback=False
+        )
+        assert scoped_agent.get_behavioral_history("OTHER-STUDENT-001", days=365) == []
+        assert scoped_agent.get_behavioral_history(
+            demo_snapshot.student_id, days=365
+        )
