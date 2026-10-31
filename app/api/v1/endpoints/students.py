@@ -413,10 +413,28 @@ def student_profile(student_id: str, db: Session = Depends(get_db), school_id: s
     monthly_pct = round((present_count / total_count) * 100.0, 1) if total_count else 0.0
     streak = _compute_streak(records_by_date, today)
 
-    # Notifications, incidents and zone labels are withheld until those records
-    # carry verified school ownership. Student-keyed attendance/engagement remain scoped.
-    ntf_items: list[NotificationItem] = []
-    unread = 0
+    # Notification ownership is proven through its linked student record.
+    notification_rows = db.scalars(
+        select(orm.Notification)
+        .join(orm.Student, orm.Student.student_id == orm.Notification.student_id)
+        .where(
+            orm.Student.school_id == school_id,
+            orm.Notification.student_id == student_id,
+        )
+        .order_by(orm.Notification.sent_at.desc())
+        .limit(50)
+    ).all()
+    ntf_items = [
+        NotificationItem(
+            notification_id=row.notification_id,
+            message=row.message,
+            notification_type=row.notification_type,
+            sent_at=row.sent_at.isoformat(),
+            read=row.read,
+        )
+        for row in notification_rows
+    ]
+    unread = sum(1 for row in notification_rows if not row.read)
     open_incidents = 0
     eng_summary_obj = _get_agent().get_engagement_summary(student_id)
     eng_summary = (
@@ -473,7 +491,7 @@ def student_behavioral_history(
     if days < 1 or days > 365:
         raise HTTPException(status_code=400, detail="days must be between 1 and 365")
 
-    if _find_student(db, student_id) is None:
+    if _find_student(db, student_id, school_id) is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
 
     snapshots = _get_agent().get_behavioral_history(student_id, days=days)
