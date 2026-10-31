@@ -175,6 +175,7 @@ class AttendanceEvent(NextBase):
     __tablename__ = "ng_attendance_events"
     __table_args__ = (
         ForeignKeyConstraint(["school_id", "organization_id"], ["ng_schools.id", "ng_schools.organization_id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["student_id", "school_id", "organization_id"], ["ng_students.id", "ng_students.school_id", "ng_students.organization_id"], ondelete="RESTRICT"),
         Index("ix_ng_attendance_school_time", "school_id", "occurred_at"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
