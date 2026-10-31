@@ -19,7 +19,7 @@ def upgrade() -> None:
         "schools",
         sa.Column("school_id", sa.String(length=64), nullable=False),
         sa.Column("name", sa.String(length=160), nullable=False),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.PrimaryKeyConstraint("school_id"),
     )
     op.create_table(
@@ -27,7 +27,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
         sa.Column("school_id", sa.String(length=64), nullable=False),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["school_id"], ["schools.school_id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
