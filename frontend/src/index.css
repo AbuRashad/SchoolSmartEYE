@@ -1,25 +1,40 @@
+@import url("https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* SchoolSmartEYE — institutional navy, warm ivory and muted gold. */
 :root {
-  color: #dfeafb;
-  background: #07111f;
-  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  color: #f4f0e8;
+  background: #101a2a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --sse-ink: #18263b;
+  --sse-navy: #101a2a;
+  --sse-panel: #1a2a40;
+  --sse-ivory: #f4f0e8;
+  --sse-gold: #c5a66a;
+  --sse-gold-soft: rgba(197, 166, 106, .14);
+  --sse-border: rgba(197, 166, 106, .18);
+  --sse-muted: #b9c3d1;
+  --sse-success: #78b69a;
 }
-
+* { box-sizing: border-box; }
+html, body, #root { min-width: 320px; min-height: 100%; margin: 0; }
 body {
-  margin: 0;
-  min-width: 320px;
   min-height: 100vh;
-  background: #07111f;
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(197,166,106,.09), transparent 32%),
+    radial-gradient(ellipse at 100% 100%, rgba(53,86,126,.16), transparent 38%),
+    #101a2a;
+  color: var(--sse-ivory);
+  font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  line-height: 1.65;
 }
-
-* {
-  box-sizing: border-box;
-}
-
-button,
-input {
-  font: inherit;
-}
+button, input, textarea, select { font: inherit; }
+h1, h2, h3, h4, h5, h6 { font-family: "Amiri", "IBM Plex Sans Arabic", Georgia, serif; }
+::selection { color: #101a2a; background: #c5a66a; }
+:focus-visible { outline: 2px solid #c5a66a; outline-offset: 3px; }
