@@ -35,17 +35,19 @@ def upgrade() -> None:
     )
     op.create_index("ix_school_memberships_user_id", "school_memberships", ["user_id"])
     op.create_index("ix_school_memberships_school_id", "school_memberships", ["school_id"])
-    op.add_column("students", sa.Column("school_id", sa.String(length=64), nullable=True))
-    op.create_foreign_key(
-        "fk_students_school_id_schools", "students", "schools", ["school_id"], ["school_id"]
-    )
-    op.create_index("ix_students_school_id", "students", ["school_id"])
+    with op.batch_alter_table("students") as batch_op:
+        batch_op.add_column(sa.Column("school_id", sa.String(length=64), nullable=True))
+        batch_op.create_foreign_key(
+            "fk_students_school_id_schools", "schools", ["school_id"], ["school_id"]
+        )
+        batch_op.create_index("ix_students_school_id", ["school_id"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_students_school_id", table_name="students")
-    op.drop_constraint("fk_students_school_id_schools", "students", type_="foreignkey")
-    op.drop_column("students", "school_id")
+    with op.batch_alter_table("students") as batch_op:
+        batch_op.drop_index("ix_students_school_id")
+        batch_op.drop_constraint("fk_students_school_id_schools", type_="foreignkey")
+        batch_op.drop_column("school_id")
     op.drop_index("ix_school_memberships_school_id", table_name="school_memberships")
     op.drop_index("ix_school_memberships_user_id", table_name="school_memberships")
     op.drop_table("school_memberships")
