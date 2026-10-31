@@ -11,8 +11,13 @@ from app.services import seed_data
 from app.services.pedagogical_agent import PedagogicalAgentService
 
 
-def load_feedback(db: Session) -> list[AgentFeedback]:
-    rows = db.scalars(select(orm.AgentFeedbackRecord).order_by(orm.AgentFeedbackRecord.recorded_at))
+def load_feedback(db: Session, school_id: str) -> list[AgentFeedback]:
+    rows = db.scalars(
+        select(orm.AgentFeedbackRecord)
+        .join(orm.Student, orm.Student.student_id == orm.AgentFeedbackRecord.student_id)
+        .where(orm.Student.school_id == school_id)
+        .order_by(orm.AgentFeedbackRecord.recorded_at)
+    )
     return [
         AgentFeedback(
             feedback_id=r.feedback_id,
@@ -27,11 +32,20 @@ def load_feedback(db: Session) -> list[AgentFeedback]:
     ]
 
 
-def build_agent(db: Session, *, include_feedback: bool = True) -> PedagogicalAgentService:
-    """Build a service, optionally loading persisted teacher feedback."""
+def build_agent(
+    db: Session,
+    school_id: str,
+    *,
+    include_feedback: bool = True,
+) -> PedagogicalAgentService:
+    """Build a strictly school-scoped service; unknown/unassigned students are excluded."""
+    student_ids = set(db.scalars(
+        select(orm.Student.student_id).where(orm.Student.school_id == school_id)
+    ))
+    snapshots = [item for item in seed_data.engagement_snapshots if item.student_id in student_ids]
     return PedagogicalAgentService(
-        snapshots=seed_data.engagement_snapshots,
-        feedback_log=load_feedback(db) if include_feedback else [],
+        snapshots=snapshots,
+        feedback_log=load_feedback(db, school_id) if include_feedback else [],
         video_log_dir=settings.video_log_dir,
     )
 
