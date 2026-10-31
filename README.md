@@ -165,7 +165,7 @@ Roles follow the RBAC hierarchy of the governance layer: **Teacher → Principal
 | Principal+   | School-scoped student and bracelet CRUD, bracelet ping, camera register/delete/start/stop |
 | Ministry     | `/reports/*` (temporarily returns 503 until school-scoped report sources are implemented) |
 
-**Tenant-isolation status:** Camera registry, registration, lifecycle, snapshots, and streams now require a persisted camera joined to a zone owned by the authenticated school. Dashboard feeds/WebSocket, SSI, analytics, report metrics, unit health/alerts, and process-global runtime settings remain temporarily fail-closed (HTTP 503) until their underlying records and caches are partitioned by verified school ownership. Static `/units` metadata remains available.
+**Tenant-isolation status:** Camera registry, registration, lifecycle, snapshots, and streams now require a persisted camera joined to a zone owned by the authenticated school. Dashboard feeds/WebSocket, live SSI, analytics, report metrics, unit health/alerts, and process-global runtime settings remain temporarily fail-closed (HTTP 503) until their underlying records and caches are partitioned by verified school ownership. Historical SSI is available only for snapshots explicitly assigned to the authenticated school. Static `/units` metadata remains available.
 
 ### Security-related settings
 
@@ -215,7 +215,7 @@ All paths are under `/api/v1`. See the [roles table](#-authentication--roles) fo
 | Method | Endpoint                | Description                                  |
 |--------|-------------------------|----------------------------------------------|
 | GET    | `/ssi/live`             | Temporarily unavailable (503) until live signals are school-scoped |
-| GET    | `/ssi/history`          | Temporarily unavailable (503) until snapshots are school-scoped |
+| GET    | `/ssi/history`          | School-scoped historical trend and anomaly summary |
 | GET    | `/units`                | Metadata for the system units                |
 | GET    | `/units/capture/health` | Temporarily unavailable (503) pending per-school stream health |
 | GET    | `/units/alerts/summary` | Temporarily unavailable (503) pending per-school alert queues |
