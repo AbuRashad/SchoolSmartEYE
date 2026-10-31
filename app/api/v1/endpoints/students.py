@@ -263,6 +263,12 @@ def delete_student(student_id: str, db: Session = Depends(get_db)) -> Response:
 
 @router.get("/zones", response_model=list[ZoneOut], dependencies=[Depends(require_teacher)])
 def list_zones(db: Session = Depends(get_db)) -> list[ZoneOut]:
+    # Zone records have no school ownership column yet; fail closed rather than
+    # disclose a shared cross-school inventory.
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Zone data is temporarily unavailable until school-level ownership is migrated",
+    )
     return [
         ZoneOut(
             zone_id=z.zone_id,
@@ -304,7 +310,7 @@ def _bracelet_summary(db: Session, bracelet: orm.Bracelet | None) -> BraceletSum
         battery_level=bracelet.battery_level,
         is_active=bracelet.is_active,
         last_seen_zone=bracelet.last_seen_zone,
-        last_seen_zone_label=_zone_label(db, bracelet.last_seen_zone),
+        last_seen_zone_label=None,
         last_seen_at=bracelet.last_seen_at.isoformat() if bracelet.last_seen_at else None,
         firmware_version=bracelet.firmware_version,
         notes=bracelet.notes,
@@ -328,7 +334,7 @@ def _to_attendance_day(db: Session, rec: orm.AttendanceRecord | None, day: date)
         arrival_time=rec.arrival_time.isoformat() if rec.arrival_time else None,
         departure_time=rec.departure_time.isoformat() if rec.departure_time else None,
         last_seen_zone=rec.last_seen_zone,
-        last_seen_zone_label=_zone_label(db, rec.last_seen_zone),
+        last_seen_zone_label=None,
     )
 
 
@@ -418,47 +424,12 @@ def student_profile(student_id: str, db: Session = Depends(get_db)) -> StudentPr
     monthly_pct = round((present_count / total_count) * 100.0, 1) if total_count else 0.0
     streak = _compute_streak(records_by_date, today)
 
-    # Notifications for parent/student
-    ntfs_sorted = db.scalars(
-        select(orm.Notification)
-        .where(
-            or_(
-                orm.Notification.student_id == student_id,
-                orm.Notification.parent_id == student.parent_id,
-            )
-        )
-        .order_by(orm.Notification.sent_at.desc())
-        .limit(20)
-    ).all()
-    unread = sum(1 for n in ntfs_sorted if not n.read)
-    ntf_items = [
-        NotificationItem(
-            notification_id=n.notification_id,
-            message=n.message,
-            notification_type=n.notification_type,
-            sent_at=n.sent_at.isoformat(),
-            read=n.read,
-        )
-        for n in ntfs_sorted
-    ]
-
-    # Open incidents in last-seen zone
-    open_incidents = (
-        db.scalar(
-            select(func.count()).select_from(orm.Incident).where(
-                orm.Incident.zone_id == last_zone, orm.Incident.resolved.is_(False)
-            )
-        )
-        if last_zone else 0
-    )
-
-    # Engagement summary from Unit 15
-    eng_summary_obj = _get_agent().get_engagement_summary(student_id)
-    eng_summary = (
-        EngagementSummary(**eng_summary_obj.to_dict())
-        if eng_summary_obj is not None
-        else None
-    )
+    # Notification, incident, zone-label and engagement stores are not yet tenant-scoped.
+    # Do not expose cross-school data through this aggregate profile.
+    ntf_items: list[NotificationItem] = []
+    unread = 0
+    open_incidents = 0
+    eng_summary = None
 
     return StudentProfile(
         student_id=student.student_id,
@@ -468,12 +439,12 @@ def student_profile(student_id: str, db: Session = Depends(get_db)) -> StudentPr
         parent_id=student.parent_id,
         photo_initial=student.photo_initial,
         is_active=student.is_active,
-        safety_status=_safety_status_for(db, student, last_zone),
+        safety_status=SafetyStatus.UNKNOWN.value,
         today_status=today_status,
         arrival_time=arrival_iso,
         departure_time=departure_iso,
         last_seen_zone=last_zone,
-        last_seen_zone_label=_zone_label(db, last_zone),
+        last_seen_zone_label=None,
         attendance_streak=streak,
         monthly_attendance_pct=monthly_pct,
         last_30_days_present=present_count,
@@ -500,6 +471,7 @@ def student_behavioral_history(
     student_id: str,
     days: int = 30,
     db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
 ) -> list[EngagementSnapshotOut]:
     """Return per-student engagement snapshots for the last N days (default 30),
     newest first.  Powered by Unit 15 — Pedagogical Behavioral Intelligence Agent.
