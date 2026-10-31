@@ -34,3 +34,11 @@ def test_downgrade_removes_only_the_named_policy_and_disables_rls():
     sql = "\n".join(disable_tenant_rls_statements())
     assert 'DROP POLICY IF EXISTS "tenant_isolation"' in sql
     assert "DISABLE ROW LEVEL SECURITY" in sql
+
+
+def test_user_identity_policy_is_read_only_for_application_role():
+    sql = "\\n".join(enable_tenant_rls_statements())
+    user_policy = next(line for line in sql.splitlines() if 'ON "ng_users" FOR SELECT' in line)
+    assert "FOR SELECT" in user_policy
+    assert 'CREATE POLICY "tenant_isolation" ON "ng_users" ' in sql
+    assert 'CREATE POLICY "tenant_isolation" ON "ng_users" FOR ALL' not in sql
