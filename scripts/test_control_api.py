@@ -65,31 +65,16 @@ def check(name: str, condition: bool, detail: str = "") -> None:
 print("\n── SETTINGS ──────────────────────────────────────────────")
 
 r = client.get("/api/v1/settings")
-check("GET /settings → 200", r.status_code == 200, r.text)
-initial_settings = r.json()
-check("  has camera_max_fps field", "camera_max_fps" in initial_settings)
-check("  has bracelet_low_battery_percent field", "bracelet_low_battery_percent" in initial_settings)
+check("GET /settings fails closed → 503", r.status_code == 503, r.text)
 
 r = client.patch("/api/v1/settings", json={"camera_max_fps": 7.5, "ssi_benchmark": 85.0})
-check("PATCH /settings happy path → 200", r.status_code == 200, r.text)
-check("  camera_max_fps updated to 7.5", r.json()["camera_max_fps"] == 7.5)
-check("  ssi_benchmark updated to 85.0", r.json()["ssi_benchmark"] == 85.0)
-
-r = client.patch("/api/v1/settings", json={"camera_max_fps": 9999})
-check("PATCH /settings out-of-range → 422", r.status_code == 422, r.text)
-
-r = client.patch("/api/v1/settings", json={"bracelet_low_battery_percent": 0})
-check("PATCH /settings battery=0 → 422", r.status_code == 422)
+check("PATCH /settings fails closed → 503", r.status_code == 503, r.text)
 
 
 print("\n── ZONES ─────────────────────────────────────────────────")
 
 r = client.get("/api/v1/zones")
-check("GET /zones → 200", r.status_code == 200)
-zones = r.json()
-check("  returns non-empty list", isinstance(zones, list) and len(zones) > 0)
-check("  entries have zone_id + label", all("zone_id" in z and "label" in z for z in zones))
-first_zone_id = zones[0]["zone_id"]
+check("GET /zones fails closed → 503", r.status_code == 503, r.text)
 
 
 print("\n── STUDENTS ──────────────────────────────────────────────")
@@ -170,22 +155,12 @@ dup_mac = {
 r = client.post("/api/v1/bracelets", json=dup_mac)
 check("POST /bracelets duplicate MAC → 409", r.status_code == 409)
 
-# Ping heartbeat
+# Location heartbeat remains disabled until zone ownership is migrated.
 r = client.post(
     "/api/v1/bracelets/br-test-001/ping",
-    json={"zone_id": first_zone_id, "battery_level": 42},
+    json={"zone_id": "legacy-zone", "battery_level": 42},
 )
-check("POST /bracelets/{id}/ping → 200", r.status_code == 200, r.text)
-body = r.json()
-check("  last_seen_zone updated", body["last_seen_zone"] == first_zone_id)
-check("  battery_level updated to 42", body["battery_level"] == 42)
-check("  low_battery=True @ 42% (threshold 30 default? check flag)", isinstance(body["low_battery"], bool))
-
-r = client.post(
-    "/api/v1/bracelets/br-test-001/ping",
-    json={"zone_id": "zone-invalid"},
-)
-check("POST /bracelets/{id}/ping unknown zone → 400", r.status_code == 400)
+check("POST /bracelets/{id}/ping fails closed → 503", r.status_code == 503, r.text)
 
 r = client.patch("/api/v1/bracelets/br-test-001", json={"battery_level": 100, "is_active": False})
 check("PATCH /bracelets/{id} → 200", r.status_code == 200, r.text)
@@ -206,45 +181,25 @@ r = client.delete("/api/v1/students/stu-test-001")
 check("DELETE /students/{id} again → 404", r.status_code == 404)
 
 
-print("\n── CAMERAS PERSISTENCE ───────────────────────────────────")
+print("\n── CAMERAS TENANT BOUNDARY ────────────────────────────────")
 
-# Remove any leftover camera with same id
-client.delete("/api/v1/cameras/cam-test-001")
-
-cam_payload = {
-    "camera_id": "cam-test-001",
-    "zone_id": first_zone_id,
-    "label": "Test Camera",
-    "source_url": "0",
-    "anonymize_faces": True,
-}
-r = client.post("/api/v1/cameras", json=cam_payload)
-check("POST /cameras → 201/200", r.status_code in (200, 201), r.text)
-
-check(
-    "  cameras.json persisted to disk",
-    _TMP_CAMERAS.exists(),
-    f"expected {_TMP_CAMERAS} to exist",
-)
-if _TMP_CAMERAS.exists():
-    persisted = json.loads(_TMP_CAMERAS.read_text(encoding="utf-8"))
-    ids = [e.get("camera_id") for e in persisted]
-    check("  persisted entry contains cam-test-001", "cam-test-001" in ids)
-
-# Stop & restart
-r = client.post("/api/v1/cameras/cam-test-001/stop")
-check("POST /cameras/{id}/stop → 200", r.status_code == 200)
-
-r = client.post("/api/v1/cameras/cam-test-001/start")
-check("POST /cameras/{id}/start → 200", r.status_code == 200)
-
-r = client.delete("/api/v1/cameras/cam-test-001")
-check("DELETE /cameras/{id} → 204", r.status_code == 204)
-
-if _TMP_CAMERAS.exists():
-    persisted = json.loads(_TMP_CAMERAS.read_text(encoding="utf-8"))
-    ids = [e.get("camera_id") for e in persisted]
-    check("  cameras.json no longer contains cam-test-001", "cam-test-001" not in ids)
+# Camera ingestion is process-global; no list, stream, or mutation is allowed
+# until camera records and workers are partitioned by verified school ownership.
+for method, path, payload in (
+    ("get", "/api/v1/cameras", None),
+    ("post", "/api/v1/cameras", {
+        "camera_id": "cam-test-001",
+        "zone_id": "legacy-zone",
+        "label": "Test Camera",
+        "source_url": "0",
+        "anonymize_faces": True,
+    }),
+    ("post", "/api/v1/cameras/cam-test-001/stop", None),
+    ("post", "/api/v1/cameras/cam-test-001/start", None),
+    ("delete", "/api/v1/cameras/cam-test-001", None),
+):
+    response = getattr(client, method)(path, json=payload) if payload is not None else getattr(client, method)(path)
+    check(f"{method.upper()} {path} fails closed → 503", response.status_code == 503, response.text)
 
 
 print("\n──────────────────────────────────────────────────────────")
