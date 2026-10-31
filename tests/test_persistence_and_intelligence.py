@@ -23,7 +23,9 @@ def test_operational_seed_is_persisted_and_idempotent(seeded) -> None:
         assert db.query(orm.Camera).count() == 12
         assert db.query(orm.Incident).count() == 5
         assert db.query(orm.SSISnapshot).count() == 30
+        assert all(row.school_id == "DEMO-SCHOOL-001" for row in db.query(orm.SSISnapshot).all())
         assert db.query(orm.Drill).count() == 3
+        assert all(row.school_id == "DEMO-SCHOOL-001" for row in db.query(orm.Drill).all())
         assert db.query(orm.AgentFeedbackRecord).count() == 3
         assert seed_data.seed_operational(db) is False
         assert db.query(orm.Zone).count() == 12
@@ -38,19 +40,23 @@ def test_zones_endpoint_reads_from_db(client, seeded) -> None:
 def test_ssi_history_trend_and_anomaly(db_session_factory) -> None:
     now = datetime.now(timezone.utc)
     with db_session_factory() as db:
+        db.add(orm.School(school_id="TEST-SSI-SCHOOL", name="SSI Test School", is_active=True))
+        db.commit()
         for i in range(10):
             val = 60.0 + i * 2
             if i == 5:
                 val = 20.0
-            ssi_history.record_snapshot(db, val, recorded_at=now - timedelta(days=9 - i))
-        summary = ssi_history.summarize(db, 30)
+            ssi_history.record_snapshot(
+                db, "TEST-SSI-SCHOOL", val, recorded_at=now - timedelta(days=9 - i)
+            )
+        summary = ssi_history.summarize(db, "TEST-SSI-SCHOOL", 30)
     assert summary["trend"] == "improving"
     assert [a["ssi"] for a in summary["anomalies"]] == [20.0]
 
 
 def test_ssi_history_insufficient_data(db_session_factory, anon_client) -> None:
     with db_session_factory() as db:
-        summary = ssi_history.summarize(db)
+        summary = ssi_history.summarize(db, "EMPTY-SSI-SCHOOL")
     assert summary["trend"] == "insufficient_data"
     assert summary["average"] is None and summary["scores"] == []
     assert anon_client.get(f"{API}/ssi/history").status_code == 401
@@ -67,9 +73,22 @@ def test_ssi_trend_uses_elapsed_calendar_days() -> None:
     assert trend["direction"] == "stable"
 
 
-def test_ssi_endpoints_fail_closed_until_school_scoped(anon_client, client, db_session_factory, auth_headers) -> None:
+def test_ssi_history_is_school_scoped_while_live_remains_disabled(client, db_session_factory) -> None:
     seed_data.populate()
-    assert client.get(f"{API}/ssi/history").status_code == 503
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="OTHER-SSI-SCHOOL", name="Other SSI School", is_active=True))
+        db.add(orm.SSISnapshot(
+            school_id="OTHER-SSI-SCHOOL",
+            recorded_at=datetime.now(timezone.utc),
+            ssi=1.0,
+            source="test",
+        ))
+        db.commit()
+
+    history = client.get(f"{API}/ssi/history")
+    assert history.status_code == 200
+    assert len(history.json()["scores"]) == 30
+    assert all(point["ssi"] != 1.0 for point in history.json()["scores"])
     assert client.get(f"{API}/ssi/live").status_code == 503
     assert client.get(f"{API}/dashboard/summary").status_code == 503
     with db_session_factory() as db:
