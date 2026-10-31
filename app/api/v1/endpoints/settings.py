@@ -1,10 +1,10 @@
 """Runtime settings GET / PATCH endpoint used by the Control Panel."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.api.deps import require_principal, require_teacher
+from app.api.deps import get_current_school_id, require_principal, require_teacher
 from app.core.runtime_settings import (
     RuntimeSettings,
     get_runtime_settings,
@@ -47,11 +47,30 @@ def _to_out(rt: RuntimeSettings) -> SettingsOut:
 
 
 @router.get("", response_model=SettingsOut, dependencies=[Depends(require_teacher)])
-def read_settings() -> SettingsOut:
-    return _to_out(get_runtime_settings())
+def read_settings(
+    school_id: str = Depends(get_current_school_id), _user=Depends(require_teacher)
+) -> SettingsOut:
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={
+            "code": "SCHOOL_SCOPED_SETTINGS_UNAVAILABLE",
+            "message": "Runtime settings are process-global; school-specific settings must be persisted before they can be read.",
+            "school_id": school_id,
+        },
+    )
 
 
 @router.patch("", response_model=SettingsOut, dependencies=[Depends(require_principal)])
-def patch_settings(payload: SettingsUpdate) -> SettingsOut:
-    updated = update_runtime_settings(**payload.model_dump(exclude_none=True))
-    return _to_out(updated)
+def patch_settings(
+    payload: SettingsUpdate,
+    school_id: str = Depends(get_current_school_id),
+    _user=Depends(require_principal),
+) -> SettingsOut:
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={
+            "code": "SCHOOL_SCOPED_SETTINGS_UNAVAILABLE",
+            "message": "Global runtime settings cannot be changed through a school-scoped account until per-school configuration is implemented.",
+            "school_id": school_id,
+        },
+    )
