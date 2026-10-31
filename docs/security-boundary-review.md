@@ -78,3 +78,12 @@ This is a code-review snapshot of the current demo architecture, not a penetrati
 ## Validation note
 
 This document records static code observations only. It does not claim that the full test suite passed, that a penetration test was performed, or that the application is production-ready.
+
+
+## Internal service and report helper audit — 2026-10-31
+
+- The internal `get_school_metrics` aggregation now requires an explicit school ID and scopes attendance through Student, student totals directly, and incidents/cameras through school-owned Zones. Its SSI score remains a fixed illustrative placeholder; it is not a live measurement. Dashboard APIs remain fail-closed.
+- `/reports/list` and `/reports/stats` remain unavailable (503) until their source records are school-scoped. The current API endpoint inventory contains no standalone export route.
+- `MinistryReportService` and `ReportGenerator` are in-memory transformation helpers, not authorization boundaries. Their inputs are caller-supplied collections and the helper DTOs do not independently prove school ownership. Do not connect them to a user-facing report/export route until a server-side, school-scoped data-loading layer supplies validated inputs.
+- `ParentPortalService` and the in-memory attendance-safety integration use student/child IDs but do not carry an authenticated school scope. The current `/portal/student` route does not invoke these helpers and returns an explicit `identity_link_required` state. Keep the helpers disconnected from authenticated parent access until verified parent identity, student linkage, and school-scoped data loading are implemented.
+- The dashboard service still contains synthetic seeded indicators. Dashboard routes are intentionally unavailable; these values must not be presented as live school conditions.
