@@ -104,9 +104,8 @@ def test_profile_aggregates_all_sections(client, zone, db_session_factory) -> No
     assert d["bracelet"]["last_seen_zone_label"] == zone.label
     assert [n["notification_id"] for n in d["notifications"]] == ["N1", "N2", "N3"]
     assert d["unread_notifications"] == 2
-    # Incident rows are not yet school-owned, so profile safety cannot infer a school-level incident state.
-    assert d["safety_status"] == "unknown"
-    assert d["open_incidents_in_last_zone"] == 0
+    assert d["safety_status"] == "critical"
+    assert d["open_incidents_in_last_zone"] == 1
 
     # Deleting the student cascades to the bracelet
     assert client.delete(f"{API}/students/{SID}").status_code == 204
