@@ -63,6 +63,11 @@ class CameraSource:
         return asdict(self)
 
 
+def _must_anonymize(source: CameraSource) -> bool:
+    """Production deployments always anonymize, even if a source requests an opt-out."""
+    return source.anonymize_faces or settings.is_production
+
+
 def _anonymize_frame_or_reject(frame: np.ndarray, camera_id: str) -> np.ndarray | None:
     """Fail closed: never publish an un-anonymized frame when privacy processing fails."""
     try:
@@ -212,7 +217,7 @@ class CameraStreamWorker:
                     last_emit_ts = now
 
                     # Apply Arab Governance Layer face anonymization (Unit 14)
-                    if self.source.anonymize_faces:
+                    if _must_anonymize(self.source):
                         anonymized = _anonymize_frame_or_reject(frame, self.source.camera_id)
                         if anonymized is None:
                             # Privacy takes precedence over availability: drop this frame.
