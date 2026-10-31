@@ -10,7 +10,7 @@ from datetime import date, datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import (
-    Boolean, DateTime, Float, ForeignKey, ForeignKeyConstraint, Index,
+    Boolean, Date, DateTime, Float, ForeignKey, ForeignKeyConstraint, Index,
     Integer, JSON, String, Text, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
