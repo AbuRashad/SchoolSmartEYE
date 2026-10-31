@@ -13,7 +13,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_principal, require_teacher
+from app.api.deps import get_current_school_id, require_principal, require_teacher
 from app.db import models as orm
 from app.db.session import get_db
 from app.models import (
@@ -181,16 +181,16 @@ def _serialize(s: orm.Student) -> StudentOut:
     )
 
 
-def _find_student(db: Session, student_id: str) -> orm.Student | None:
-    return db.get(orm.Student, student_id)
+def _find_student(db: Session, student_id: str, school_id: str) -> orm.Student | None:
+    return db.scalar(select(orm.Student).where(orm.Student.student_id == student_id, orm.Student.school_id == school_id))
 
 
 # ── Students ──────────────────────────────────────────────────────────────────
 
 
 @router.get("/students", response_model=list[StudentOut], dependencies=[Depends(require_teacher)])
-def list_students(db: Session = Depends(get_db)) -> list[StudentOut]:
-    rows = db.scalars(select(orm.Student).order_by(orm.Student.student_id)).all()
+def list_students(db: Session = Depends(get_db), school_id: str = Depends(get_current_school_id)) -> list[StudentOut]:
+    rows = db.scalars(select(orm.Student).where(orm.Student.school_id == school_id).order_by(orm.Student.student_id)).all()
     return [_serialize(s) for s in rows]
 
 
@@ -200,8 +200,8 @@ def list_students(db: Session = Depends(get_db)) -> list[StudentOut]:
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_principal)],
 )
-def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> StudentOut:
-    if _find_student(db, payload.student_id) is not None:
+def create_student(payload: StudentCreate, db: Session = Depends(get_db), school_id: str = Depends(get_current_school_id)) -> StudentOut:
+    if db.get(orm.Student, payload.student_id) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Student {payload.student_id!r} already exists",
@@ -209,6 +209,7 @@ def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> Stu
     initial = payload.photo_initial or (payload.name[:1].upper() if payload.name else "?")
     student = orm.Student(
         student_id=payload.student_id,
+        school_id=school_id,
         name=payload.name,
         grade=payload.grade,
         class_section=payload.class_section,
@@ -232,9 +233,9 @@ def create_student(payload: StudentCreate, db: Session = Depends(get_db)) -> Stu
     "/students/{student_id}", response_model=StudentOut, dependencies=[Depends(require_principal)]
 )
 def update_student(
-    student_id: str, payload: StudentUpdate, db: Session = Depends(get_db)
+    student_id: str, payload: StudentUpdate, db: Session = Depends(get_db), school_id: str = Depends(get_current_school_id)
 ) -> StudentOut:
-    student = _find_student(db, student_id)
+    student = _find_student(db, student_id, school_id)
     if student is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
     for field, value in payload.model_dump(exclude_none=True).items():
@@ -248,8 +249,8 @@ def update_student(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_principal)],
 )
-def delete_student(student_id: str, db: Session = Depends(get_db)) -> Response:
-    student = _find_student(db, student_id)
+def delete_student(student_id: str, db: Session = Depends(get_db), school_id: str = Depends(get_current_school_id)) -> Response:
+    student = _find_student(db, student_id, school_id)
     if student is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
     # Cascade: the student's bracelet and attendance records are removed too
@@ -262,23 +263,11 @@ def delete_student(student_id: str, db: Session = Depends(get_db)) -> Response:
 
 
 @router.get("/zones", response_model=list[ZoneOut], dependencies=[Depends(require_teacher)])
-def list_zones(db: Session = Depends(get_db)) -> list[ZoneOut]:
-    # Zone records have no school ownership column yet; fail closed rather than
-    # disclose a shared cross-school inventory.
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="Zone data is temporarily unavailable until school-level ownership is migrated",
-    )
-    return [
-        ZoneOut(
-            zone_id=z.zone_id,
-            label=z.label,
-            zone_type=z.zone_type,
-            capacity=z.capacity,
-            floor=z.floor,
-        )
-        for z in db.scalars(select(orm.Zone).order_by(orm.Zone.grid_x, orm.Zone.grid_y))
-    ]
+def list_zones(db: Session = Depends(get_db), school_id: str = Depends(get_current_school_id)) -> list[ZoneOut]:
+    rows = db.scalars(select(orm.Zone).where(orm.Zone.school_id == school_id).order_by(orm.Zone.grid_x, orm.Zone.grid_y)).all()
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="No school-owned zones are available yet")
+    return [ZoneOut(zone_id=z.zone_id, label=z.label, zone_type=z.zone_type, capacity=z.capacity, floor=z.floor) for z in rows]
 
 
 # ── Aggregated Student Profile ────────────────────────────────────────────────
@@ -374,8 +363,8 @@ def _safety_status_for(db: Session, student: orm.Student, last_zone: str | None)
     response_model=StudentProfile,
     dependencies=[Depends(require_teacher)],
 )
-def student_profile(student_id: str, db: Session = Depends(get_db)) -> StudentProfile:
-    student = _find_student(db, student_id)
+def student_profile(student_id: str, db: Session = Depends(get_db), school_id: str = Depends(get_current_school_id)) -> StudentProfile:
+    student = _find_student(db, student_id, school_id)
     if student is None:
         raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
 
