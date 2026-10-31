@@ -108,7 +108,7 @@ Completed:
 - Added cross-school camera registration/lifecycle denial tests. Dashboard, analytics, reports, SSI, unit-health and process-global settings remain fail-closed until their source data is partitioned by school.
 
 Still required:
-- Implement verified ownership for incidents and remaining operational stores, plus per-school runtime settings. SSI snapshot/drill ownership columns and school-filtered SSI history persistence are implemented in migration `0005`; legacy rows still require verified mapping, and live SSI remains disabled until sensor/forecast inputs and runtime caches are school-partitioned. Re-enable dashboard/analytics/report/live-SSI/unit-health endpoints only with school-filtered queries and per-school streaming/cache partitions.
+- Implement verified ownership for incidents and remaining operational stores, plus per-school runtime settings. SSI snapshot/drill ownership columns are already implemented in migration `0005`; this change adds school-filtered SSI history persistence; legacy rows still require verified mapping, and live SSI remains disabled until sensor/forecast inputs and runtime caches are school-partitioned. Re-enable dashboard/analytics/report/live-SSI/unit-health endpoints only with school-filtered queries and per-school streaming/cache partitions.
 - Scope every remaining attendance-write, notification-management, incident-management, analytics, SSI, drill, report, and export endpoint.
 - Add tenant ownership or a validated parent relationship to every remaining school-owned table and every in-memory/cache source; add class-level authorization and audit logging.
 - Define a safe, reviewed backfill for existing users, students, and operational data. Never assign all existing rows to the demo school by default.
@@ -119,7 +119,7 @@ Still required:
 
 ## SSI history isolation progress — 2026-10-31
 
-- Added migration `0005` for nullable `school_id` foreign keys and indexes on `ssi_snapshots` and `drills`; no legacy ownership is inferred.
+- Reuses the existing migration `0005_school_scope_ssi_and_drills.py` already present on the base branch; no duplicate Alembic revision is introduced. Its nullable `school_id` foreign keys and indexes do not infer legacy ownership.
 - SSI snapshot creation, polling de-duplication, history reads, and summaries now require a school ID and apply it in every database query.
 - Historical SSI API now returns only the authenticated school's snapshots. Live SSI remains fail-closed because sensor/forecast sources and runtime caches are not yet partitioned by school.
 - Added regression coverage for cross-school history separation and independent polling intervals.
