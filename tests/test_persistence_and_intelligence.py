@@ -137,7 +137,7 @@ def test_ssi_daily_series_averages_same_day_snapshots() -> None:
 
 
 def test_agent_can_be_built_without_loading_feedback(db_session_factory, monkeypatch) -> None:
-    monkeypatch.setattr(agent_store, "load_feedback", lambda db: pytest.fail("feedback was loaded"))
+    monkeypatch.setattr(agent_store, "load_feedback", lambda db, school_id: pytest.fail("feedback was loaded"))
     with db_session_factory() as db:
         agent = agent_store.build_agent(db, "DEMO-SCHOOL-001", include_feedback=False)
     assert agent._feedback_log == []
