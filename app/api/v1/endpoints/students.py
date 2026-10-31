@@ -432,6 +432,9 @@ def student_profile(student_id: str, db: Session = Depends(get_db), school_id: s
         .where(
             orm.Student.school_id == school_id,
             orm.Notification.student_id == student_id,
+            # Reject stale/misrouted notifications whose recipient no longer
+            # matches the student's currently verified parent reference.
+            orm.Notification.parent_id == orm.Student.parent_id,
         )
         .order_by(orm.Notification.sent_at.desc())
         .limit(50)
