@@ -12,12 +12,16 @@ This is a code-review snapshot of the current demo architecture, not a penetrati
 
 ### P0 — Establish school/tenant isolation before multi-school live data
 
-- The ORM `User` model has no school/tenant association. The `Student` model and related records also have no school identifier.
-- `GET /students` queries all student rows and relies on the teacher-role dependency; `GET /students/{student_id}/profile` and behavioral history look up records by student ID without a school boundary.
-- Bracelet endpoints list or resolve bracelet records by ID and role, without a tenant boundary.
+- The ORM now defines `School`, `SchoolMembership`, and nullable `Student.school_id` fields through migration `0003`. This is a partial tenant foundation, not system-wide isolation.
+- Active school scope is resolved from server-side membership. A caller-supplied `school_id` is accepted only when it matches an active membership; no membership fails closed and multiple memberships require explicit selection.
+- `agent.py` now scopes student lookups, in-memory engagement snapshots, feedback reads, metrics, and baselines to the resolved school. Feedback writes reject students outside that school.
+- `risk.py` and `attendance_risk.py` now join attendance records to students and constrain both individual and school-wide risk results to one school.
+- `portal.py` no longer returns a hard-coded student's personal data. It returns an explicit unavailable state until an authenticated parent/student identity link exists; the frontend reflects this state.
+- Migration `0003` deliberately does **not** backfill existing users or students. Existing rows without a school assignment remain inaccessible through the newly scoped agent/risk routes. Assign ownership only through a verified, reviewed mapping.
+- Other application surfaces remain unscoped, including student CRUD/profile and several operational, analytics, notification, bracelet, zone, incident, and report paths. These still prevent any claim of complete multi-school isolation.
 - Role-based authorization answers what role a user has; it does not prove which school's records that user may access.
 
-**Required before live multi-school use:** define a canonical School/Tenant model; map each user to an explicitly authorized school scope; add tenant ownership or validated tenant relationships to school-owned data; apply scope filters to every read/write path; and add cross-tenant denial tests for list, detail, create, update, delete, attendance, bracelet, notification, incident, and analytics paths. Do not infer tenant identity from client-supplied IDs alone.
+**Required before live multi-school use:** complete tenant ownership or validated tenant relationships across every school-owned table and in-memory/demo source; apply scope filters to every read/write path; and add cross-tenant denial tests for list, detail, create, update, delete, attendance, bracelet, notification, incident, analytics, and reporting paths. Do not infer tenant identity from client-supplied IDs alone.
 
 ### P1 — Replace demo analytics with a provenance-aware data source
 
