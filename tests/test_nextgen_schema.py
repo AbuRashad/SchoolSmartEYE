@@ -14,7 +14,7 @@ def test_nextgen_metadata_is_independent_and_has_no_seed_rows():
 
 def test_tenant_owned_tables_include_school_and_organization_scope():
     expected = {
-        "ng_campuses", "ng_guardians", "ng_students", "ng_student_guardians",
+        "ng_campuses", "ng_buildings", "ng_zones", "ng_guardians", "ng_students", "ng_student_guardians",
         "ng_classes", "ng_enrollments", "ng_attendance_events", "ng_cameras",
         "ng_edge_devices", "ng_camera_telemetry", "ng_ai_events", "ng_incidents",
         "ng_human_reviews", "ng_metric_observations", "ng_consent_records",
@@ -26,7 +26,7 @@ def test_tenant_owned_tables_include_school_and_organization_scope():
 
 
 def test_tenant_relationships_use_composite_foreign_keys():
-    for table_name in ("ng_students", "ng_enrollments", "ng_attendance_events", "ng_cameras", "ng_camera_telemetry"):
+    for table_name in ("ng_students", "ng_enrollments", "ng_attendance_events", "ng_buildings", "ng_zones", "ng_cameras", "ng_camera_telemetry"):
         constraints = NextBase.metadata.tables[table_name].foreign_key_constraints
         assert any(len(constraint.elements) >= 2 for constraint in constraints), table_name
 
