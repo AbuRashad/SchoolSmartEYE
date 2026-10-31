@@ -182,6 +182,8 @@ class SSISnapshot(Base):
     __tablename__ = "ssi_snapshots"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Nullable while historical snapshots are mapped through a reviewed ownership process.
+    school_id: Mapped[str | None] = mapped_column(ForeignKey("schools.school_id"), nullable=True, index=True)
     recorded_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
     ssi: Mapped[float] = mapped_column(Float)
     anomaly_coefficient: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -195,6 +197,8 @@ class Drill(Base):
     __tablename__ = "drills"
 
     drill_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    # Nullable until legacy drills receive verified school ownership.
+    school_id: Mapped[str | None] = mapped_column(ForeignKey("schools.school_id"), nullable=True, index=True)
     drill_type: Mapped[str] = mapped_column(String(32))
     scheduled_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
