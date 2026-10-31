@@ -390,3 +390,24 @@ def test_drill_api_is_scoped_and_assigns_school_server_side(client, seeded, db_s
     assert completed.json()["completed"] is True
     with db_session_factory() as db:
         assert db.get(orm.Drill, "DEMO-NEW-DRILL").school_id == "DEMO-SCHOOL-001"
+
+def test_runtime_settings_read_and_write_remain_disabled_until_tenant_storage(client, seeded):
+    from app.core.runtime_settings import get_runtime_settings
+
+    before = get_runtime_settings()
+    read_response = client.get(f"{API}/settings")
+    write_response = client.patch(
+        f"{API}/settings",
+        json={
+            "camera_max_fps": 12.0,
+            "camera_jpeg_quality": 55,
+            "bracelet_low_battery_percent": 35,
+        },
+    )
+    after = get_runtime_settings()
+
+    assert read_response.status_code == 503
+    assert read_response.json()["detail"]["code"] == "SCHOOL_SCOPED_SETTINGS_UNAVAILABLE"
+    assert write_response.status_code == 503
+    assert write_response.json()["detail"]["code"] == "SCHOOL_SCOPED_SETTINGS_UNAVAILABLE"
+    assert after == before
