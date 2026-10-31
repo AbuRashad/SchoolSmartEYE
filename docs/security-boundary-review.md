@@ -39,7 +39,7 @@ This is a code-review snapshot of the current demo architecture, not a penetrati
 ### P1 — Review student-sensitive endpoint exposure
 
 - Student profiles can include attendance, last-seen zone, bracelet details, parent identifiers, notifications, and behavioral/engagement summaries.
-- Student profile and behavioral-history routes now enforce school membership. Class-level authorization, field minimization by role, and access auditing remain outstanding.
+- Student profile and behavioral-history routes now enforce school membership. Profile notifications are returned only when both the linked student belongs to the authenticated school and the notification recipient matches that student's current `parent_id`; mismatched/stale recipient rows are withheld. This does not establish an authenticated parent account link or authorize parent-facing notification access. Class-level authorization, field minimization by role, and access auditing remain outstanding.
 
 **Required:** define per-school and, where applicable, class/student-level authorization; minimize returned fields by role and purpose; audit access to behavioral history and location-related data; and verify authorization failures with tests.
 
