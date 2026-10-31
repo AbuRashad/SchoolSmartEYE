@@ -6,7 +6,7 @@ from starlette.websockets import WebSocketState
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db, SessionLocal
-from app.api.deps import _user_from_token, _check_roles, require_teacher
+from app.api.deps import _user_from_token, _check_roles, get_current_school_id, require_teacher, resolve_school_scope
 from app.core.governance_layer import Role
 from app.services import ssi_history
 from app.services.dashboard_service import DashboardService
@@ -50,27 +50,46 @@ class DashboardConnectionManager:
 
 manager = DashboardConnectionManager()
 
+def _dashboard_unavailable(school_id: str) -> None:
+    from fastapi import HTTPException, status
+
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail={
+            "code": "SCHOOL_SCOPED_DASHBOARD_UNAVAILABLE",
+            "message": "Dashboard feeds are paused until their live and cached sources are school-scoped.",
+            "school_id": school_id,
+        },
+    )
+
+
 
 @router.get("/summary", dependencies=[Depends(require_teacher)])
-def dashboard_summary(db: Session = Depends(get_db)) -> dict[str, object]:
+def dashboard_summary(
+    db: Session = Depends(get_db), school_id: str = Depends(get_current_school_id)
+) -> dict[str, object]:
+    _dashboard_unavailable(school_id)
     summary = service.get_summary()
     summary["ssiTrend"] = ssi_history.summarize(db, 30)["trend"]
     return summary
 
 
 @router.get("/alerts", dependencies=[Depends(require_teacher)])
-def dashboard_alerts() -> list[dict[str, str]]:
+def dashboard_alerts(school_id: str = Depends(get_current_school_id)) -> list[dict[str, str]]:
+    _dashboard_unavailable(school_id)
     return service.get_alerts()
 
 
 @router.get("/heatmap", dependencies=[Depends(require_teacher)])
-def dashboard_heatmap() -> dict[str, object]:
+def dashboard_heatmap(school_id: str = Depends(get_current_school_id)) -> dict[str, object]:
+    _dashboard_unavailable(school_id)
     return service.get_heatmap()
 
 
 @router.get("/live", dependencies=[Depends(require_teacher)])
-def dashboard_live() -> dict[str, object]:
-    """REST polling fallback — returns the full dashboard snapshot as JSON."""
+def dashboard_live(school_id: str = Depends(get_current_school_id)) -> dict[str, object]:
+    """REST polling fallback; disabled until the snapshot is tenant-scoped."""
+    _dashboard_unavailable(school_id)
     return service.get_snapshot()
 
 
@@ -82,9 +101,14 @@ async def dashboard_ws(websocket: WebSocket, access_token: str | None = Query(de
         with SessionLocal() as db:
             user = _user_from_token(access_token, db)
             _check_roles(user, (Role.TEACHER,))
+            resolve_school_scope(db, user)
     except HTTPException as exc:
         await websocket.close(code=4401 if exc.status_code == 401 else 4403)
         return
+    # The process-global manager broadcasts a shared snapshot to every client.
+    # Until it is partitioned by verified school membership, refuse the socket.
+    await websocket.close(code=1013, reason="School-scoped dashboard feed is not available yet")
+    return
     await manager.connect(websocket)
     try:
         await manager.send_snapshot(websocket)
