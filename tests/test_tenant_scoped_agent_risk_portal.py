@@ -257,6 +257,12 @@ def test_ssi_history_and_polling_are_isolated_by_school(client, seeded, db_sessi
 
     with db_session_factory() as db:
         db.add(orm.School(school_id="OTHER-SCHOOL", name="Other School", is_active=True))
+        db.add(orm.SSISnapshot(
+            school_id=None,
+            recorded_at=datetime.now(timezone.utc),
+            ssi=1.0,
+            source="legacy-unmapped",
+        ))
         db.commit()
         ssi_history.record_snapshot(
             db, "OTHER-SCHOOL", 12.5, source="test",
@@ -266,6 +272,7 @@ def test_ssi_history_and_polling_are_isolated_by_school(client, seeded, db_sessi
         other = ssi_history.summarize(db, "OTHER-SCHOOL", 365)
         assert demo["snapshots"] == 30
         assert other["snapshots"] == 1
+        assert demo["average"] != 1.0 and other["average"] != 1.0
         assert other["average"] == 12.5
         assert ssi_history.record_if_due(
             db, "OTHER-SCHOOL", 99.0, source="test", min_interval_seconds=300
