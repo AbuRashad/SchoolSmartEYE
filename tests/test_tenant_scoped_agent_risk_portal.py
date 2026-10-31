@@ -171,3 +171,16 @@ def test_bracelet_endpoints_follow_the_owning_students_school(
     assert guessed_update.status_code == 404
     assert guessed_delete.status_code == 404
     assert cross_school_assignment.status_code == 400
+
+
+def test_camera_and_zone_dependent_services_fail_closed(client, seeded):
+    for path in (
+        f"{API}/cameras",
+        f"{API}/analytics/overview",
+        f"{API}/dashboard/summary",
+        f"{API}/dashboard/alerts",
+        f"{API}/dashboard/heatmap",
+        f"{API}/dashboard/live",
+    ):
+        response = client.get(path)
+        assert response.status_code == 503, f"{path} returned {response.status_code}"
