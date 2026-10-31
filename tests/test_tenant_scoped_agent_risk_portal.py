@@ -1,8 +1,8 @@
 """Negative tests for school scoping in agent, attendance-risk, and portal APIs."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app.db import models as orm
-from app.services import attendance_risk, seed_data
+from app.services import attendance_risk, seed_data, ssi_history
 import pytest
 
 API = "/api/v1"
@@ -248,3 +248,54 @@ def test_camera_registration_requires_zone_from_authenticated_school(
     assert denied_delete.status_code == 404
     assert denied_snapshot.status_code == 404
     assert denied_stream.status_code == 404
+
+
+
+def test_ssi_history_polling_and_legacy_rows_are_school_isolated(
+    client, seeded, db_session_factory
+):
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="OTHER-SSI-SCHOOL", name="Other SSI School", is_active=True))
+        db.add(orm.SSISnapshot(
+            school_id=None,
+            recorded_at=datetime.now(timezone.utc),
+            ssi=1.0,
+            source="legacy-unmapped",
+        ))
+        db.commit()
+        ssi_history.record_snapshot(
+            db,
+            "OTHER-SSI-SCHOOL",
+            12.5,
+            source="test",
+            recorded_at=datetime.now(timezone.utc),
+        )
+
+        demo = ssi_history.summarize(db, "DEMO-SCHOOL-001", 365)
+        other = ssi_history.summarize(db, "OTHER-SSI-SCHOOL", 365)
+        assert demo["snapshots"] == 30
+        assert other["snapshots"] == 1
+        assert demo["average"] != 1.0
+        assert other["average"] == 12.5
+
+        assert ssi_history.record_if_due(
+            db, "OTHER-SSI-SCHOOL", 99.0, source="test", min_interval_seconds=300
+        ) is False
+        assert ssi_history.record_if_due(
+            db, "DEMO-SCHOOL-001", 99.0, source="test", min_interval_seconds=300
+        ) is True
+
+    response = client.get(f"{API}/ssi/history")
+    assert response.status_code == 200
+    assert response.json()["snapshots"] == 31
+    assert response.json()["average"] != 12.5
+
+
+def test_ssi_history_helpers_reject_missing_school_scope(db_session_factory):
+    with db_session_factory() as db:
+        with pytest.raises(ValueError, match="school_id is required"):
+            ssi_history.record_snapshot(db, "", 50.0)
+        with pytest.raises(ValueError, match="school_id is required"):
+            ssi_history.record_if_due(db, "", 50.0)
+        with pytest.raises(ValueError, match="school_id is required"):
+            ssi_history.get_history(db, "")
