@@ -142,3 +142,11 @@ Still required:
 - The profile attendance-history query now joins the owning `Student` row and filters by the authenticated school's `school_id` in the same SQL statement.
 - This is defense in depth alongside the profile's initial school-scoped student lookup; it avoids relying solely on globally unique student IDs as the tenant boundary.
 - No schema change or data migration was needed.
+
+
+## Internal metric/report/portal helper audit — 2026-10-31
+
+- `get_school_metrics` now requires an explicit school ID and filters attendance, student totals, incidents, and cameras to that school. Regression tests create a second school and verify that its records do not change the first school's metrics. The SSI value in this helper remains illustrative, not live.
+- Ministry report and semester report generators are pure transformations over caller-supplied collections; they must receive data from a separately authorized school-scoped loader before any API/export integration.
+- Parent portal and attendance-safety in-memory helpers do not independently enforce school ownership. The authenticated portal endpoint remains unavailable until verified parent/student identity mapping and school-scoped loading are complete.
+- There is no standalone export endpoint in the current API router inventory; report list/stat routes remain fail-closed.
