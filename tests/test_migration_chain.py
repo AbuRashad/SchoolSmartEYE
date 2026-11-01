@@ -63,9 +63,27 @@ def test_alembic_upgrade_head_creates_verified_parent_link_schema(tmp_path, monk
             ("revoked_by_user_id",),
         }
 
+        action_columns = {column["name"] for column in inspector.get_columns("agent_action_tasks")}
+        assert {"school_id", "source_request_id", "action_kind", "status"}.issubset(action_columns)
+
+        action_unique_indexes = inspector.get_indexes("agent_action_tasks")
+        assert any(
+            item["name"] == "uq_agent_action_school_run_kind"
+            and item.get("unique")
+            and item["column_names"] == ["school_id", "source_request_id", "action_kind"]
+            for item in action_unique_indexes
+        )
+
+        action_audit_columns = {column["name"] for column in inspector.get_columns("agent_action_audit_events")}
+        assert {
+            "event_id", "school_id", "action_id", "source_request_id",
+            "event_type", "actor_type", "actor_user_id", "from_status",
+            "to_status", "event_metadata", "created_at",
+        }.issubset(action_audit_columns)
+
         version = engine.connect().exec_driver_sql(
             "SELECT version_num FROM alembic_version"
         ).scalar_one()
-        assert version == "0010"
+        assert version == "0011"
     finally:
         engine.dispose()

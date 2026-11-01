@@ -14,7 +14,7 @@ from app.db.models import User
 from app.db.session import get_db
 from app.services.agent_action_workflow import (
     approve_review_task, complete_review_task, list_review_tasks,
-    propose_review_task, reject_review_task,
+    propose_review_task, reject_review_task, list_action_audit_events,
 )
 
 router = APIRouter(prefix="/agent/actions", tags=["agent-action-approval"])
@@ -29,6 +29,21 @@ class ProposeReviewTask(BaseModel):
         "review_operational_readiness",
         "verify_evidence_quality",
     ]
+
+
+class ActionAuditEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    event_id: str
+    school_id: str
+    action_id: str
+    source_request_id: str
+    event_type: str
+    actor_type: str
+    actor_user_id: int | None
+    from_status: str | None
+    to_status: str | None
+    event_metadata: dict
+    created_at: datetime
 
 
 class ReviewTaskResponse(BaseModel):
@@ -70,6 +85,17 @@ def get_tasks(
     school_id: str = Depends(get_current_school_id),
 ) -> list[ReviewTaskResponse]:
     return [ReviewTaskResponse.model_validate(item) for item in list_review_tasks(db, school_id=school_id)]
+
+
+@router.get("/{action_id}/audit", response_model=list[ActionAuditEventResponse])
+def get_action_audit(
+    action_id: str,
+    _user: User = Depends(require_principal),
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
+) -> list[ActionAuditEventResponse]:
+    events = list_action_audit_events(db, action_id=action_id, school_id=school_id)
+    return [ActionAuditEventResponse.model_validate(item) for item in events]
 
 
 @router.post("/{action_id}/approve", response_model=ReviewTaskResponse)

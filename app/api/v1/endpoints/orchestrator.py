@@ -15,6 +15,7 @@ from app.db.models import AgentRunRecord, User
 from app.db.session import get_db
 from sqlalchemy.orm import Session
 from app.services.agent_orchestrator import run_orchestration
+from app.services.agent_action_workflow import propose_actions_for_run
 
 router = APIRouter(prefix="/agent", tags=["agent-orchestrator"])
 
@@ -126,6 +127,12 @@ def orchestrate_agents(
         created_at=datetime.now(timezone.utc),
     ))
     db.commit()
+
+    # Derive bounded review proposals from the persisted deterministic evidence.
+    # Proposal creation is idempotent per school, run, and allowlisted action kind.
+    propose_actions_for_run(
+        db, school_id=school_id, source_request_id=result["request_id"],
+    )
     return OrchestrateResponse.model_validate(result)
 
 

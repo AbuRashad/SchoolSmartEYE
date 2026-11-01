@@ -296,6 +296,12 @@ class AgentActionTask(Base):
     """School-scoped internal review task proposed by agents and human-approved."""
 
     __tablename__ = "agent_action_tasks"
+    __table_args__ = (
+        UniqueConstraint(
+            "school_id", "source_request_id", "action_kind",
+            name="uq_agent_action_school_run_kind",
+        ),
+    )
 
     action_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id", ondelete="CASCADE"), index=True)
@@ -326,3 +332,27 @@ class AgentRunRecord(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     result: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+
+
+
+class AgentActionAuditEvent(Base):
+    """Append-only school-scoped audit event for agent review-task lifecycle changes."""
+
+    __tablename__ = "agent_action_audit_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    school_id: Mapped[str] = mapped_column(
+        ForeignKey("schools.school_id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    action_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_action_tasks.action_id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    source_request_id: Mapped[str] = mapped_column(String(36), index=True, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    actor_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    from_status: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    to_status: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    event_metadata: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, index=True)
