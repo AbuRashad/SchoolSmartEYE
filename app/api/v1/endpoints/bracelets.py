@@ -222,8 +222,7 @@ def update_bracelet(
         bracelet.student_id = payload.student_id
 
     if payload.mac_address is not None and payload.mac_address != bracelet.mac_address:
-        if _mac_in_use(db, payload.mac_address, bracelet_id):
-            raise HTTPException(status_code=409, detail="MAC address already in use")
+        # MAC uniqueness is database-enforced globally; avoid a cross-school lookup.
         bracelet.mac_address = payload.mac_address
 
     if payload.battery_level is not None:
@@ -239,7 +238,10 @@ def update_bracelet(
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Bracelet conflicts with an existing record") from None
+        raise HTTPException(
+            status_code=409,
+            detail="Bracelet could not be updated because its identifier or assignment conflicts with an existing record.",
+        ) from None
     db.refresh(bracelet)
     return _serialize(bracelet)
 
