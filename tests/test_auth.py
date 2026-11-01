@@ -93,8 +93,8 @@ def test_role_matrix(anon_client, auth_headers) -> None:
 
     # Ministry: everything
     m = auth_headers("ministry")
-    assert anon_client.get(f"{API}/reports/list", headers=m).status_code == 503
-    assert anon_client.get(f"{API}/reports/stats", headers=m).status_code == 503
+    assert anon_client.get(f"{API}/reports/list", headers=m).status_code == 200
+    assert anon_client.get(f"{API}/reports/stats", headers=m).status_code == 200
     assert anon_client.delete(f"{API}/students/S-9", headers=m).status_code == 204
 
 
