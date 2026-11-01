@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.governance_layer import SCOPE_LEVEL, Role
+from app.core.governance_layer import Action, SCOPE_LEVEL, Role, has_role_permission
 from app.core.security import decode_access_token
 from app.db.models import User
 from app.db.session import get_db
@@ -152,5 +152,17 @@ def require_parent(user: User = Depends(get_current_user)) -> User:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Parent account required",
+        )
+    return user
+
+
+
+def require_retention_manager(user: User = Depends(get_current_user)) -> User:
+    """Enforce the explicit MANAGE_RETENTION_POLICY governance permission."""
+    role = role_of(user)
+    if role is None or not has_role_permission(role, Action.MANAGE_RETENTION_POLICY):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="MANAGE_RETENTION_POLICY permission required",
         )
     return user
