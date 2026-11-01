@@ -12,6 +12,7 @@ const navigation: { label: string; icon: typeof Activity; page: NavPage; minRole
   { label: "System Units", icon: LayoutGrid, page: "units" },
   { label: "Analytics Overview", icon: BarChart3, page: "analytics" },
   { label: "Ministerial Reports", icon: FileBarChart2, page: "reports", minRole: "ministry" },
+  { label: "Agent Review Queue", icon: ShieldCheck, page: "agent-review", minRole: "principal" },
   { label: "Control Panel", icon: Settings, page: "control" },
 ];
 
