@@ -103,7 +103,8 @@ def orchestrate_agents(
             {
                 "total_students": analytics["students"]["active"],
                 "active_cameras": analytics["cameras"]["active"],
-                "incidents_today": analytics["incidents"]["last_30_days_by_severity"].get("today", 0),
+                "incidents_today": analytics["incidents"]["today"],
+                "incidents_week": analytics["incidents"]["last_7_days"],
                 "attendance_rate": latest_attendance.get("attendance_rate"),
                 "data_status": "unknown",
                 "data_notice": (
