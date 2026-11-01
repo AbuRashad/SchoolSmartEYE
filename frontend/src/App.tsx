@@ -4,6 +4,7 @@ import { LoginScreen } from "./components/LoginScreen";
 import { ParentPortalDashboard } from "./components/ParentPortalDashboard";
 import { Users, Activity, Calendar, Camera } from "lucide-react";
 import { AIInsightsPanel } from "./components/AIInsightsPanel";
+import { AgentReviewDashboard } from "./components/AgentReviewDashboard";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { KpiGauge } from "./components/KpiGauge";
 import { LiveAlertFeed } from "./components/LiveAlertFeed";
@@ -41,6 +42,7 @@ function AppShell() {
   // Never leave a user on a page their role cannot use.
   useEffect(() => {
     if (page === "reports" && !can("ministry")) setPage("dashboard");
+    if (page === "agent-review" && !can("principal")) setPage("dashboard");
   }, [page, can]);
   const snapshot = useSafetyDashboardSocket();
   const { data: ssiLive } = useSSILive();
@@ -220,6 +222,9 @@ function AppShell() {
               <LiveCameraGrid />
             </>
           )}
+
+          {/* ─── AGENT REVIEW & APPROVAL PAGE ─────────────────── */}
+          {page === "agent-review" && <AgentReviewDashboard />}
 
           {/* ─── CONTROL PANEL PAGE ──────────────────────────── */}
           {page === "control" && <ControlPanel />}
