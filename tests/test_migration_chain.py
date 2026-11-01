@@ -29,7 +29,7 @@ def test_alembic_upgrade_head_creates_verified_parent_link_schema(tmp_path, monk
 
         audit_columns = {column["name"] for column in inspector.get_columns("student_erasure_audits")}
         assert "student_id" not in audit_columns
-        assert {"school_id", "erased_by_user_id", "erased_at", "deleted_feedback_count"}.issubset(audit_columns)
+        assert {"school_id", "erased_by_user_id", "erased_at", "deleted_feedback_count", "deleted_engagement_snapshot_count", "deleted_feedback_log_count"}.issubset(audit_columns)
 
         invitation_columns = {column["name"] for column in inspector.get_columns("parent_invitations")}
         assert {"school_id", "student_id", "invited_username", "full_name", "token_hash", "invited_by_user_id", "verification_method", "created_at", "expires_at", "accepted_at", "revoked_at"}.issubset(invitation_columns)
