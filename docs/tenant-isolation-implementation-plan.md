@@ -104,15 +104,15 @@ Completed:
 - Scoped bracelet list/create/update/delete through the owning student's school; bracelet ping now verifies the target zone belongs to that same school.
 - Added cross-school bracelet regression tests.
 - Scoped camera list/register/start/stop/delete/snapshot/stream through persisted camera records joined to a school-owned zone; registration rejects cross-school zones and unregistered camera sources are not exposed.
-- Disabled dashboard REST and WebSocket feeds because their snapshot/cache manager is process-global.
-- Disabled hard-coded global analytics and report metrics until data provenance and school scope are implemented.
+- Dashboard REST summary/alerts/heatmap/live have been restored using school-filtered SQL queries; the shared WebSocket remains disabled because its broadcaster/cache is process-global.
+- Replaced global analytics/report metrics with authenticated-school SQL aggregates and on-demand report previews. Report previews are not persisted artifacts.
 - Disabled simulated SSI, global unit-health/alert summaries, and process-global runtime settings until per-school source/configuration storage exists.
 - Audited runtime-settings consumers: camera ingestion uses the process singleton for stream FPS/JPEG/reconnect behavior; bracelet and student profile summaries use its battery threshold. The settings API remains fail-closed for both reads and writes. Per-school settings require persisted school-keyed configuration and explicit propagation into each consumer before re-enabling the API.
 - Added cross-school camera registration/lifecycle denial tests. Dashboard, analytics, reports, SSI, unit-health and process-global settings remain fail-closed until their source data is partitioned by school.
 
 Still required:
 - Implement verified ownership for remaining operational stores and per-school runtime settings; then re-enable dashboard/analytics/report/live-SSI/unit-health endpoints with school-filtered queries and per-school streaming/cache partitions.
-- Incident list/detail/create/resolve and drill list/detail/create/complete endpoints are implemented with server-resolved school scope. Notification management remains withheld until parent/student identity and recipient authorization are complete. Continue auditing attendance-write, analytics, SSI, report, and export endpoints.
+- Incident list/detail/create/resolve and drill list/detail/create/complete endpoints are implemented with server-resolved school scope. Student profile attendance, notification, and incident-derived reads are school-filtered. Analytics overview and ministry report previews are now school-scoped; previews are generated on request and are not stored. Standalone parent notification access remains withheld until verified parent/student identity mapping is complete. Continue auditing attendance-write and export/download paths.
 - Add tenant ownership or a validated parent relationship to every remaining school-owned table and every in-memory/cache source; add class-level authorization and audit logging.
 - Define a safe, reviewed backfill for existing users, students, and operational data. Never assign all existing rows to the demo school by default.
 - Add migration upgrade/downgrade tests against the supported database engines and full API isolation matrix tests.
@@ -150,3 +150,14 @@ Still required:
 - Ministry report and semester report generators are pure transformations over caller-supplied collections; they must receive data from a separately authorized school-scoped loader before any API/export integration.
 - Parent portal and attendance-safety in-memory helpers do not independently enforce school ownership. The authenticated portal endpoint remains unavailable until verified parent/student identity mapping and school-scoped loading are complete.
 - There is no standalone export endpoint in the current API router inventory; report list/stat routes remain fail-closed.
+
+
+## Demo endpoint restoration and conflict-message hardening — 2026-11-01
+
+- Student creation no longer performs a global preflight lookup for a submitted student ID. Database uniqueness conflicts return a neutral message without echoing the identifier.
+- Bracelet creation no longer performs a global MAC-address preflight lookup. Bracelet ID/MAC database conflicts return the same neutral response and do not disclose the conflicting value or owning school.
+- Dashboard REST summary, alerts, heatmap, and live snapshot now use authenticated-school SQL queries. The heatmap is explicitly an incident signal, not camera-derived prediction. WebSocket remains disabled.
+- Analytics overview and Ministry report previews now query only authenticated-school data. Report previews are on-demand and explicitly non-persisted.
+- Regression tests cover cross-school student/bracelet conflict responses, dashboard isolation, analytics isolation, and report preview isolation.
+- **Legacy data decision:** no automatic backfill is permitted. Before any real deployment/import, an authorized data owner must approve a record-by-record or source-of-truth-based school ownership mapping, define treatment of ambiguous/unassigned records (retain inaccessible or quarantine), approve a backup/rollback plan, and sign off on migration dry-run results. No migration or reassignment is performed in this PR.
+- **Identifier decision still required:** `Student.student_id`, `Bracelet.bracelet_id`, and `Bracelet.mac_address` are globally unique in the current schema. Neutral error messages reduce disclosure but do not create school-local identifier namespaces. If schools may reuse student/bracelet identifiers, introduce surrogate primary keys plus school-scoped unique constraints in a separately reviewed schema migration.
