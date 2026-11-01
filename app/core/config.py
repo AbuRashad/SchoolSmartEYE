@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     api_v1_str: str = Field(default="/api/v1")
     video_log_dir: str = Field(default="./video_logs")
     video_ttl_hours: int = Field(default=72)
-    bracelet_reading_retention_days: int = Field(default=30, ge=1, le=3650)
+    bracelet_reading_retention_days: int = Field(default=30, ge=1, le=30)
 
     # ── Database ──────────────────────────────────────────────────────────
     # Any SQLAlchemy URL. SQLite by default; for PostgreSQL use e.g.
