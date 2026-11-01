@@ -123,7 +123,7 @@ export function ParentLinksTab({ flash }: { flash: Flash }) {
               <div key={link.link_id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-white">{link.student_name} <span className="font-mono text-xs text-mist/55">({link.student_id})</span></p>
-                  <p className="mt-1 text-xs text-mist/65">{link.parent_username} · {link.verification_method.replaceAll("_", " ")}</p>
+                  <p className="mt-1 text-xs text-mist/65">{link.parent_username} · {link.verification_method.replace(/_/g, " ")}</p>
                   <p className="mt-1 text-[11px] text-mist/45">Verified {new Date(link.verified_at).toLocaleString()}{link.revoked_at ? ` · Revoked ${new Date(link.revoked_at).toLocaleString()}` : ""}</p>
                 </div>
                 {link.is_active ? (
