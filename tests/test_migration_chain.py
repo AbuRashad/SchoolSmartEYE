@@ -21,6 +21,15 @@ def test_alembic_upgrade_head_creates_verified_parent_link_schema(tmp_path, monk
         inspector = inspect(engine)
         assert "parent_student_links" in inspector.get_table_names()
         assert "parent_invitations" in inspector.get_table_names()
+        assert "bracelet_readings" in inspector.get_table_names()
+        assert "student_erasure_audits" in inspector.get_table_names()
+
+        reading_columns = {column["name"] for column in inspector.get_columns("bracelet_readings")}
+        assert {"bracelet_id", "student_id", "zone_id", "recorded_at", "battery_level"}.issubset(reading_columns)
+
+        audit_columns = {column["name"] for column in inspector.get_columns("student_erasure_audits")}
+        assert "student_id" not in audit_columns
+        assert {"school_id", "erased_by_user_id", "erased_at", "deleted_feedback_count", "deleted_engagement_snapshot_count", "deleted_feedback_log_count"}.issubset(audit_columns)
 
         invitation_columns = {column["name"] for column in inspector.get_columns("parent_invitations")}
         assert {"school_id", "student_id", "invited_username", "full_name", "token_hash", "invited_by_user_id", "verification_method", "created_at", "expires_at", "accepted_at", "revoked_at"}.issubset(invitation_columns)
@@ -57,6 +66,6 @@ def test_alembic_upgrade_head_creates_verified_parent_link_schema(tmp_path, monk
         version = engine.connect().exec_driver_sql(
             "SELECT version_num FROM alembic_version"
         ).scalar_one()
-        assert version == "0007"
+        assert version == "0008"
     finally:
         engine.dispose()

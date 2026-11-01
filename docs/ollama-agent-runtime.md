@@ -8,17 +8,18 @@ Set these in the runtime environment or an untracked local `.env` file:
 
 ```dotenv
 SCHOOLSMARTEYE_LLM_PROVIDER=deterministic
-OLLAMA_BASE_URL=https://ollama.com
+OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=
 OLLAMA_API_KEY=
 ```
 
 - Keep `SCHOOLSMARTEYE_LLM_PROVIDER=deterministic` to disable network calls.
 - Set it to `ollama` and provide `OLLAMA_MODEL` to enable optional summaries.
-- For Ollama Cloud, use the Cloud API base URL and API key from your Ollama account. For a self-hosted Ollama server, set `OLLAMA_BASE_URL` to that server and keep it private.
+- For a local Ollama server on the same host, use `http://127.0.0.1:11434` (the application default). For Docker Desktop, the application container may use `http://host.docker.internal:11434`; configure Ollama's bind address and firewall so the endpoint is reachable only from trusted hosts.
+- For Ollama Cloud, use the Cloud API base URL and API key from your Ollama account. The settings are defined in `app/core/config.py` and loaded from `.env`.
 - Never commit real API keys or paste them into source code. The API key is sent only in the authorization header and is never logged.
 - Provider requests contain only the specialist label and allowlisted, validated aggregate numeric metrics. The free-form task text is intentionally not sent to the model, because it could contain student identifiers or other sensitive details.
-- Calls have a 12-second timeout and do not follow redirects. A provider failure falls back to deterministic output.
+- Calls use `OLLAMA_TIMEOUT_SECONDS` (default 12 seconds) and do not follow redirects. A provider failure falls back to deterministic output.
 
 ## Unified review report
 

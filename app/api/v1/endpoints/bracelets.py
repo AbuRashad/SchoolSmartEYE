@@ -7,11 +7,11 @@ to `/{bracelet_id}/ping` to update battery & last-seen-zone.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -74,6 +74,15 @@ class BraceletUpdate(BaseModel):
         if not _MAC_RE.match(value):
             raise ValueError("mac_address must be in the form AA:BB:CC:DD:EE:FF")
         return value.upper().replace("-", ":")
+
+
+class BraceletReadingOut(BaseModel):
+    reading_id: int
+    bracelet_id: str
+    student_id: str
+    zone_id: str
+    recorded_at: str
+    battery_level: int | None
 
 
 class BraceletPing(BaseModel):
@@ -259,6 +268,11 @@ def delete_bracelet(
     bracelet = _find(db, bracelet_id, school_id)
     if bracelet is None:
         raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
+    # SQLite deployments may not enforce ON DELETE CASCADE unless explicitly
+    # configured; remove the associated telemetry before deleting the device.
+    db.execute(delete(orm.BraceletReading).where(
+        orm.BraceletReading.bracelet_id == bracelet_id
+    ))
     db.delete(bracelet)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -287,9 +301,60 @@ def ping_bracelet(
         raise HTTPException(status_code=400, detail=f"Zone {payload.zone_id!r} does not exist")
     if zone.school_id != school_id:
         raise HTTPException(status_code=404, detail="Zone not found in this school")
+    now = datetime.now(timezone.utc)
     bracelet.last_seen_zone = payload.zone_id
-    bracelet.last_seen_at = datetime.now(timezone.utc)
+    bracelet.last_seen_at = now
     if payload.battery_level is not None:
         bracelet.battery_level = payload.battery_level
+    db.add(orm.BraceletReading(
+        bracelet_id=bracelet.bracelet_id,
+        student_id=bracelet.student_id,
+        zone_id=payload.zone_id,
+        recorded_at=now,
+        battery_level=bracelet.battery_level,
+    ))
+    from app.services.retention import bracelet_reading_cutoff
+    db.execute(delete(orm.BraceletReading).where(
+        orm.BraceletReading.recorded_at < bracelet_reading_cutoff(now)
+    ))
     db.commit()
     return _serialize(bracelet)
+
+
+@router.get(
+    "/{bracelet_id}/readings",
+    response_model=list[BraceletReadingOut],
+    dependencies=[Depends(require_teacher)],
+)
+def list_bracelet_readings(
+    bracelet_id: str,
+    days: int = Query(default=30, ge=1, le=30),
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
+) -> list[BraceletReadingOut]:
+    """Return at most 30 days of readings for a bracelet in the caller's school."""
+    bracelet = _find(db, bracelet_id, school_id)
+    if bracelet is None:
+        raise HTTPException(status_code=404, detail="Bracelet not found")
+    cutoff = datetime.now(timezone.utc) - timedelta(days=min(days, 30))
+    rows = db.scalars(
+        select(orm.BraceletReading)
+        .where(
+            orm.BraceletReading.bracelet_id == bracelet_id,
+            orm.BraceletReading.student_id == bracelet.student_id,
+            orm.BraceletReading.recorded_at >= cutoff,
+        )
+        .order_by(orm.BraceletReading.recorded_at.desc())
+        .limit(1000)
+    ).all()
+    return [
+        BraceletReadingOut(
+            reading_id=row.id,
+            bracelet_id=row.bracelet_id,
+            student_id=row.student_id,
+            zone_id=row.zone_id,
+            recorded_at=row.recorded_at.isoformat(),
+            battery_level=row.battery_level,
+        )
+        for row in rows
+    ]

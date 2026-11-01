@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.db import init_db
+from app.db.session import SessionLocal
 from app.services import seed_data
 from app.services.camera_ingestion import ingestion_service
 
@@ -16,6 +17,7 @@ from app.services.camera_ingestion import ingestion_service
 logger = logging.getLogger(__name__)
 
 _HARVEST_INTERVAL_SECONDS = 24 * 60 * 60  # 24 hours
+_BRACELET_RETENTION_INTERVAL_SECONDS = 60 * 60  # 1 hour
 
 
 async def _nightly_harvesting_loop() -> None:
@@ -45,6 +47,20 @@ async def _nightly_harvesting_loop() -> None:
             logger.exception("Daily knowledge harvesting failed")
 
 
+async def _bracelet_retention_loop() -> None:
+    """Enforce the configured bracelet-reading TTL at least hourly."""
+    while True:
+        try:
+            from app.services.retention import purge_expired_bracelet_readings
+            with SessionLocal() as db:
+                deleted = purge_expired_bracelet_readings(db)
+            if deleted:
+                logger.info("Bracelet retention purged %d expired reading(s)", deleted)
+        except Exception:  # noqa: BLE001
+            logger.exception("Bracelet reading retention purge failed")
+        await asyncio.sleep(_BRACELET_RETENTION_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Populate demo seed data and start live camera ingestion on startup."""
@@ -54,6 +70,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         init_db()
     seed_data.populate()
     logger.info("Database ready; demo seed data populated where tables were empty")
+    try:
+        from app.services.retention import purge_expired_bracelet_readings
+        with SessionLocal() as db:
+            purged = purge_expired_bracelet_readings(db)
+        if purged:
+            logger.info("Startup bracelet retention purged %d expired reading(s)", purged)
+    except Exception:  # noqa: BLE001
+        logger.exception("Startup bracelet reading retention purge failed")
 
     # Live camera ingestion — only activates if cameras_sources_file exists.
     loaded = ingestion_service.load_from_file(settings.camera_sources_file)
@@ -67,12 +91,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Start nightly engagement baseline harvesting task (Unit 15)
     harvest_task = asyncio.create_task(_nightly_harvesting_loop())
+    retention_task = asyncio.create_task(_bracelet_retention_loop())
     logger.info("Unit 15 nightly harvesting task scheduled (interval: 24h)")
+    logger.info("Bracelet reading retention task scheduled (interval: 1h)")
 
     try:
         yield
     finally:
         harvest_task.cancel()
+        retention_task.cancel()
         ingestion_service.stop_all()
         logger.info("Application shutdown complete")
 

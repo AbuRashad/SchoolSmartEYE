@@ -34,6 +34,8 @@ _STATE_SCORES: dict[EngagementState, float] = {
 _POSITIVE_STATES = {EngagementState.ENGAGED, EngagementState.ATTENTIVE}
 _NEGATIVE_STATES = {EngagementState.DISTRACTED, EngagementState.DROWSY}
 
+FEEDBACK_LOG_LOCK = threading.RLock()
+
 
 def default_score_for(state: EngagementState) -> float:
     return _STATE_SCORES.get(state, 0.5)
@@ -171,8 +173,9 @@ class PedagogicalAgentService:
                 "teacher_notes": entry.teacher_notes,
                 "recorded_at": entry.recorded_at.isoformat(),
             }
-            with open(log_path, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+            with FEEDBACK_LOG_LOCK:
+                with open(log_path, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(record, ensure_ascii=False) + "\n")
         except OSError:
             pass  # non-fatal: log directory may not exist in all environments
 
