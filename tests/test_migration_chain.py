@@ -66,6 +66,6 @@ def test_alembic_upgrade_head_creates_verified_parent_link_schema(tmp_path, monk
         version = engine.connect().exec_driver_sql(
             "SELECT version_num FROM alembic_version"
         ).scalar_one()
-        assert version == "0008"
+        assert version == "0010"
     finally:
         engine.dispose()
