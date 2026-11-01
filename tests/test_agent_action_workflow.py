@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models import School, User
+from app.db.models import AgentRunRecord, School, User
+from datetime import datetime, timezone
+
 from app.services.agent_action_workflow import (
     approve_review_task,
     complete_review_task,
@@ -41,9 +43,21 @@ def db():
     engine.dispose()
 
 
+def _create_run(db, school_id="school-a"):
+    request_id = str(uuid.uuid4())
+    db.add(AgentRunRecord(
+        request_id=request_id, school_id=school_id, requested_by_user_id=1,
+        task="Synthetic test run", provider="deterministic", status="completed",
+        result={"request_id": request_id}, created_at=datetime.now(timezone.utc),
+    ))
+    db.commit()
+    return request_id
+
+
 def test_action_requires_independent_human_approval_and_completes(db):
+    source_request_id = _create_run(db)
     task = propose_review_task(
-        db, school_id="school-a", user_id=1, source_request_id=str(uuid.uuid4()),
+        db, school_id="school-a", user_id=1, source_request_id=source_request_id,
         action_kind="review_safety_signals",
     )
     assert task.status == "pending_approval"
@@ -73,8 +87,9 @@ def test_action_requires_independent_human_approval_and_completes(db):
 
 
 def test_action_is_tenant_scoped_and_unknown_action_is_rejected(db):
+    source_request_id = _create_run(db)
     task = propose_review_task(
-        db, school_id="school-a", user_id=1, source_request_id=str(uuid.uuid4()),
+        db, school_id="school-a", user_id=1, source_request_id=source_request_id,
         action_kind="review_attendance_trend",
     )
     assert [item.action_id for item in list_review_tasks(db, school_id="school-a")] == [task.action_id]
@@ -86,15 +101,16 @@ def test_action_is_tenant_scoped_and_unknown_action_is_rejected(db):
 
     with pytest.raises(HTTPException) as invalid_action:
         propose_review_task(
-            db, school_id="school-a", user_id=1, source_request_id=str(uuid.uuid4()),
+            db, school_id="school-a", user_id=1, source_request_id=source_request_id,
             action_kind="send_parent_message",
         )
     assert invalid_action.value.status_code == 422
 
 
 def test_rejected_action_cannot_be_approved(db):
+    source_request_id = _create_run(db)
     task = propose_review_task(
-        db, school_id="school-a", user_id=1, source_request_id=str(uuid.uuid4()),
+        db, school_id="school-a", user_id=1, source_request_id=source_request_id,
         action_kind="verify_evidence_quality",
     )
     rejected = reject_review_task(
