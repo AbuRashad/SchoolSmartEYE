@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_school_id, require_principal, require_teacher
@@ -86,8 +87,7 @@ def create_drill(
     db: Session = Depends(get_db),
     school_id: str = Depends(get_current_school_id),
 ) -> DrillOut:
-    if db.get(orm.Drill, payload.drill_id) is not None:
-        raise HTTPException(status_code=409, detail="Drill ID already exists")
+    # The database enforces global ID uniqueness; avoid cross-school preflight reads.
     drill = orm.Drill(
         drill_id=payload.drill_id,
         school_id=school_id,
@@ -97,7 +97,14 @@ def create_drill(
         notes=payload.notes,
     )
     db.add(drill)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Drill could not be created because its identifier or submitted data conflicts with an existing record.",
+        ) from None
     db.refresh(drill)
     return DrillOut.model_validate(drill, from_attributes=True)
 
