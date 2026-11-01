@@ -438,8 +438,8 @@ _SESSION_ZONES = [
 ]
 
 
-def _seed_engagement_snapshots() -> None:
-    """Seed three sessions of engagement data across the last 3 days."""
+def _seed_engagement_snapshots(student_ids: set[str] | None = None) -> None:
+    """Seed three sessions for all students or only the specified missing IDs."""
     now = datetime.now(timezone.utc)
     session_specs = [
         ("SES-TODAY-AM", 0, 8, 30),    # today 08:30
@@ -451,6 +451,8 @@ def _seed_engagement_snapshots() -> None:
     for session_id, day_offset, hour, minute in session_specs:
         base_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=day_offset)
         for idx, (sid, _, _, _, _, _) in enumerate(_STUDENT_DATA):
+            if student_ids is not None and sid not in student_ids:
+                continue
             profile = _STUDENT_SESSION_PROFILES.get(sid, [])
             # Pick the snapshot profile entry matching the session index (cycle through)
             entry = profile[session_specs.index((session_id, day_offset, hour, minute)) % len(profile)]
@@ -476,6 +478,8 @@ def _seed_engagement_snapshots() -> None:
         session_id = f"SES-HIST-{abs(day_offset)}"
         base_time = now.replace(hour=8, minute=30, second=0, microsecond=0) + timedelta(days=day_offset)
         for idx, (sid, _, _, _, _, _) in enumerate(_STUDENT_DATA):
+            if student_ids is not None and sid not in student_ids:
+                continue
             profile = _STUDENT_SESSION_PROFILES.get(sid, [])
             entry = profile[idx % len(profile)]
             state, score, audio_context, mismatch = entry
@@ -636,8 +640,10 @@ def populate(db: Session | None = None) -> None:
         _seed_reports()
         _seed_visitors()
         _seed_transport()
-    if not engagement_snapshots:
-        _seed_engagement_snapshots()
+    existing_snapshot_students = {item.student_id for item in engagement_snapshots}
+    missing_snapshot_students = set(_STUDENT_SESSION_PROFILES) - existing_snapshot_students
+    if missing_snapshot_students:
+        _seed_engagement_snapshots(missing_snapshot_students)
 
     def _seed(session: Session) -> None:
         seed_database(session)
