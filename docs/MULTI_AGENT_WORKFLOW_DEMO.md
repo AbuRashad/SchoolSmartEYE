@@ -1,24 +1,24 @@
-# Dubai AI Agents Championship — SchoolSmartEYE Demo
+# SchoolSmartEYE Multi-Agent Workflow Demonstration
 
 ## Purpose
 
-This is a competition demonstration of the existing SchoolSmartEYE specialist-agent orchestration. It uses synthetic school-wide aggregate metrics and does not access a real school database or student records.
+This document describes a privacy-safe demonstration of the SchoolSmartEYE specialist-agent orchestration. It uses synthetic school-wide aggregate metrics and does not access a real school database or student records.
 
-## Run the demo
+## Run the demonstration
 
 From the repository root:
 
 ```bash
-python scripts/demo_competition_agents.py
+python scripts/demo_multi_agent_workflow.py
 ```
 
 To print the complete structured response:
 
 ```bash
-python scripts/demo_competition_agents.py --json
+python scripts/demo_multi_agent_workflow.py --json
 ```
 
-The default configuration uses deterministic specialist logic. It is designed to run without a paid model or external AI service.
+The default configuration uses deterministic specialist logic. It runs without a paid model or external AI service.
 
 ## Optional AI-assisted mode
 
@@ -30,10 +30,10 @@ PowerShell example (use a model and endpoint already available to you):
 $env:SCHOOLSMARTEYE_LLM_PROVIDER = "ollama"
 $env:OLLAMA_MODEL = "your-available-model"
 $env:OLLAMA_BASE_URL = "http://localhost:11434"
-python scripts/demo_competition_agents.py
+python scripts/demo_multi_agent_workflow.py
 ```
 
-Do not commit API keys or secrets. If an authenticated endpoint is used, set `OLLAMA_API_KEY` in the local environment only. Review provider terms, data residency, and institutional approval before sending any school data to a remote endpoint. This demo itself uses synthetic values.
+Do not commit API keys or secrets. If an authenticated endpoint is used, set `OLLAMA_API_KEY` in the local environment only. Review provider terms, data residency, and institutional approval before sending any school data to a remote endpoint. This demonstration itself uses synthetic values.
 
 To return to deterministic mode:
 
@@ -62,7 +62,7 @@ The orchestrator runs these six specialist stages in sequence:
 
 The unified response reports the stages, evidence, findings, provenance notice, limitations, provider status, and whether AI-assisted analysis completed or fell back to deterministic output.
 
-## What this demo proves
+## What this demonstration shows
 
 - Six named specialist stages are coordinated by one orchestrator.
 - Each optional AI analysis has a distinct specialist role and a strict structured-output schema.
@@ -72,21 +72,19 @@ The unified response reports the stages, evidence, findings, provenance notice, 
 - Provider failure or invalid model output falls back to deterministic results.
 - The response explicitly requires human review and records that no autonomous action was taken.
 
-## Important limitations — be precise in the competition
+## Current limitations
 
-This is a working multi-agent analysis prototype, not yet an autonomous school operations agent that executes external tools or performs real-world actions. The current demo does not connect to live camera streams, live external school systems, or production telemetry. Its input is synthetic data, and it creates no alerts, messages, tickets, or interventions.
+This is a working multi-agent analysis prototype, not yet an autonomous school operations agent that executes external tools or performs real-world actions. The current demonstration does not connect to live camera streams, live external school systems, or production telemetry. Its input is synthetic data, and it creates no alerts, messages, tickets, or interventions.
 
 The authenticated API obtains its aggregate analytics through the school-scoped analytics service. Non-demo tenant data is marked with unknown source provenance until record-level source verification is completed. Do not describe unknown-provenance records as verified live data.
 
-## Recommended live-demo narration
+## Suggested walkthrough
 
-"One school-wide request enters the orchestrator. It validates the available aggregate evidence, delegates analysis to six specialist roles, and passes the first five outputs to an ethics reviewer. The system then returns a traceable report with source limitations and a human-review gate. If the model is unavailable, the deterministic specialists still produce a bounded result. The current branch includes a bounded action workflow: the orchestrator run is persisted, an authorised user can propose one of four predefined school-level review tasks, a different authorised user must approve it, and the task can then be completed and audited. No external message, camera command, attendance edit, or student-level intervention is executed."
-
-
+"One school-wide request enters the orchestrator. It validates the available aggregate evidence, delegates analysis to six specialist roles, and passes the first five outputs to an ethics reviewer. The system then returns a traceable report with source limitations and a human-review gate. If the model is unavailable, the deterministic specialists still produce a bounded result. The current system includes a bounded action workflow: the orchestrator run is persisted, an authorised user can propose one of four predefined school-level review tasks, a different authorised user must approve it, and the task can then be completed and audited. No external message, camera command, attendance edit, or student-level intervention is executed."
 
 ## Human-approved action workflow (v1)
 
-The branch also adds a persistent, school-scoped internal review-task workflow. It is deliberately limited to four server-defined action types:
+The system includes a persistent, school-scoped internal review-task workflow. It is deliberately limited to four server-defined action types:
 
 - `review_attendance_trend`
 - `review_safety_signals`

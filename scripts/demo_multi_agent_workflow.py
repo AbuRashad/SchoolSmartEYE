@@ -1,7 +1,7 @@
-"""Run a privacy-safe synthetic SchoolSmartEYE multi-agent demo.
+"""Run a privacy-safe synthetic SchoolSmartEYE multi-agent demonstration.
 
 From the repository root:
-    python scripts/demo_competition_agents.py
+    python scripts/demo_multi_agent_workflow.py
 
 The scenario contains synthetic school-wide aggregate metrics only. It does not
 read the database, contact students, or perform operational actions.
@@ -33,7 +33,7 @@ SYNTHETIC_SCENARIO = {
     "patrol_efficiency": 82,
     "compliance_score": 91,
     "data_status": "demo",
-    "data_notice": "Synthetic competition demonstration data; not a real school feed.",
+    "data_notice": "Synthetic demonstration data; not a real school feed.",
 }
 
 
@@ -44,7 +44,7 @@ def main() -> int:
         SYNTHETIC_SCENARIO,
     )
 
-    print("SchoolSmartEYE | Dubai AI Agents Championship demo")
+    print("SchoolSmartEYE | Multi-Agent Workflow Demonstration")
     print("=" * 58)
     print(f"Request ID: {result['request_id']}")
     print(f"Data status: {result['report']['data_status']}")
