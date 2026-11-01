@@ -19,6 +19,7 @@ def upgrade() -> None:
         sa.Column("action_id", sa.String(length=36), nullable=False),
         sa.Column("school_id", sa.String(length=64), nullable=False),
         sa.Column("source_request_id", sa.String(length=36), nullable=False),
+        sa.Column("action_kind", sa.String(length=40), nullable=False),
         sa.Column("title", sa.String(length=160), nullable=False),
         sa.Column("description", sa.String(length=1200), nullable=False),
         sa.Column("assigned_role", sa.String(length=16), nullable=False, server_default="principal"),
