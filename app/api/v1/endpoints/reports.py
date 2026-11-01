@@ -41,6 +41,12 @@ def _report_previews(db: Session, school_id: str) -> list[dict[str, object]]:
     ) or 0
     ssi = ssi_history.summarize(db, school_id, 30)
     generated_at = datetime.now(timezone.utc).isoformat()
+    data_status = "demo" if school_id == "DEMO-SCHOOL-001" else "unknown"
+    data_notice = (
+        "Synthetic demo seed data; not live school telemetry."
+        if data_status == "demo"
+        else "School isolation is enforced, but record-level source provenance has not been verified."
+    )
 
     return [
         {
@@ -57,6 +63,8 @@ def _report_previews(db: Session, school_id: str) -> list[dict[str, object]]:
             ),
             "data": {"attendance_by_status": attendance, "active_students": int(total_students)},
             "persisted": False,
+            "data_status": data_status,
+            "data_notice": data_notice,
         },
         {
             "report_id": f"{school_id}:incidents:{today.isoformat()}",
