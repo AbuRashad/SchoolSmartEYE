@@ -237,3 +237,22 @@ class AgentFeedbackRecord(Base):
     confirmed_state: Mapped[str] = mapped_column(String(32))
     teacher_notes: Mapped[str] = mapped_column(String(1024), default="")
     recorded_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+
+
+class ParentInvitation(Base):
+    """Single-use, school-scoped invitation; only a token hash is persisted."""
+
+    __tablename__ = "parent_invitations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id", ondelete="CASCADE"), index=True)
+    student_id: Mapped[str] = mapped_column(ForeignKey("students.student_id", ondelete="CASCADE"), index=True)
+    invited_username: Mapped[str] = mapped_column(String(64), index=True)
+    full_name: Mapped[str] = mapped_column(String(128))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    invited_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    verification_method: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
