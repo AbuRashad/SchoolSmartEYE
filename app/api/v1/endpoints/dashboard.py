@@ -31,11 +31,19 @@ def _summary(db: Session, school_id: str) -> dict[str, object]:
     if school is None or not school.is_active:
         raise HTTPException(status_code=404, detail="School not found")
     metrics = seed_data.get_school_metrics(db, school_id)
-    latest_ssi = db.scalar(
-        select(orm.SSISnapshot.ssi)
+    latest_ssi_row = db.execute(
+        select(orm.SSISnapshot.ssi, orm.SSISnapshot.source)
         .where(orm.SSISnapshot.school_id == school_id)
         .order_by(orm.SSISnapshot.recorded_at.desc())
         .limit(1)
+    ).first()
+    latest_ssi = latest_ssi_row[0] if latest_ssi_row else None
+    ssi_source = latest_ssi_row[1] if latest_ssi_row else None
+    data_status = "demo" if school_id == "DEMO-SCHOOL-001" else "unknown"
+    data_notice = (
+        "Synthetic demo seed data; not live school telemetry."
+        if data_status == "demo"
+        else "School isolation is enforced, but record-level source provenance has not been verified."
     )
     return {
         "schoolName": school.name,
@@ -47,7 +55,10 @@ def _summary(db: Session, school_id: str) -> dict[str, object]:
         "openIncidents": metrics.open_incidents,
         "ssi": latest_ssi,
         "ssiStatus": "measured" if latest_ssi is not None else "awaiting_school_measurement",
+        "ssiSource": ssi_source,
         "benchmark": 75.0,
+        "dataStatus": data_status,
+        "dataNotice": data_notice,
         "computedAt": metrics.computed_at.isoformat(),
         "dataSource": "school_scoped_database",
         "websocketStatus": "disabled_until_tenant_partitioned",
@@ -69,6 +80,7 @@ def _alerts(db: Session, school_id: str) -> list[dict[str, object]]:
             "message": incident.description,
             "severity": incident.severity,
             "stream": "persisted_incident",
+            "data_status": "demo" if school_id == "DEMO-SCHOOL-001" else "unknown",
             "zoneId": incident.zone_id,
             "zoneLabel": zone_label,
             "computed_at": incident.detected_at.isoformat(),
@@ -110,6 +122,12 @@ def _heatmap(db: Session, school_id: str) -> dict[str, object]:
         "cells": cells,
         "availableTimeSlots": ["current"],
         "dataSource": "school_scoped_database",
+        "dataStatus": "demo" if school_id == "DEMO-SCHOOL-001" else "unknown",
+        "dataNotice": (
+            "Synthetic demo seed data; not live school telemetry."
+            if school_id == "DEMO-SCHOOL-001"
+            else "School isolation is enforced, but record-level source provenance has not been verified."
+        ),
         "interpretation": "Incident signal only; not a camera-derived or predictive risk score.",
     }
 
