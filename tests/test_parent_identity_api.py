@@ -184,6 +184,19 @@ def test_principal_can_revoke_parent_link_and_parent_loses_access(
     )
     assert revoked.status_code == 204
 
+    with db_session_factory() as db:
+        link = db.scalar(
+            __import__("sqlalchemy").select(orm.ParentStudentLink).where(
+                orm.ParentStudentLink.student_id == "STU-2024-0847"
+            )
+        )
+        principal = db.scalar(
+            __import__("sqlalchemy").select(orm.User).where(orm.User.username == "principal")
+        )
+        assert link.is_active is False
+        assert link.revoked_at is not None
+        assert link.revoked_by_user_id == principal.id
+
     summary = client.get(
         f"{API}/parent/students/STU-2024-0847/summary",
         headers=_parent_headers(),
