@@ -47,6 +47,15 @@ def build_agent(
         select(orm.Student.student_id).where(orm.Student.school_id == school_id)
     ))
     with seed_data.engagement_snapshots_lock:
+        # Restore missing synthetic trajectories only for known demo students in
+        # non-production environments. Deleted students are absent from the DB
+        # scope and therefore can never be re-seeded by this fallback.
+        if school_id == "DEMO-SCHOOL-001" and not settings.is_production:
+            existing_ids = {item.student_id for item in seed_data.engagement_snapshots}
+            demo_ids = student_ids.intersection(seed_data._STUDENT_SESSION_PROFILES)
+            missing_demo_ids = demo_ids - existing_ids
+            if missing_demo_ids:
+                seed_data._seed_engagement_snapshots(missing_demo_ids)
         snapshots = [item for item in seed_data.engagement_snapshots if item.student_id in student_ids]
     return PedagogicalAgentService(
         snapshots=snapshots,
