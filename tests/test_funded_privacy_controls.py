@@ -12,7 +12,14 @@ from app.services.retention import purge_expired_bracelet_readings
 
 def test_student_delete_erases_relational_memory_and_feedback_file(client, db_session_factory, monkeypatch, tmp_path):
     seed_data.populate()
-    student_id = "STU-2024-0856"
+    student_id = "ERASE-TEST-STUDENT"
+    with db_session_factory() as db:
+        db.add(orm.Student(
+            student_id=student_id, school_id="DEMO-SCHOOL-001",
+            name="Temporary Erasure Student", grade="G8", class_section="ER",
+            parent_id="P-ERASE",
+        ))
+        db.commit()
     monkeypatch.setattr(settings, "video_log_dir", str(tmp_path))
     log_path = tmp_path / "agent_performance.jsonl"
     log_path.write_text(
@@ -100,7 +107,7 @@ def test_student_erasure_is_school_scoped_and_requires_principal(client, auth_he
     from fastapi.testclient import TestClient
     from app.main import app
     teacher_client = TestClient(app, headers=auth_headers("teacher"))
-    assert teacher_client.delete("/api/v1/students/STU-2024-0856").status_code == 403
+    assert teacher_client.delete("/api/v1/students/STU-2024-0847").status_code == 403
     assert client.delete("/api/v1/students/NOT-A-STUDENT").status_code == 404
 
     with db_session_factory() as db:
