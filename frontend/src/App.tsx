@@ -10,7 +10,6 @@ import { LiveAlertFeed } from "./components/LiveAlertFeed";
 import { LiveCameraGrid } from "./components/LiveCameraGrid";
 import { MetricCard } from "./components/MetricCard";
 import { ControlPanel } from "./components/ControlPanel";
-import { ParentPortalFull } from "./components/ParentPortalFull";
 import { ReportsDashboard } from "./components/ReportsDashboard";
 import { RiskHeatmap } from "./components/RiskHeatmap";
 import { Sidebar } from "./components/Sidebar";
@@ -18,7 +17,7 @@ import { SSIHistoryChart } from "./components/SSIHistoryChart";
 import { SSILivePanel } from "./components/SSILivePanel";
 import { UnitsGrid } from "./components/UnitsGrid";
 import { useSafetyDashboardSocket } from "./hooks/useSafetyDashboardSocket";
-import { useSSILive, useSSIHistory, useUnits, useAnalyticsOverview, useReportsList, useReportsStats, useStudentPortal, useAgentInsights } from "./hooks/useSSIData";
+import { useSSILive, useSSIHistory, useUnits, useAnalyticsOverview, useReportsList, useReportsStats, useAgentInsights } from "./hooks/useSSIData";
 import type { NavPage } from "./types";
 
 export default function App() {
@@ -50,7 +49,6 @@ function AppShell() {
   const { data: analytics } = useAnalyticsOverview();
   const reports = useReportsList();
   const reportStats = useReportsStats();
-  const studentData = useStudentPortal();
   const { data: agentInsights } = useAgentInsights();
 
   return (
@@ -220,20 +218,6 @@ function AppShell() {
                 </p>
               </section>
               <LiveCameraGrid />
-            </>
-          )}
-
-          {/* ─── PARENT PORTAL PAGE ──────────────────────────── */}
-          {page === "portal" && (
-            <>
-              <section className="rounded-[2rem] border border-white/10 bg-panel/70 px-6 py-5 shadow-panel">
-                <p className="text-xs uppercase tracking-[0.28em] text-mist/50">Parent Portal</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Smart Parent Portal — Unit 12</h2>
-                <p className="mt-2 text-sm text-mist/75">
-                  Privacy-governed attendance & safety notifications for guardians. Powered by the Arab Data Governance Model (Unit 14).
-                </p>
-              </section>
-              <ParentPortalFull data={studentData} />
             </>
           )}
 
