@@ -54,6 +54,11 @@ def test_principal_can_create_verified_link_and_parent_sees_only_linked_student(
     assert created.json()["is_active"] is True
     assert created.json()["verification_method"] == "school_records"
 
+    admin_links = client.get(f"{API}/parent/links")
+    assert admin_links.status_code == 200
+    assert len(admin_links.json()) == 1
+    assert admin_links.json()[0]["link_id"] == created.json()["link_id"]
+
     headers = _parent_headers()
     students = client.get(f"{API}/parent/students", headers=headers)
     assert students.status_code == 200
@@ -69,6 +74,43 @@ def test_principal_can_create_verified_link_and_parent_sees_only_linked_student(
     assert "synthetic demo seed data" in summary.json()["data_notice"].lower()
     assert "live location" in summary.json()["data_notice"].lower()
     assert all("parent_id" not in item for item in summary.json()["notifications"])
+
+
+def test_principal_link_list_excludes_other_school_links(client, db_session_factory):
+    seed_data.populate()
+    parent_id = _create_parent(db_session_factory)
+
+    with db_session_factory() as db:
+        principal = db.scalar(select(orm.User).where(orm.User.username == "principal"))
+        db.add(orm.School(
+            school_id="PARENT-LIST-FOREIGN-SCHOOL",
+            name="Foreign Link School",
+            is_active=True,
+        ))
+        db.flush()
+        db.add(orm.Student(
+            student_id="PARENT-LIST-FOREIGN-STUDENT",
+            school_id="PARENT-LIST-FOREIGN-SCHOOL",
+            name="Foreign Linked Student",
+            grade="G7",
+            class_section="C",
+            parent_id="FOREIGN-PARENT-REF",
+        ))
+        db.flush()
+        db.add(orm.ParentStudentLink(
+            user_id=parent_id,
+            student_id="PARENT-LIST-FOREIGN-STUDENT",
+            school_id="PARENT-LIST-FOREIGN-SCHOOL",
+            verified_by_user_id=principal.id,
+            verified_at=datetime.now(timezone.utc),
+            verification_method="school_records",
+            is_active=True,
+        ))
+        db.commit()
+
+    links = client.get(f"{API}/parent/links")
+    assert links.status_code == 200
+    assert links.json() == []
 
 
 def test_parent_cannot_self_create_link_or_access_unlinked_student(
