@@ -9,6 +9,7 @@ seeded the same way. Reports, visitors, etc. remain in-memory demo data.
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import date, datetime, timedelta, timezone
 
 import numpy as np
@@ -48,6 +49,7 @@ reports: list[ReportRecord] = []
 visitors: list[VisitorRecord] = []
 transport_routes: list[TransportRoute] = []
 engagement_snapshots: list[EngagementSnapshot] = []
+engagement_snapshots_lock = threading.RLock()
 
 
 def _utc(hour: int = 8, minute: int = 0, day_offset: int = 0) -> datetime:
