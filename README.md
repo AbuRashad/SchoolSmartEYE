@@ -241,7 +241,7 @@ All paths are under `/api/v1`. See the [roles table](#-authentication--roles) fo
 | GET | `/parent/students` | Parent (exact role) | List only students with active verified links |
 | GET | `/parent/students/{student_id}/summary` | Parent (exact role) | Last 7 days of attendance and current-recipient notifications |
 
-Parent accounts are not demo-seeded. A principal must verify the adult against authoritative school records and provision the parent login separately. Parent endpoints do not expose live location, camera frames, or internal safety signals. The React parent-facing UI is not yet connected to these endpoints.
+Parent accounts are not demo-seeded. A principal must verify the adult against authoritative school records and provision the parent login separately. Parent endpoints do not expose live location, camera frames, or internal safety signals. The React app routes parent-role accounts into a dedicated portal shell connected to these endpoints; parent accounts still require separate provisioning.
 
 ### Students, Zones & Bracelets (Control Panel)
 
