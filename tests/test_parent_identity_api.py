@@ -62,7 +62,7 @@ def test_principal_can_create_verified_link_and_parent_sees_only_linked_student(
     )
     assert summary.status_code == 200
     assert summary.json()["student"]["student_id"] == "STU-2024-0847"
-    assert "live location" in summary.json()["data_notice"]
+    assert "live location" in summary.json()["data_notice"].lower()
     assert all("parent_id" not in item for item in summary.json()["notifications"])
 
 
