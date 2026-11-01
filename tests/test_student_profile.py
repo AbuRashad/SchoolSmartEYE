@@ -29,6 +29,33 @@ def _create_student(client) -> None:
     assert r.status_code == 201
 
 
+def test_student_id_conflict_does_not_disclose_foreign_school(client, db_session_factory) -> None:
+    seed_data.populate()
+    foreign_id = "FOREIGN-SCHOOL-STUDENT-409"
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="FOREIGN-SCHOOL-409", name="Foreign School", is_active=True))
+        db.add(orm.Student(
+            student_id=foreign_id,
+            school_id="FOREIGN-SCHOOL-409",
+            name="Private Student",
+            grade="G9",
+            class_section="A",
+            parent_id="PRIVATE-PARENT",
+        ))
+        db.commit()
+
+    response = client.post(
+        f"{API}/students",
+        json={"student_id": foreign_id, "name": "Attempt", "grade": "G9", "class_section": "A", "parent_id": "P"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Student could not be created because the identifier or submitted data conflicts with an existing record."
+    )
+    assert foreign_id not in response.text
+    assert "FOREIGN-SCHOOL-409" not in response.text
+
+
 def test_crud_and_error_paths(client, zone) -> None:
     _create_student(client)
     created = client.get(f"{API}/students").json()
