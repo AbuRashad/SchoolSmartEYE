@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    JSON,
     Date,
     DateTime,
     Float,
@@ -289,3 +290,39 @@ class StudentErasureAudit(Base):
     deleted_parent_link_count: Mapped[int] = mapped_column(Integer, default=0)
     deleted_invitation_count: Mapped[int] = mapped_column(Integer, default=0)
     deleted_bracelet_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AgentActionTask(Base):
+    """School-scoped internal review task proposed by agents and human-approved."""
+
+    __tablename__ = "agent_action_tasks"
+
+    action_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id", ondelete="CASCADE"), index=True)
+    source_request_id: Mapped[str] = mapped_column(String(36), index=True)
+    action_kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(String(1200), nullable=False)
+    assigned_role: Mapped[str] = mapped_column(String(16), nullable=False, default="principal")
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending_approval", index=True)
+    proposed_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    approved_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    completed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
+class AgentRunRecord(Base):
+    """Persisted school-scoped specialist run for traceability and action linkage."""
+
+    __tablename__ = "agent_runs"
+
+    request_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id", ondelete="CASCADE"), index=True)
+    requested_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    task: Mapped[str] = mapped_column(String(500), nullable=False)
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    result: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
