@@ -98,12 +98,12 @@ export function StudentsTab({ flash }: { flash: Flash }) {
   };
 
   const removeOne = async (id: string) => {
-    if (!confirm(`Delete student "${id}"? Their bracelet (if any) will also be removed.`))
+    if (!confirm(`PERMANENTLY ERASE student "${id}"?\n\nThis removes the student and their linked school records, including attendance, feedback, bracelet readings and assignment, parent links, and invitations. This action cannot be undone.\n\nUnindexed CCTV footage, backups, exports, and third-party copies are outside this operation.`))
       return;
     setBusy(true);
     try {
       await api(`/students/${encodeURIComponent(id)}`, { method: "DELETE" });
-      flash("ok", `Student ${id} deleted`);
+      flash("ok", `Student ${id} and linked records permanently erased`);
       reload();
     } catch (e) {
       flash("err", (e as Error).message);
@@ -364,7 +364,7 @@ export function StudentsTab({ flash }: { flash: Flash }) {
                             type="button"
                             onClick={() => removeOne(s.student_id)}
                             disabled={busy}
-                            title="Delete"
+                            title="Permanently erase student data"
                             className="rounded-lg border border-critical/40 bg-critical/10 p-1.5 text-critical hover:bg-critical/20 disabled:opacity-50"
                           >
                             <Trash2 className="h-3.5 w-3.5" />

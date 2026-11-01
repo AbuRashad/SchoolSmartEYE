@@ -581,7 +581,7 @@ function EditTab({
       <div className="flex flex-wrap justify-between gap-2">
         <button type="button" onClick={onDelete} disabled={busy}
           className="flex items-center gap-2 rounded-xl border border-critical/40 bg-critical/10 px-4 py-2 text-sm text-critical hover:bg-critical/20 disabled:opacity-50">
-          <Trash2 className="h-4 w-4" /> Delete Student
+          <Trash2 className="h-4 w-4" /> Permanently Erase Student
         </button>
         <button type="submit" disabled={busy}
           className="flex items-center gap-2 rounded-xl bg-cobalt px-4 py-2 text-sm font-semibold text-white transition hover:bg-cobalt/90 disabled:opacity-50">
@@ -759,11 +759,11 @@ export function StudentProfileModal({ studentId, flash, onClose, onChanged }: Pr
 
   const removeStudent = async () => {
     if (!profile) return;
-    if (!confirm(`Delete student "${profile.name}"? Their bracelet (if any) will also be removed.`)) return;
+    if (!confirm(`PERMANENTLY ERASE student "${profile.name}"?\n\nThis removes the student and their linked school records, including attendance, feedback, bracelet readings and assignment, parent links, and invitations. This action cannot be undone.\n\nUnindexed CCTV footage, backups, exports, and third-party copies are outside this operation.`)) return;
     setBusy(true);
     try {
       await api(`/students/${encodeURIComponent(profile.student_id)}`, { method: "DELETE" });
-      flash("ok", `Student ${profile.name} deleted`);
+      flash("ok", `Student ${profile.name} and linked records permanently erased`);
       onChanged();
       onClose();
     } catch (e) {
