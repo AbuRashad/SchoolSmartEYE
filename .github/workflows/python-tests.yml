@@ -2,9 +2,9 @@ name: Python tests
 
 on:
   pull_request:
-    branches: [main, hardening/agent-output-validation]
+    branches: [main, hardening/agent-output-validation, feat/native-school-intelligence-engine]
   push:
-    branches: [main, "feature/agent-orchestrator-v1", "feature/orchestrator-metric-validation", "feat/native-ai-engine-hybrid", "feat/native-school-intelligence-engine"]
+    branches: [main, "feature/agent-orchestrator-v1", "feature/orchestrator-metric-validation", "feat/native-ai-engine-hybrid", "feat/native-school-intelligence-engine", "feat/nextgen-db-safety"]
 
 permissions:
   contents: read
