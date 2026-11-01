@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    JSON,
     Date,
     DateTime,
     Float,
@@ -310,3 +311,18 @@ class AgentActionTask(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
+class AgentRunRecord(Base):
+    """Persisted school-scoped specialist run for traceability and action linkage."""
+
+    __tablename__ = "agent_runs"
+
+    request_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id", ondelete="CASCADE"), index=True)
+    requested_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    task: Mapped[str] = mapped_column(String(500), nullable=False)
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    result: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
