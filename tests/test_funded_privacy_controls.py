@@ -103,6 +103,18 @@ def test_student_erasure_is_school_scoped_and_requires_principal(client, auth_he
     assert teacher_client.delete("/api/v1/students/STU-2024-0847").status_code == 403
     assert client.delete("/api/v1/students/NOT-A-STUDENT").status_code == 404
 
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="FOREIGN-ERASURE-SCHOOL", name="Foreign School", is_active=True))
+        db.flush()
+        db.add(orm.Student(
+            student_id="FOREIGN-ERASURE-STUDENT", school_id="FOREIGN-ERASURE-SCHOOL",
+            name="Foreign Student", grade="G8", class_section="A", parent_id="PRIVATE-PARENT",
+        ))
+        db.commit()
+    assert client.delete("/api/v1/students/FOREIGN-ERASURE-STUDENT").status_code == 404
+    with db_session_factory() as db:
+        assert db.get(orm.Student, "FOREIGN-ERASURE-STUDENT") is not None
+
 
 def test_bracelet_retention_purges_readings_older_than_30_days(db_session_factory):
     seed_data.populate()
