@@ -114,7 +114,7 @@ Students, bracelets, attendance records, notifications, users, zones, cameras, i
 | `DB_AUTO_CREATE` | `true` | Create missing tables at startup |
 
 **SQLite** works out of the box (the `*.db` file is git-ignored).
-For an **existing database**, run `alembic upgrade head` before starting the updated application. `DB_AUTO_CREATE=true` creates missing tables but does not add new columns to existing tables. The tenant migrations add school membership and school ownership fields through revision `0005`; they intentionally leave legacy ownership fields nullable. Do not bulk-assign old records to the demo school without a verified mapping.
+For an **existing database**, run `alembic upgrade head` before starting the updated application. `DB_AUTO_CREATE=true` creates missing tables but does not add new columns to existing tables. Tenant revisions `0003`–`0005` add school ownership fields; revision `0006` adds audited parent-to-student links. Legacy ownership remains nullable and parent links are never inferred. Do not bulk-assign old records or parent identities without verified mappings.
 
 **PostgreSQL** only needs a different URL and a driver:
 
@@ -149,13 +149,14 @@ Send it as the header `Authorization: Bearer <access_token>`. `GET /api/v1/auth/
 
 ### Roles
 
-Roles follow the RBAC hierarchy of the governance layer: **Teacher → Principal → Ministry** (a higher role can do everything a lower role can).
+School staff roles follow the RBAC hierarchy: **Teacher → Principal → Ministry**. The **Parent** role is separate, has no staff permissions, and can access only students linked through an active, school-verified parent identity record.
 
 | Demo user   | Role      | Demo password   |
 |-------------|-----------|-----------------|
 | `teacher`   | Teacher   | `teacher123`    |
 | `principal` | Principal | `principal123`  |
 | `ministry`  | Ministry  | `ministry123`   |
+| Parent accounts | Parent | No demo account; provision individually after school identity verification |
 
 > These are **demo credentials only**. Override them with `DEMO_TEACHER_PASSWORD`, `DEMO_PRINCIPAL_PASSWORD` and `DEMO_MINISTRY_PASSWORD` (or `SEED_DEMO_USERS=false`). With `APP_ENV=production` the demo users are *not* created while the published default passwords are in use.
 
@@ -164,9 +165,10 @@ Roles follow the RBAC hierarchy of the governance layer: **Teacher → Principal
 | Public       | `/health`, `/auth/login`, `/units` (static unit metadata only) |
 | Teacher+     | School-scoped student/profile/history, zones, bracelet reads, camera list/snapshot/stream, agent and attendance-risk reads |
 | Principal+   | School-scoped student and bracelet CRUD, bracelet ping, camera register/delete/start/stop |
-| Ministry     | `/reports/*` (temporarily returns 503 until school-scoped report sources are implemented) |
+| Ministry     | `/reports/*` (school-scoped on-demand previews; not persisted/downloadable) |
+| Parent       | `/parent/students*` (only through active verified parent/student/school links) |
 
-**Tenant-isolation status:** Camera registry, registration, lifecycle, snapshots, and streams now require a persisted camera joined to a zone owned by the authenticated school. Dashboard feeds/WebSocket, live SSI, analytics, report metrics, unit health/alerts, and process-global runtime settings remain temporarily fail-closed (HTTP 503) until their underlying records and caches are partitioned by verified school ownership. Historical SSI is available only for snapshots explicitly assigned to the authenticated school. Static `/units` metadata remains available.
+**Tenant-isolation status:** Student, bracelet, camera, incident, drill, SSI-history, dashboard REST, analytics, report-preview, and parent-summary reads/writes use authenticated school or verified parent/student scope. Dashboard WebSocket, live SSI, unit health/alerts, and process-global runtime settings remain unavailable until their underlying streams, caches, and settings are tenant-partitioned. Dashboard, analytics, and report previews identify seeded demo data as synthetic, not live telemetry. Ministry report previews are generated on demand and are not persisted/downloadable. Static `/units` metadata remains available.
 
 ### Security-related settings
 
@@ -183,7 +185,7 @@ Roles follow the RBAC hierarchy of the governance layer: **Teacher → Principal
 
 **Control Panel → Students** lists students with search, grade / section / status filters, and an *Add Student* drawer (principal+). Click a student name or the eye icon to open the profile modal with the tabs **Overview · Attendance · Bracelet · Notifications · Engagement (Unit 15) · Edit** (Edit and activate / delete are principal+).
 
-The modal is backed by `GET /api/v1/students/{student_id}/profile`. It currently returns school-scoped student, bracelet and attendance information; notifications, incident-derived safety status, and zone labels are withheld until those source records have verified school ownership.
+The modal is backed by `GET /api/v1/students/{student_id}/profile`. It returns school-scoped student, bracelet, attendance, and recipient-validated notification information. Incident-derived safety fields are scoped through school-owned zones.
 
 ---
 
@@ -203,10 +205,10 @@ All paths are under `/api/v1`. See the [roles table](#-authentication--roles) fo
 
 | Method    | Endpoint              | Description                                    |
 |-----------|-----------------------|------------------------------------------------|
-| GET       | `/dashboard/summary`  | Temporarily unavailable (503) pending school-scoped sources |
-| GET       | `/dashboard/alerts`   | Temporarily unavailable (503) pending per-school alert queues |
-| GET       | `/dashboard/heatmap`  | Temporarily unavailable (503) pending school-scoped heatmap data |
-| GET       | `/dashboard/live`     | Temporarily unavailable (503) pending per-school snapshots |
+| GET       | `/dashboard/summary`  | School-scoped REST summary; demo data clearly labelled |
+| GET       | `/dashboard/alerts`   | School-scoped persisted incident alerts |
+| GET       | `/dashboard/heatmap`  | School-scoped incident-derived heatmap (not video analytics) |
+| GET       | `/dashboard/live`     | School-scoped REST snapshot; not a live camera stream |
 | WebSocket | `/dashboard/ws`       | Refused until the stream manager is partitioned by school |
 
 
@@ -220,15 +222,26 @@ All paths are under `/api/v1`. See the [roles table](#-authentication--roles) fo
 | GET    | `/units`                | Metadata for the system units                |
 | GET    | `/units/capture/health` | Temporarily unavailable (503) pending per-school stream health |
 | GET    | `/units/alerts/summary` | Temporarily unavailable (503) pending per-school alert queues |
-| GET    | `/analytics/overview`   | Temporarily unavailable (503) until metrics have school-scoped provenance |
+| GET    | `/analytics/overview`   | School-scoped aggregates with demo/unknown provenance labels |
 
 ### Reports (Ministry) and Parent Portal
 
 | Method | Endpoint           | Description                             |
 |--------|--------------------|-----------------------------------------|
-| GET    | `/reports/list`    | Temporarily unavailable (503) pending school-scoped reports |
-| GET    | `/reports/stats`   | Temporarily unavailable (503) pending school-scoped reports |
-| GET    | `/portal/student`  | School-scoped portal status; student profile stays unavailable until an authenticated parent/student link exists |
+| GET    | `/reports/list`    | School-scoped on-demand preview cards; not persisted |
+| GET    | `/reports/stats`   | School-scoped preview statistics; not downloadable artifacts |
+| GET    | `/portal/student`  | Legacy portal status; does not grant parent access |
+
+### Parent Identity & Portal (backend API)
+
+| Method | Endpoint | Min. role | Description |
+|---|---|---|---|
+| POST | `/parent/links` | Principal+ | Verify and create a parent-to-student link within the principal's school |
+| DELETE | `/parent/links/{student_id}/{parent_username}` | Principal+ | Revoke a link with verifier and timestamp audit |
+| GET | `/parent/students` | Parent (exact role) | List only students with active verified links |
+| GET | `/parent/students/{student_id}/summary` | Parent (exact role) | Last 7 days of attendance and current-recipient notifications |
+
+Parent accounts are not demo-seeded. A principal must verify the adult against authoritative school records and provision the parent login separately. Parent endpoints do not expose live location, camera frames, or internal safety signals. The React parent-facing UI is not yet connected to these endpoints.
 
 ### Students, Zones & Bracelets (Control Panel)
 
