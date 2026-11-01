@@ -60,6 +60,9 @@ def test_invitation_is_school_scoped_and_parent_cannot_issue(client, db_session_
     issued = _invite(client)
     assert issued.status_code == 201
     token = issued.json()["invitation_token"]
+    with db_session_factory() as db:
+        db.add(orm.User(username="new.parent", full_name="New Parent", hashed_password="unused-test-value", role="parent", is_active=True))
+        db.commit()
     parent_token = __import__("app.core.security", fromlist=["create_access_token"]).create_access_token(
         "new.parent", "parent"
     )
