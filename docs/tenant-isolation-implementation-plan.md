@@ -108,10 +108,10 @@ Completed:
 - Replaced global analytics/report metrics with authenticated-school SQL aggregates and on-demand report previews. Report previews are not persisted artifacts.
 - Disabled simulated SSI, global unit-health/alert summaries, and process-global runtime settings until per-school source/configuration storage exists.
 - Audited runtime-settings consumers: camera ingestion uses the process singleton for stream FPS/JPEG/reconnect behavior; bracelet and student profile summaries use its battery threshold. The settings API remains fail-closed for both reads and writes. Per-school settings require persisted school-keyed configuration and explicit propagation into each consumer before re-enabling the API.
-- Added cross-school camera registration/lifecycle denial tests. Dashboard, analytics, reports, SSI, unit-health and process-global settings remain fail-closed until their source data is partitioned by school.
+- Added cross-school camera registration/lifecycle denial tests. Dashboard REST, analytics overview, and report previews have since been restored with school-filtered SQL; dashboard WebSocket, live SSI, unit-health, and process-global settings remain fail-closed.
 
 Still required:
-- Implement verified ownership for remaining operational stores and per-school runtime settings; then re-enable dashboard/analytics/report/live-SSI/unit-health endpoints with school-filtered queries and per-school streaming/cache partitions.
+- Implement verified ownership for remaining operational stores and per-school runtime settings; partition the dashboard streaming/cache layer before enabling WebSocket, and partition sensor/health inputs before enabling live SSI or unit-health feeds.
 - Incident list/detail/create/resolve and drill list/detail/create/complete endpoints are implemented with server-resolved school scope. Student profile attendance, notification, and incident-derived reads are school-filtered. Analytics overview and ministry report previews are now school-scoped; previews are generated on request and are not stored. Standalone parent notification access remains withheld until verified parent/student identity mapping is complete. Continue auditing attendance-write and export/download paths.
 - Add tenant ownership or a validated parent relationship to every remaining school-owned table and every in-memory/cache source; add class-level authorization and audit logging.
 - Define a safe, reviewed backfill for existing users, students, and operational data. Never assign all existing rows to the demo school by default.
@@ -161,3 +161,12 @@ Still required:
 - Regression tests cover cross-school student/bracelet conflict responses, dashboard isolation, analytics isolation, and report preview isolation.
 - **Legacy data decision:** no automatic backfill is permitted. Before any real deployment/import, an authorized data owner must approve a record-by-record or source-of-truth-based school ownership mapping, define treatment of ambiguous/unassigned records (retain inaccessible or quarantine), approve a backup/rollback plan, and sign off on migration dry-run results. No migration or reassignment is performed in this PR.
 - **Identifier decision still required:** `Student.student_id`, `Bracelet.bracelet_id`, and `Bracelet.mac_address` are globally unique in the current schema. Neutral error messages reduce disclosure but do not create school-local identifier namespaces. If schools may reuse student/bracelet identifiers, introduce surrogate primary keys plus school-scoped unique constraints in a separately reviewed schema migration.
+
+
+## Data provenance and remaining API boundaries — 2026-11-01
+
+- Dashboard, analytics, reports, and orchestration explicitly label the demo tenant's seeded records as synthetic demo data, not live telemetry. Other tenants are marked unknown until record-level provenance is verified.
+- Attendance reads in student profiles, attendance-risk, dashboard, analytics, and report previews are scoped through the owning Student row. There is no standalone attendance CRUD/ingestion endpoint in the current API router.
+- Notification reads are limited to the student profile and require a school-owned Student join plus matching current parent_id. No standalone notification-management or parent-facing API is exposed.
+- Incident list/detail/create/resolve and dashboard/analytics/report incident aggregates inherit school ownership through the persisted Zone join. Unassigned legacy zones and their incidents remain inaccessible.
+- The in-memory attendance-safety and parent-portal helpers do not independently enforce tenant scope; keep them disconnected from authenticated routes until a verified, school-scoped data loader is introduced.
