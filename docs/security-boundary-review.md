@@ -102,7 +102,7 @@ This document records static code observations only. It does not claim that the 
 
 ## Verified parent identity — 2026-11-01
 
-- Added `parent_student_links` as an audited mapping from a parent login (`users.id`, role exactly `parent`) to a student and school. Each active mapping requires a verifier user, verification timestamp, and verification method.
+- Added `parent_student_links` as an audited mapping from a parent login (`users.id`, role exactly `parent`) to a student and school. Each active mapping requires a verifier user, verification timestamp, and verification method; revocation records the revoking user and timestamp, and re-verification clears the previous revocation fields.
 - Only a principal with an active school membership can create or revoke a mapping. The server resolves the principal's school and assigns it; clients cannot submit `user_id`, `school_id`, verifier identity, or verification timestamp.
 - Parent read routes require the exact `parent` role and an active, verified mapping. Queries join the link to the student on both student_id and school_id. A parent cannot create or self-activate a link.
 - Parent summaries expose only the linked student's last seven days of persisted attendance and notifications whose parent_id still matches the student's current parent reference. They do not expose camera frames, live location, raw detections, or internal risk signals.
