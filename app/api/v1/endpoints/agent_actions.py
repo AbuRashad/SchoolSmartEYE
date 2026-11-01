@@ -32,6 +32,7 @@ class ProposeReviewTask(BaseModel):
 
 
 class ReviewTaskResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     action_id: str
     school_id: str
     source_request_id: str
