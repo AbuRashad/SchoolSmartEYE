@@ -143,6 +143,8 @@ def create_parent_link(
         link.verified_at = now
         link.verification_method = payload.verification_method
         link.is_active = True
+        link.revoked_by_user_id = None
+        link.revoked_at = None
 
     try:
         db.commit()
@@ -169,6 +171,7 @@ def revoke_parent_link(
     parent_username: str,
     db: Session = Depends(get_db),
     school_id: str = Depends(get_current_school_id),
+    principal: orm.User = Depends(require_principal),
 ) -> Response:
     parent = db.scalar(select(orm.User).where(orm.User.username == parent_username, orm.User.role == "parent"))
     if parent is None:
@@ -184,6 +187,8 @@ def revoke_parent_link(
     if link is None:
         raise HTTPException(status_code=404, detail="Verified parent link not found")
     link.is_active = False
+    link.revoked_by_user_id = principal.id
+    link.revoked_at = datetime.now(timezone.utc)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
