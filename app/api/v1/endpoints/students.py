@@ -186,11 +186,8 @@ def list_students(db: Session = Depends(get_db), school_id: str = Depends(get_cu
     dependencies=[Depends(require_principal)],
 )
 def create_student(payload: StudentCreate, db: Session = Depends(get_db), school_id: str = Depends(get_current_school_id)) -> StudentOut:
-    if db.get(orm.Student, payload.student_id) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Student {payload.student_id!r} already exists",
-        )
+    # Student IDs are globally unique in the current schema. Do not query
+    # another tenant's row before insert or disclose whether it exists.
     initial = payload.photo_initial or (payload.name[:1].upper() if payload.name else "?")
     student = orm.Student(
         student_id=payload.student_id,
@@ -209,7 +206,7 @@ def create_student(payload: StudentCreate, db: Session = Depends(get_db), school
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Student {payload.student_id!r} already exists",
+            detail="Student could not be created because the identifier or submitted data conflicts with an existing record.",
         ) from None
     return _serialize(student)
 
