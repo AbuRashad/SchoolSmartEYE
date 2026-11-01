@@ -36,8 +36,8 @@ def test_orchestrator_uses_authenticated_school_scoped_analytics(client: TestCli
     assert [stage["name"] for stage in payload["stages"]] == [
         "analytics", "safety", "academic", "operations", "evidence", "ethics_review",
     ]
-    assert payload["report"]["data_status"] == "unknown"
-    assert "per-record demo/live provenance" in payload["report"]["data_notice"]
+    assert payload["report"]["data_status"] == "demo"
+    assert "not live school telemetry" in payload["report"]["data_notice"]
 
 
 def test_orchestrator_rejects_unknown_request_fields(client: TestClient):
