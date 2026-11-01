@@ -636,6 +636,7 @@ def populate(db: Session | None = None) -> None:
         _seed_reports()
         _seed_visitors()
         _seed_transport()
+    if not engagement_snapshots:
         _seed_engagement_snapshots()
 
     def _seed(session: Session) -> None:
