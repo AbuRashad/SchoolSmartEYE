@@ -84,11 +84,19 @@ def analytics_overview(
             "attendance_rate": round(present / recorded * 100, 1) if recorded else None,
         })
 
+    data_status = "demo" if school_id == "DEMO-SCHOOL-001" else "unknown"
+    data_notice = (
+        "Synthetic demo seed data; not live school telemetry."
+        if data_status == "demo"
+        else "School isolation is enforced, but record-level source provenance has not been verified."
+    )
     return {
         "school_id": school_id,
         "generated_at": now.isoformat(),
         "period_days": 30,
         "data_source": "school_scoped_database",
+        "data_status": data_status,
+        "data_notice": data_notice,
         "students": {"active": int(total_students)},
         "cameras": {"active": int(active_cameras)},
         "incidents": {
