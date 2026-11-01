@@ -80,7 +80,7 @@ The authenticated API obtains its aggregate analytics through the school-scoped 
 
 ## Recommended live-demo narration
 
-"One school-wide request enters the orchestrator. It validates the available aggregate evidence, delegates analysis to six specialist roles, and passes the first five outputs to an ethics reviewer. The system then returns a traceable report with source limitations and a human-review gate. If the model is unavailable, the deterministic specialists still produce a bounded result. In this version, the system does not take an operational action without a future, explicitly approved action workflow."
+"One school-wide request enters the orchestrator. It validates the available aggregate evidence, delegates analysis to six specialist roles, and passes the first five outputs to an ethics reviewer. The system then returns a traceable report with source limitations and a human-review gate. If the model is unavailable, the deterministic specialists still produce a bounded result. The current branch includes a bounded action workflow: the orchestrator run is persisted, an authorised user can propose one of four predefined school-level review tasks, a different authorised user must approve it, and the task can then be completed and audited. No external message, camera command, attendance edit, or student-level intervention is executed."
 
 
 
