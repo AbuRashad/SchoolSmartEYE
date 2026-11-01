@@ -82,3 +82,31 @@ The authenticated API obtains its aggregate analytics through the school-scoped 
 
 "One school-wide request enters the orchestrator. It validates the available aggregate evidence, delegates analysis to six specialist roles, and passes the first five outputs to an ethics reviewer. The system then returns a traceable report with source limitations and a human-review gate. If the model is unavailable, the deterministic specialists still produce a bounded result. In this version, the system does not take an operational action without a future, explicitly approved action workflow."
 
+
+
+## Human-approved action workflow (v1)
+
+The branch also adds a persistent, school-scoped internal review-task workflow. It is deliberately limited to four server-defined action types:
+
+- `review_attendance_trend`
+- `review_safety_signals`
+- `review_operational_readiness`
+- `verify_evidence_quality`
+
+A Principal/Ministry-authorised user can propose one of these tasks against an orchestration `request_id`. The proposal remains `pending_approval`. A different authorised user must approve it; approval creates an `open` internal task. A reviewer can reject it, and an open task can later be marked `completed`. The API lists only tasks in the authenticated user's resolved school.
+
+API routes (under the configured API v1 prefix):
+
+- `POST /agent/actions` — propose a predefined task
+- `GET /agent/actions` — list this school's tasks
+- `POST /agent/actions/{action_id}/approve` — independent approval
+- `POST /agent/actions/{action_id}/reject` — reject a pending proposal
+- `POST /agent/actions/{action_id}/complete` — complete an approved task
+
+The request accepts only a UUID source request ID and an allowlisted action kind; callers cannot supply arbitrary task text or executable commands. The database stores no student identifier or student-level payload in this workflow. It does not send notifications, message parents, alter attendance, or control cameras. Those integrations require separate explicit permissions, audit design, and human approval gates.
+
+Apply the schema migration before enabling this API on an existing database:
+
+```bash
+alembic upgrade head
+```
