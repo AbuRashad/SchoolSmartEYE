@@ -236,7 +236,7 @@ All paths are under `/api/v1`. See the [roles table](#-authentication--roles) fo
 
 | Method | Endpoint | Min. role | Description |
 |---|---|---|---|
-| POST | `/parent/links` | Principal+ | Verify and create a parent-to-student link within the principal's school |
+| GET | `/parent/links` | Principal+ | List active and revoked parent links for this school |\n| POST | `/parent/links` | Principal+ | Verify and create a parent-to-student link within the principal's school |
 | DELETE | `/parent/links/{link_id}` | Principal+ | Revoke a link with verifier and timestamp audit |
 | GET | `/parent/students` | Parent (exact role) | List only students with active verified links |
 | GET | `/parent/students/{student_id}/summary` | Parent (exact role) | Last 7 days of attendance and current-recipient notifications |
