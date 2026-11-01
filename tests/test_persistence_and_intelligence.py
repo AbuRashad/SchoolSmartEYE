@@ -90,7 +90,10 @@ def test_ssi_history_is_school_scoped_while_live_remains_disabled(client, db_ses
     assert len(history.json()["scores"]) == 30
     assert all(point["ssi"] != 1.0 for point in history.json()["scores"])
     assert client.get(f"{API}/ssi/live").status_code == 503
-    assert client.get(f"{API}/dashboard/summary").status_code == 503
+    dashboard = client.get(f"{API}/dashboard/summary")
+    assert dashboard.status_code == 200
+    assert dashboard.json()["schoolId"] == "DEMO-SCHOOL-001"
+    assert dashboard.json()["ssiStatus"] == "measured"
     with db_session_factory() as db:
         assert db.query(orm.SSISnapshot).filter_by(source="live").count() == 0
 
