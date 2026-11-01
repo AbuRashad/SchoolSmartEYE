@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints.agent import router as agent_router
 from app.api.v1.endpoints.orchestrator import router as orchestrator_router
+from app.api.v1.endpoints.agent_actions import router as agent_actions_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.analytics import router as analytics_router
 from app.api.v1.endpoints.bracelets import router as bracelets_router
@@ -39,4 +40,5 @@ api_router.include_router(bracelets_router)
 api_router.include_router(settings_router)
 api_router.include_router(agent_router)
 api_router.include_router(orchestrator_router)
+api_router.include_router(agent_actions_router)
 api_router.include_router(risk_router)
