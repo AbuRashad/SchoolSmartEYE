@@ -123,7 +123,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(128), default="")
     hashed_password: Mapped[str] = mapped_column(String(256))
-    role: Mapped[str] = mapped_column(String(16))  # teacher | principal | ministry
+    role: Mapped[str] = mapped_column(String(16))  # teacher | principal | ministry | parent
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
