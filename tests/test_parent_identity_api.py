@@ -48,6 +48,7 @@ def test_principal_can_create_verified_link_and_parent_sees_only_linked_student(
 
     created = _link(client)
     assert created.status_code == 201
+    assert created.json()["link_id"] > 0
     assert created.json()["student_id"] == "STU-2024-0847"
     assert created.json()["parent_username"] == "parent.one"
     assert created.json()["is_active"] is True
@@ -143,7 +144,8 @@ def test_link_requires_existing_active_parent_account_and_duplicate_is_neutral(
     assert missing.status_code == 404
     assert "not-a-parent" not in missing.text
 
-    assert _link(client).status_code == 201
+    created = _link(client)
+    assert created.status_code == 201
     duplicate = _link(client)
     assert duplicate.status_code == 409
     assert "parent.one" not in duplicate.text
@@ -182,10 +184,11 @@ def test_principal_can_revoke_parent_link_and_parent_loses_access(
 ):
     seed_data.populate()
     _create_parent(db_session_factory)
-    assert _link(client).status_code == 201
+    created = _link(client)
+    assert created.status_code == 201
 
     revoked = client.delete(
-        f"{API}/parent/links/STU-2024-0847/parent.one"
+        f"{API}/parent/links/{created.json()['link_id']}"
     )
     assert revoked.status_code == 204
 
