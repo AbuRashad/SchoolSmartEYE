@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { LoginScreen } from "./components/LoginScreen";
+import { ParentPortalDashboard } from "./components/ParentPortalDashboard";
 import { Users, Activity, Calendar, Camera } from "lucide-react";
 import { AIInsightsPanel } from "./components/AIInsightsPanel";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
@@ -30,7 +31,9 @@ export default function App() {
 
 function AuthGate() {
   const { user } = useAuth();
-  return user ? <AppShell /> : <LoginScreen />;
+  if (!user) return <LoginScreen />;
+  if (user.role === "parent") return <ParentPortalDashboard />;
+  return <AppShell />;
 }
 
 function AppShell() {
