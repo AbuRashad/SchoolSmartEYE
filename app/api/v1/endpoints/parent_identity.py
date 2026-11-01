@@ -32,6 +32,17 @@ class ParentLinkOut(BaseModel):
     is_active: bool
 
 
+class ParentLinkAdminOut(BaseModel):
+    link_id: int
+    student_id: str
+    student_name: str
+    parent_username: str
+    verification_method: str
+    verified_at: str
+    is_active: bool
+    revoked_at: str | None
+
+
 class ParentStudentOut(BaseModel):
     student_id: str
     name: str
@@ -159,6 +170,41 @@ def create_parent_link(
         verified_at=link.verified_at.isoformat(),
         is_active=link.is_active,
     )
+
+
+@router.get(
+    "/links",
+    response_model=list[ParentLinkAdminOut],
+    dependencies=[Depends(require_principal)],
+)
+def list_parent_links(
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
+) -> list[ParentLinkAdminOut]:
+    rows = db.execute(
+        select(orm.ParentStudentLink, orm.Student, orm.User)
+        .join(
+            orm.Student,
+            (orm.Student.student_id == orm.ParentStudentLink.student_id)
+            & (orm.Student.school_id == orm.ParentStudentLink.school_id),
+        )
+        .join(orm.User, orm.User.id == orm.ParentStudentLink.user_id)
+        .where(orm.ParentStudentLink.school_id == school_id)
+        .order_by(orm.ParentStudentLink.verified_at.desc())
+    ).all()
+    return [
+        ParentLinkAdminOut(
+            link_id=link.id,
+            student_id=student.student_id,
+            student_name=student.name,
+            parent_username=parent.username,
+            verification_method=link.verification_method,
+            verified_at=link.verified_at.isoformat(),
+            is_active=link.is_active,
+            revoked_at=link.revoked_at.isoformat() if link.revoked_at else None,
+        )
+        for link, student, parent in rows
+    ]
 
 
 @router.delete(
