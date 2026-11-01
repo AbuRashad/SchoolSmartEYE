@@ -1,6 +1,6 @@
 // Token storage, role helpers and an authenticated fetch wrapper.
 
-export type Role = "teacher" | "principal" | "ministry";
+export type Role = "teacher" | "principal" | "ministry" | "parent";
 
 export type AuthUser = {
   username: string;
@@ -15,10 +15,10 @@ const USER_KEY = "schoolsmarteye.user";
 export const UNAUTHORIZED_EVENT = "schoolsmarteye:unauthorized";
 
 // Mirrors the backend RBAC hierarchy: Teacher -> Principal -> Ministry.
-const ROLE_LEVEL: Record<Role, number> = { teacher: 1, principal: 2, ministry: 3 };
+const ROLE_LEVEL: Partial<Record<Role, number>> = { teacher: 1, principal: 2, ministry: 3 };
 
 export function hasRole(user: AuthUser | null, minimum: Role): boolean {
-  return !!user && (ROLE_LEVEL[user.role] ?? 0) >= ROLE_LEVEL[minimum];
+  return !!user && user.role !== "parent" && (ROLE_LEVEL[user.role] ?? 0) >= (ROLE_LEVEL[minimum] ?? Number.POSITIVE_INFINITY);
 }
 
 export function getToken(): string | null {
