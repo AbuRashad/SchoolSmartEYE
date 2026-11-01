@@ -333,6 +333,21 @@ def test_incident_api_is_scoped_through_school_owned_zones(client, seeded, db_se
     )
     assert denied_create.status_code == 404
 
+    # A globally unique incident ID owned by another school must not be
+    # disclosed by a preflight lookup or an identifier-specific response.
+    duplicate_foreign_id = client.post(
+        f"{API}/incidents",
+        json={
+            "incident_id": "OTHER-INCIDENT",
+            "zone_id": "zone-main-gate",
+            "severity": "medium",
+            "description": "Attempt to reuse a foreign ID",
+        },
+    )
+    assert duplicate_foreign_id.status_code == 409
+    assert "OTHER-INCIDENT" not in duplicate_foreign_id.text
+    assert "OTHER-SCHOOL" not in duplicate_foreign_id.text
+
     created = client.post(
         f"{API}/incidents",
         json={
@@ -371,6 +386,18 @@ def test_drill_api_is_scoped_and_assigns_school_server_side(client, seeded, db_s
         f"{API}/drills/OTHER-DRILL/complete",
         json={"response_time_seconds": 30},
     ).status_code == 404
+
+    duplicate_foreign_id = client.post(
+        f"{API}/drills",
+        json={
+            "drill_id": "OTHER-DRILL",
+            "drill_type": "fire",
+            "scheduled_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+    assert duplicate_foreign_id.status_code == 409
+    assert "OTHER-DRILL" not in duplicate_foreign_id.text
+    assert "OTHER-SCHOOL" not in duplicate_foreign_id.text
 
     created = client.post(
         f"{API}/drills",
