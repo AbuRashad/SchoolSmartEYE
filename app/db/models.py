@@ -283,6 +283,8 @@ class StudentErasureAudit(Base):
     deleted_attendance_count: Mapped[int] = mapped_column(Integer, default=0)
     deleted_notification_count: Mapped[int] = mapped_column(Integer, default=0)
     deleted_feedback_count: Mapped[int] = mapped_column(Integer, default=0)
+    deleted_engagement_snapshot_count: Mapped[int] = mapped_column(Integer, default=0)
+    deleted_feedback_log_count: Mapped[int] = mapped_column(Integer, default=0)
     deleted_bracelet_reading_count: Mapped[int] = mapped_column(Integer, default=0)
     deleted_parent_link_count: Mapped[int] = mapped_column(Integer, default=0)
     deleted_invitation_count: Mapped[int] = mapped_column(Integer, default=0)
