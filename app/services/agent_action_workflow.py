@@ -1,4 +1,4 @@
-"""Human approval workflow for the bounded SchoolSmartEYE agent action surface."""
+"""Human approval workflow for a tightly allowlisted SchoolSmartEYE agent action surface."""
 from __future__ import annotations
 
 import uuid
@@ -10,6 +10,31 @@ from sqlalchemy.orm import Session
 
 from app.db.models import AgentActionTask
 
+# Fixed server-owned templates prevent an agent or caller from injecting arbitrary
+# messages, student identifiers, or external commands into the action queue.
+_ACTION_TEMPLATES = {
+    "review_attendance_trend": (
+        "Review school-wide attendance trend",
+        "Review the aggregate attendance trend, verify source completeness, and record an appropriate school-level response.",
+        "principal",
+    ),
+    "review_safety_signals": (
+        "Review school-wide safety signals",
+        "Verify the reported aggregate safety signals with authorised staff and document the outcome.",
+        "principal",
+    ),
+    "review_operational_readiness": (
+        "Review operational readiness",
+        "Check reported service and operational indicators, confirm source freshness, and record any required follow-up.",
+        "principal",
+    ),
+    "verify_evidence_quality": (
+        "Verify evidence quality and provenance",
+        "Check the provenance, completeness, and freshness of the evidence used in the school-wide agent review.",
+        "teacher",
+    ),
+}
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -17,15 +42,17 @@ def _utcnow() -> datetime:
 
 def propose_review_task(
     db: Session, *, school_id: str, user_id: int, source_request_id: str,
-    title: str, description: str, assigned_role: str = "principal",
+    action_kind: str,
 ) -> AgentActionTask:
-    """Persist a pending internal review task; no external side effect is executed."""
-    if assigned_role not in {"principal", "teacher"}:
-        raise HTTPException(status_code=422, detail="Unsupported assignee role")
+    """Persist a pending, predefined internal review task; perform no side effect."""
+    template = _ACTION_TEMPLATES.get(action_kind)
+    if template is None:
+        raise HTTPException(status_code=422, detail="Unsupported agent action")
+    title, description, assigned_role = template
     task = AgentActionTask(
         action_id=str(uuid.uuid4()), school_id=school_id,
-        source_request_id=source_request_id, title=title.strip(),
-        description=description.strip(), assigned_role=assigned_role,
+        source_request_id=source_request_id, action_kind=action_kind,
+        title=title, description=description, assigned_role=assigned_role,
         status="pending_approval", proposed_by_user_id=user_id, created_at=_utcnow(),
     )
     db.add(task)
