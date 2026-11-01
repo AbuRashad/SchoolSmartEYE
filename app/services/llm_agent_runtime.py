@@ -7,6 +7,8 @@ from typing import Any
 
 import httpx
 
+from app.core.config import settings
+
 MAX_RESPONSE_CHARS = 6000
 MAX_SUMMARY_LENGTH = 500
 MAX_ITEMS = 5
@@ -24,11 +26,11 @@ AGENT_ROLES = {
 
 
 def ollama_enabled() -> bool:
-    return os.getenv("SCHOOLSMARTEYE_LLM_PROVIDER", "deterministic").strip().lower() == "ollama"
+    return os.getenv("SCHOOLSMARTEYE_LLM_PROVIDER", settings.schoolsmarteye_llm_provider).strip().lower() == "ollama"
 
 
 def _ollama_chat_url() -> str:
-    base_url = os.getenv("OLLAMA_BASE_URL", "https://ollama.com").strip().rstrip("/")
+    base_url = os.getenv("OLLAMA_BASE_URL", settings.ollama_base_url).strip().rstrip("/")
     if not base_url.startswith(("https://", "http://")):
         raise ValueError("OLLAMA_BASE_URL must be an HTTP(S) URL")
     return f"{base_url}/api/chat"
@@ -77,11 +79,11 @@ def generate_specialist_analysis(
     """Invoke one specialist AI role with validated metrics and optional peer handoff."""
     if not ollama_enabled() or agent_name not in AGENT_ROLES:
         return None, False
-    model = os.getenv("OLLAMA_MODEL", "").strip()
+    model = os.getenv("OLLAMA_MODEL", settings.ollama_model).strip()
     if not model:
         return None, False
     headers = {"Content-Type": "application/json"}
-    api_key = os.getenv("OLLAMA_API_KEY", "").strip()
+    api_key = os.getenv("OLLAMA_API_KEY", settings.ollama_api_key).strip()
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     system_prompt = (
@@ -106,7 +108,7 @@ def generate_specialist_analysis(
         "options": {"temperature": 0.1},
     }
     try:
-        with httpx.Client(timeout=DEFAULT_TIMEOUT_SECONDS, follow_redirects=False) as client:
+        with httpx.Client(timeout=settings.ollama_timeout_seconds, follow_redirects=False) as client:
             response = client.post(_ollama_chat_url(), headers=headers, json=payload)
             response.raise_for_status()
             body: dict[str, Any] = response.json()
