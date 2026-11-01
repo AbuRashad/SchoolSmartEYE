@@ -73,6 +73,16 @@ def test_bracelet_conflicts_do_not_disclose_foreign_school_records(client, seede
     assert "BR-FOREIGN-PRIVATE" not in id_conflict.text
     assert "FOREIGN-BRACELET-SCHOOL" not in id_conflict.text
 
+    # Updating a local bracelet with a MAC owned by another school must
+    # return the same neutral conflict without echoing the address.
+    update_mac_conflict = client.patch(
+        "/api/v1/bracelets/BR-0001",
+        json={"mac_address": "AA:BB:CC:DD:EE:91"},
+    )
+    assert update_mac_conflict.status_code == 409
+    assert "AA:BB:CC:DD:EE:91" not in update_mac_conflict.text
+    assert "FOREIGN-BRACELET-SCHOOL" not in update_mac_conflict.text
+
     # MAC addresses are globally unique hardware identifiers; do not run a
     # cross-tenant preflight query or reveal the school that owns the MAC.
     mac_conflict = client.post(
