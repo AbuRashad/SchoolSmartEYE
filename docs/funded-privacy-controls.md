@@ -10,7 +10,10 @@ This implementation adds code paths and automated tests for three funded require
 - Deletes the student row and structured student-linked records: attendance, notifications, feedback records, bracelet assignment/readings, parent-student links, and pending parent invitations.
 - Removes matching Unit 15 engagement snapshots from the in-memory store.
 - Rewrites `agent_performance.jsonl` to remove matching feedback records. Malformed JSONL causes the operation to stop rather than silently claim success.
+- Purges the file-backed feedback log and in-memory snapshots before committing the relational database deletion. This deliberately favours privacy if the database commit fails: linked feedback artefacts may already be gone while the student row remains. The operation is designed to be safely retryable; a retry finds already-purged artefacts and continues with the remaining database deletion. This is not a single atomic transaction across filesystem, memory, and SQL.
 - Writes a privacy-preserving audit record with the school, actor, timestamp, and per-store deletion counts. The audit schema deliberately has no student identifier.
+
+**API compatibility warning:** `DELETE /api/v1/students/{student_id}` now means permanent student erasure, not ordinary record removal. Every client, frontend, integration, and script using this route must present an explicit irreversible-erasure confirmation and must not describe it as a reversible archive or routine delete.
 
 **Scope boundary:** the current application has no student-to-video-file index, and it cannot identify a student's appearance inside unindexed CCTV footage. External backups, database snapshots, exported files, and third-party copies are also outside this endpoint's control. Those stores need their own retention/erasure procedures before the organisation can claim end-to-end erasure across all systems. The 72-hour video TTL remains a separate control.
 
