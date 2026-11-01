@@ -289,3 +289,23 @@ class StudentErasureAudit(Base):
     deleted_parent_link_count: Mapped[int] = mapped_column(Integer, default=0)
     deleted_invitation_count: Mapped[int] = mapped_column(Integer, default=0)
     deleted_bracelet_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AgentActionTask(Base):
+    """School-scoped internal review task proposed by agents and human-approved."""
+
+    __tablename__ = "agent_action_tasks"
+
+    action_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id", ondelete="CASCADE"), index=True)
+    source_request_id: Mapped[str] = mapped_column(String(36), index=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(String(1200), nullable=False)
+    assigned_role: Mapped[str] = mapped_column(String(16), nullable=False, default="principal")
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending_approval", index=True)
+    proposed_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    approved_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    completed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
