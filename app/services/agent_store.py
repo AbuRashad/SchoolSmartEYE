@@ -100,7 +100,7 @@ def purge_student_artifacts(student_id: str, video_log_dir: str | None = None) -
                     if record.get("student_id") == student_id:
                         removed_feedback_logs += 1
                     else:
-                        retained.append(json.dumps(record, ensure_ascii=False) + "\\n")
+                        retained.append(json.dumps(record, ensure_ascii=False) + "\n")
             temporary = log_path.with_name(log_path.name + ".erasure-tmp")
             try:
                 with temporary.open("w", encoding="utf-8") as handle:
