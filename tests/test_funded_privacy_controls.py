@@ -191,3 +191,34 @@ def test_ollama_settings_have_local_endpoint_and_deterministic_default(monkeypat
     assert llm_agent_runtime._ollama_chat_url() == "http://127.0.0.1:11434/api/chat"
     with pytest.raises(ValidationError):
         Settings(_env_file=None, bracelet_reading_retention_days=31)
+
+
+
+def test_malformed_feedback_log_does_not_partially_purge_memory(tmp_path):
+    from app.services.agent_store import purge_student_artifacts
+
+    student_id = "ERASE-MALFORMED-LOG"
+    snapshot = EngagementSnapshot(
+        student_id=student_id,
+        recorded_at=datetime.now(timezone.utc),
+        state=EngagementState.ENGAGED,
+        score=0.8,
+        session_id="ERASE-MALFORMED-SESSION",
+        zone_id=None,
+        audio_context=None,
+        audio_visual_mismatch=False,
+    )
+    with seed_data.engagement_snapshots_lock:
+        seed_data.engagement_snapshots.append(snapshot)
+
+    log_path = tmp_path / "agent_performance.jsonl"
+    malformed_content = '{"student_id": "OTHER"}\n{malformed json\n'
+    log_path.write_text(malformed_content, encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="unreadable record"):
+        purge_student_artifacts(student_id, str(tmp_path))
+
+    with seed_data.engagement_snapshots_lock:
+        assert snapshot in seed_data.engagement_snapshots
+        seed_data.engagement_snapshots.remove(snapshot)
+    assert log_path.read_text(encoding="utf-8") == malformed_content
