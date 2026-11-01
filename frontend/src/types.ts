@@ -164,6 +164,7 @@ export type ParentStudentSummary = {
     sent_at: string;
     read: boolean;
   }[];
+  data_status: "demo" | "unknown";
   data_notice: string;
 };
 
