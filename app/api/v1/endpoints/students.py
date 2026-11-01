@@ -13,7 +13,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_school_id, get_current_user, require_principal, require_teacher
+from app.api.deps import get_current_school_id, get_current_user, require_principal, require_retention_manager, require_teacher
 from app.db import models as orm
 from app.db.session import get_db
 from app.models import (
@@ -229,7 +229,7 @@ def update_student(
 @router.delete(
     "/students/{student_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(require_principal)],
+    dependencies=[Depends(require_retention_manager)],
 )
 def delete_student(
     student_id: str,
