@@ -11,6 +11,11 @@ def _add_foreign_school(db) -> None:
         student_id="ANALYTICS-FOREIGN-STUDENT", school_id="ANALYTICS-FOREIGN",
         name="Foreign Student", grade="G7", class_section="A", parent_id="P-FOREIGN",
     ))
+    db.add(orm.AttendanceRecord(
+        student_id="ANALYTICS-FOREIGN-STUDENT",
+        date=datetime.now(timezone.utc).date(),
+        status="present",
+    ))
     db.add(orm.Zone(
         zone_id="ANALYTICS-FOREIGN-ZONE", school_id="ANALYTICS-FOREIGN",
         label="Foreign Zone", zone_type="classroom", capacity=20, floor=1, grid_x=9, grid_y=9,
@@ -34,6 +39,7 @@ def test_analytics_overview_excludes_other_school_data(client, db_session_factor
     data = response.json()
     assert data["school_id"] == "DEMO-SCHOOL-001"
     assert data["students"]["active"] == 10
+    assert data["attendance"]["daily"][-1]["recorded"] == 10
     assert data["data_status"] == "demo"
     assert "not live school telemetry" in data["data_notice"]
     assert "ANALYTICS-FOREIGN-INCIDENT" not in response.text
