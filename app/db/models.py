@@ -153,6 +153,8 @@ class ParentStudentLink(Base):
     verified_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     verification_method: Mapped[str] = mapped_column(String(32), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    revoked_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
 
 class Zone(Base):
