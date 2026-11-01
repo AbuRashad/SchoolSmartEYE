@@ -25,6 +25,8 @@ def record_snapshot(
     source: str = "live",
     recorded_at: datetime | None = None,
 ) -> orm.SSISnapshot:
+    if not school_id:
+        raise ValueError("school_id is required for SSI snapshots")
     snap = orm.SSISnapshot(
         school_id=school_id,
         recorded_at=recorded_at or datetime.now(timezone.utc),
@@ -44,6 +46,8 @@ def record_if_due(
     db: Session, school_id: str, ssi: float, min_interval_seconds: int = 300, **kwargs
 ) -> bool:  # noqa: ANN003
     """Record a snapshot only within the specified school's history."""
+    if not school_id:
+        raise ValueError("school_id is required for SSI snapshots")
     last = db.scalar(select(orm.SSISnapshot)
         .where(
             orm.SSISnapshot.school_id == school_id,
@@ -58,6 +62,8 @@ def record_if_due(
 
 
 def get_history(db: Session, school_id: str, days: int = 30) -> list[orm.SSISnapshot]:
+    if not school_id:
+        raise ValueError("school_id is required for SSI history")
     since = datetime.now(timezone.utc) - timedelta(days=days)
     return list(
         db.scalars(

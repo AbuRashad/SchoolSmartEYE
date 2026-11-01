@@ -648,24 +648,48 @@ def populate(db: Session | None = None) -> None:
         _seed(session)
 
 
-def get_school_metrics(db: Session) -> SchoolMetrics:
-    """Return a live snapshot of aggregated school metrics."""
+def get_school_metrics(db: Session, school_id: str) -> SchoolMetrics:
+    """Return metrics for one explicitly supplied school.
+
+    The caller must pass the server-resolved school scope. SSI remains an
+    illustrative placeholder and must not be treated as a live measurement.
+    """
+    if not school_id:
+        raise ValueError("school_id is required for school metrics")
+
     present = db.scalar(
         select(func.count())
         .select_from(orm.AttendanceRecord)
+        .join(orm.Student, orm.Student.student_id == orm.AttendanceRecord.student_id)
         .where(
+            orm.Student.school_id == school_id,
             orm.AttendanceRecord.date == _today(),
             orm.AttendanceRecord.status == AttendanceStatus.PRESENT.value,
         )
     ) or 0
     total = db.scalar(
-        select(func.count()).select_from(orm.Student).where(orm.Student.is_active.is_(True))
+        select(func.count()).select_from(orm.Student).where(
+            orm.Student.school_id == school_id,
+            orm.Student.is_active.is_(True),
+        )
     ) or 0
     open_incidents = db.scalar(
-        select(func.count()).select_from(orm.Incident).where(orm.Incident.resolved.is_(False))
+        select(func.count())
+        .select_from(orm.Incident)
+        .join(orm.Zone, orm.Zone.zone_id == orm.Incident.zone_id)
+        .where(
+            orm.Zone.school_id == school_id,
+            orm.Incident.resolved.is_(False),
+        )
     ) or 0
     active_cameras = db.scalar(
-        select(func.count()).select_from(orm.Camera).where(orm.Camera.is_active.is_(True))
+        select(func.count())
+        .select_from(orm.Camera)
+        .join(orm.Zone, orm.Zone.zone_id == orm.Camera.zone_id)
+        .where(
+            orm.Zone.school_id == school_id,
+            orm.Camera.is_active.is_(True),
+        )
     ) or 0
     return SchoolMetrics(
         computed_at=datetime.now(timezone.utc),

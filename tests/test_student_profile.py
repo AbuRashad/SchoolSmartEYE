@@ -29,6 +29,33 @@ def _create_student(client) -> None:
     assert r.status_code == 201
 
 
+def test_student_id_conflict_does_not_disclose_foreign_school(client, db_session_factory) -> None:
+    seed_data.populate()
+    foreign_id = "FOREIGN-SCHOOL-STUDENT-409"
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="FOREIGN-SCHOOL-409", name="Foreign School", is_active=True))
+        db.add(orm.Student(
+            student_id=foreign_id,
+            school_id="FOREIGN-SCHOOL-409",
+            name="Private Student",
+            grade="G9",
+            class_section="A",
+            parent_id="PRIVATE-PARENT",
+        ))
+        db.commit()
+
+    response = client.post(
+        f"{API}/students",
+        json={"student_id": foreign_id, "name": "Attempt", "grade": "G9", "class_section": "A", "parent_id": "P"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Student could not be created because the identifier or submitted data conflicts with an existing record."
+    )
+    assert foreign_id not in response.text
+    assert "FOREIGN-SCHOOL-409" not in response.text
+
+
 def test_crud_and_error_paths(client, zone) -> None:
     _create_student(client)
     created = client.get(f"{API}/students").json()
@@ -81,6 +108,9 @@ def test_profile_aggregates_all_sections(client, zone, db_session_factory) -> No
                              notification_type="safety", sent_at=now - timedelta(hours=2), read=False),
             orm.Notification(notification_id="N3", parent_id="PAR-E2E-1", student_id=SID, message="Report",
                              notification_type="info", sent_at=now - timedelta(days=1), read=True),
+            # Same student, but wrong recipient: must never appear in the profile.
+            orm.Notification(notification_id="N4", parent_id="PAR-OTHER", student_id=SID, message="Misrouted",
+                             notification_type="safety", sent_at=now - timedelta(minutes=30), read=False),
         ])
         db.commit()
 
@@ -103,6 +133,7 @@ def test_profile_aggregates_all_sections(client, zone, db_session_factory) -> No
     assert d["bracelet"]["low_battery"] is True and d["bracelet"]["battery_level"] == 12
     assert d["bracelet"]["last_seen_zone_label"] == zone.label
     assert [n["notification_id"] for n in d["notifications"]] == ["N1", "N2", "N3"]
+    assert "N4" not in [n["notification_id"] for n in d["notifications"]]
     assert d["unread_notifications"] == 2
     assert d["safety_status"] == "critical"
     assert d["open_incidents_in_last_zone"] == 1
@@ -111,6 +142,71 @@ def test_profile_aggregates_all_sections(client, zone, db_session_factory) -> No
     assert client.delete(f"{API}/students/{SID}").status_code == 204
     with db_session_factory() as db:
         assert db.get(orm.Bracelet, "BR-E2E-1") is None
+
+
+def test_profile_attendance_notifications_and_incidents_exclude_other_school(client, zone, db_session_factory) -> None:
+    _create_student(client)
+    today = datetime.now(timezone.utc).date()
+    now = datetime.now(timezone.utc)
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="PROFILE-FOREIGN-SCHOOL", name="Foreign Profile School", is_active=True))
+        db.flush()
+        db.add(orm.Student(
+            student_id="PROFILE-FOREIGN-STUDENT",
+            school_id="PROFILE-FOREIGN-SCHOOL",
+            name="Foreign Student",
+            grade="G8",
+            class_section="B",
+            parent_id="PAR-E2E-1",
+        ))
+        db.add(orm.Zone(
+            zone_id="PROFILE-FOREIGN-ZONE",
+            school_id="PROFILE-FOREIGN-SCHOOL",
+            label="Foreign Zone",
+            zone_type="classroom",
+            capacity=20,
+            floor=1,
+            grid_x=8,
+            grid_y=8,
+        ))
+        db.flush()
+        db.add_all([
+            orm.AttendanceRecord(
+                student_id="PROFILE-FOREIGN-STUDENT", date=today, status="absent",
+            ),
+            orm.Notification(
+                notification_id="PROFILE-FOREIGN-NOTIFICATION",
+                parent_id="PAR-E2E-1",
+                student_id="PROFILE-FOREIGN-STUDENT",
+                message="Foreign school notification",
+                notification_type="safety",
+                sent_at=now,
+                read=False,
+            ),
+            orm.Incident(
+                incident_id="PROFILE-FOREIGN-INCIDENT",
+                zone_id="PROFILE-FOREIGN-ZONE",
+                severity="critical",
+                description="Foreign school incident",
+                detected_at=now,
+                resolved=False,
+            ),
+            orm.AttendanceRecord(
+                student_id=SID, date=today, status="present", last_seen_zone=zone.zone_id,
+            ),
+        ])
+        db.commit()
+
+    profile = client.get(f"{API}/students/{SID}/profile")
+    assert profile.status_code == 200
+    data = profile.json()
+    assert data["today_status"] == "present"
+    assert data["notifications"] == []
+    assert data["unread_notifications"] == 0
+    assert data["safety_status"] == "safe"
+    assert data["open_incidents_in_last_zone"] == 0
+    assert "PROFILE-FOREIGN-NOTIFICATION" not in profile.text
+    assert "Foreign school incident" not in profile.text
 
 
 def test_profile_for_student_without_data_is_unknown(client, zone) -> None:

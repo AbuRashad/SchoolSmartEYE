@@ -131,13 +131,6 @@ def _student_has_other_bracelet(db: Session, student_id: str, bracelet_id: str |
     return db.scalar(stmt) is not None
 
 
-def _mac_in_use(db: Session, mac: str, bracelet_id: str | None) -> bool:
-    stmt = select(orm.Bracelet.bracelet_id).where(orm.Bracelet.mac_address == mac)
-    if bracelet_id is not None:
-        stmt = stmt.where(orm.Bracelet.bracelet_id != bracelet_id)
-    return db.scalar(stmt) is not None
-
-
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
@@ -168,7 +161,7 @@ def create_bracelet(
     if _find(db, payload.bracelet_id, school_id) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Bracelet {payload.bracelet_id!r} already exists",
+            detail="Bracelet could not be created because its identifier or assignment conflicts with an existing record.",
         )
     if not _student_exists(db, payload.student_id, school_id):
         raise HTTPException(
@@ -181,11 +174,8 @@ def create_bracelet(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Student {payload.student_id!r} already has a bracelet assigned",
         )
-    if _mac_in_use(db, payload.mac_address, None):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"MAC address {payload.mac_address!r} is already registered",
-        )
+    # MAC uniqueness is enforced by the database. Avoid a global preflight
+    # lookup that could disclose whether another school's device is registered.
 
     bracelet = orm.Bracelet(
         bracelet_id=payload.bracelet_id,
@@ -201,7 +191,10 @@ def create_bracelet(
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Bracelet conflicts with an existing record") from None
+        raise HTTPException(
+            status_code=409,
+            detail="Bracelet could not be created because its identifier or assignment conflicts with an existing record.",
+        ) from None
     return _serialize(bracelet)
 
 
@@ -229,8 +222,7 @@ def update_bracelet(
         bracelet.student_id = payload.student_id
 
     if payload.mac_address is not None and payload.mac_address != bracelet.mac_address:
-        if _mac_in_use(db, payload.mac_address, bracelet_id):
-            raise HTTPException(status_code=409, detail="MAC address already in use")
+        # MAC uniqueness is database-enforced globally; avoid a cross-school lookup.
         bracelet.mac_address = payload.mac_address
 
     if payload.battery_level is not None:
@@ -246,7 +238,10 @@ def update_bracelet(
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Bracelet conflicts with an existing record") from None
+        raise HTTPException(
+            status_code=409,
+            detail="Bracelet could not be updated because its identifier or assignment conflicts with an existing record.",
+        ) from None
     db.refresh(bracelet)
     return _serialize(bracelet)
 

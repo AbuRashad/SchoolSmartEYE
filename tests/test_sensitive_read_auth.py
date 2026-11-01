@@ -18,7 +18,7 @@ def test_sensitive_read_endpoints_require_authentication(anon_client: TestClient
         assert response.status_code == 401, f"{path} returned {response.status_code}"
 
 
-def test_authenticated_global_analytics_and_dashboard_fail_closed(client: TestClient):
+def test_authenticated_analytics_and_dashboard_return_school_scoped_views(client: TestClient):
     for path in (
         "/api/v1/analytics/overview",
         "/api/v1/dashboard/summary",
@@ -27,7 +27,12 @@ def test_authenticated_global_analytics_and_dashboard_fail_closed(client: TestCl
         "/api/v1/dashboard/live",
     ):
         response = client.get(path)
-        assert response.status_code == 503, f"{path} returned {response.status_code}"
+        assert response.status_code == 200, f"{path} returned {response.status_code}"
+        body = response.json()
+        if isinstance(body, dict) and "school_id" in body:
+            assert body["school_id"] == "DEMO-SCHOOL-001"
+        if isinstance(body, dict) and "schoolId" in body:
+            assert body["schoolId"] == "DEMO-SCHOOL-001"
 
 
 def test_student_portal_and_agent_remain_available_when_properly_scoped(client: TestClient):

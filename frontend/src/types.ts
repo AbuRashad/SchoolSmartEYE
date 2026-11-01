@@ -77,7 +77,7 @@ export type SSILiveData = {
   computed_at: string;
 };
 
-export type NavPage = "dashboard" | "ssi" | "units" | "reports" | "portal" | "analytics" | "cameras" | "control";
+export type NavPage = "dashboard" | "ssi" | "units" | "reports" | "analytics" | "cameras" | "control";
 
 export type LiveCameraInfo = {
   camera_id: string;
@@ -94,7 +94,7 @@ export type LiveCameraInfo = {
 };
 
 export type AnalyticsOverview = {
-  data_status: "demo";
+  data_status: "demo" | "unknown";
   data_notice: string;
   attendance_rate: number;
   total_students: number;
@@ -140,6 +140,32 @@ export type StudentPortalData = {
   status: "identity_link_required";
   message: string;
   student: null;
+};
+
+export type ParentStudent = {
+  student_id: string;
+  name: string;
+  grade: string;
+  class_section: string;
+};
+
+export type ParentStudentSummary = {
+  student: ParentStudent;
+  attendance: {
+    date: string;
+    status: string;
+    arrival_time: string | null;
+    departure_time: string | null;
+  }[];
+  notifications: {
+    notification_id: string;
+    message: string;
+    notification_type: string;
+    sent_at: string;
+    read: boolean;
+  }[];
+  data_status: "demo" | "unknown";
+  data_notice: string;
 };
 
 // ── Control Panel ────────────────────────────────────────────────────────────

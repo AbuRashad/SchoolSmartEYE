@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from app.api.deps import get_current_school_id, require_principal
 from app.api.v1.endpoints.analytics import analytics_overview
 from app.db.models import User
+from app.db.session import get_db
+from sqlalchemy.orm import Session
 from app.services.agent_orchestrator import run_orchestration
 
 router = APIRouter(prefix="/agent", tags=["agent-orchestrator"])
@@ -84,6 +86,7 @@ class OrchestrateResponse(BaseModel):
 def orchestrate_agents(
     payload: OrchestrateRequest,
     _user: User = Depends(require_principal),
+    db: Session = Depends(get_db),
     school_id: str = Depends(get_current_school_id),
 ) -> OrchestrateResponse:
     """Coordinate specialist agents over allowlisted aggregate metrics.
@@ -92,7 +95,21 @@ def orchestrate_agents(
     are fetched. AI analyses are advisory and cannot alter deterministic findings.
     """
     try:
-        result = run_orchestration(payload.task, analytics_overview(school_id))
+        analytics = analytics_overview(db, school_id)
+        daily = analytics["attendance"]["daily"]
+        latest_attendance = daily[-1] if daily else {}
+        result = run_orchestration(
+            payload.task,
+            {
+                "total_students": analytics["students"]["active"],
+                "active_cameras": analytics["cameras"]["active"],
+                "incidents_today": analytics["incidents"]["today"],
+                "incidents_week": analytics["incidents"]["last_7_days"],
+                "attendance_rate": latest_attendance.get("attendance_rate"),
+                "data_status": analytics["data_status"],
+                "data_notice": analytics["data_notice"],
+            },
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
     return OrchestrateResponse.model_validate(result)

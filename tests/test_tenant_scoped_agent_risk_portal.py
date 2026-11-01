@@ -1,8 +1,8 @@
 """Negative tests for school scoping in agent, attendance-risk, and portal APIs."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app.db import models as orm
-from app.services import attendance_risk, seed_data
+from app.services import attendance_risk, seed_data, ssi_history
 import pytest
 
 API = "/api/v1"
@@ -179,7 +179,7 @@ def test_bracelet_endpoints_follow_the_owning_students_school(
     assert cross_school_assignment.status_code == 400
 
 
-def test_camera_and_zone_dependent_services_fail_closed(client, seeded):
+def test_camera_and_zone_dependent_analytics_and_dashboard_are_school_scoped(client, seeded):
     camera_list = client.get(f"{API}/cameras")
     assert camera_list.status_code == 200
     for path in (
@@ -190,7 +190,7 @@ def test_camera_and_zone_dependent_services_fail_closed(client, seeded):
         f"{API}/dashboard/live",
     ):
         response = client.get(path)
-        assert response.status_code == 503, f"{path} returned {response.status_code}"
+        assert response.status_code == 200, f"{path} returned {response.status_code}"
 
 
 def test_global_operational_feeds_fail_closed_until_school_partitioned(client, seeded):
@@ -237,14 +237,240 @@ def test_camera_registration_requires_zone_from_authenticated_school(
             "source_url": "0",
         },
     )
+    duplicate_foreign_camera_id = client.post(
+        f"{API}/cameras",
+        json={
+            "camera_id": "OTHER-CAMERA-001",
+            "zone_id": "zone-main-gate",
+            "label": "Conflicting Camera",
+            "source_url": "0",
+        },
+    )
     denied_start = client.post(f"{API}/cameras/OTHER-CAMERA-001/start")
     denied_stop = client.post(f"{API}/cameras/OTHER-CAMERA-001/stop")
     denied_delete = client.delete(f"{API}/cameras/OTHER-CAMERA-001")
     denied_snapshot = client.get(f"{API}/cameras/OTHER-CAMERA-001/snapshot.jpg")
     denied_stream = client.get(f"{API}/cameras/OTHER-CAMERA-001/stream.mjpg")
     assert denied_create.status_code == 404
+    assert duplicate_foreign_camera_id.status_code == 409
+    assert "OTHER-CAMERA-001" not in duplicate_foreign_camera_id.text
+    assert "OTHER-SCHOOL" not in duplicate_foreign_camera_id.text
     assert denied_start.status_code == 404
     assert denied_stop.status_code == 404
     assert denied_delete.status_code == 404
     assert denied_snapshot.status_code == 404
     assert denied_stream.status_code == 404
+
+
+
+def test_ssi_history_polling_and_legacy_rows_are_school_isolated(
+    client, seeded, db_session_factory
+):
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="OTHER-SSI-SCHOOL", name="Other SSI School", is_active=True))
+        db.add(orm.SSISnapshot(
+            school_id=None,
+            recorded_at=datetime.now(timezone.utc),
+            ssi=1.0,
+            source="legacy-unmapped",
+        ))
+        db.commit()
+        ssi_history.record_snapshot(
+            db,
+            "OTHER-SSI-SCHOOL",
+            12.5,
+            source="test",
+            recorded_at=datetime.now(timezone.utc),
+        )
+
+        demo = ssi_history.summarize(db, "DEMO-SCHOOL-001", 365)
+        other = ssi_history.summarize(db, "OTHER-SSI-SCHOOL", 365)
+        assert demo["snapshots"] == 30
+        assert other["snapshots"] == 1
+        assert demo["average"] != 1.0
+        assert other["average"] == 12.5
+
+        assert ssi_history.record_if_due(
+            db, "OTHER-SSI-SCHOOL", 99.0, source="test", min_interval_seconds=300
+        ) is False
+        assert ssi_history.record_if_due(
+            db, "DEMO-SCHOOL-001", 99.0, source="test", min_interval_seconds=300
+        ) is True
+
+    response = client.get(f"{API}/ssi/history")
+    assert response.status_code == 200
+    assert response.json()["snapshots"] == 31
+    assert response.json()["average"] != 12.5
+
+
+def test_ssi_history_helpers_reject_missing_school_scope(db_session_factory):
+    with db_session_factory() as db:
+        with pytest.raises(ValueError, match="school_id is required"):
+            ssi_history.record_snapshot(db, "", 50.0)
+        with pytest.raises(ValueError, match="school_id is required"):
+            ssi_history.record_if_due(db, "", 50.0)
+        with pytest.raises(ValueError, match="school_id is required"):
+            ssi_history.get_history(db, "")
+
+
+
+def test_incident_api_is_scoped_through_school_owned_zones(client, seeded, db_session_factory):
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="OTHER-SCHOOL", name="Other School", is_active=True))
+        db.add(orm.Zone(
+            zone_id="OTHER-ZONE", school_id="OTHER-SCHOOL", label="Other Zone",
+            zone_type="classroom", capacity=20, floor=1, grid_x=0, grid_y=0,
+        ))
+        db.add(orm.Incident(
+            incident_id="OTHER-INCIDENT", zone_id="OTHER-ZONE", severity="critical",
+            description="Other school's incident", detected_at=datetime.now(timezone.utc), resolved=False,
+        ))
+        db.commit()
+
+    listed = client.get(f"{API}/incidents")
+    assert listed.status_code == 200
+    ids = {row["incident_id"] for row in listed.json()}
+    assert len(ids) == 5
+    assert "OTHER-INCIDENT" not in ids
+    assert client.get(f"{API}/incidents/OTHER-INCIDENT").status_code == 404
+    assert client.post(f"{API}/incidents/OTHER-INCIDENT/resolve").status_code == 404
+    denied_create = client.post(
+        f"{API}/incidents",
+        json={
+            "incident_id": "CROSS-ZONE-INCIDENT",
+            "zone_id": "OTHER-ZONE",
+            "severity": "high",
+            "description": "Must not be created in another school's zone",
+        },
+    )
+    assert denied_create.status_code == 404
+
+    # A globally unique incident ID owned by another school must not be
+    # disclosed by a preflight lookup or an identifier-specific response.
+    duplicate_foreign_id = client.post(
+        f"{API}/incidents",
+        json={
+            "incident_id": "OTHER-INCIDENT",
+            "zone_id": "zone-main-gate",
+            "severity": "medium",
+            "description": "Attempt to reuse a foreign ID",
+        },
+    )
+    assert duplicate_foreign_id.status_code == 409
+    assert "OTHER-INCIDENT" not in duplicate_foreign_id.text
+    assert "OTHER-SCHOOL" not in duplicate_foreign_id.text
+
+    created = client.post(
+        f"{API}/incidents",
+        json={
+            "incident_id": "DEMO-NEW-INCIDENT",
+            "zone_id": "zone-main-gate",
+            "severity": "medium",
+            "description": "Verified school-owned incident",
+        },
+    )
+    assert created.status_code == 201
+    resolved = client.post(f"{API}/incidents/DEMO-NEW-INCIDENT/resolve")
+    assert resolved.status_code == 200
+    assert resolved.json()["resolved"] is True
+
+
+def test_drill_api_is_scoped_and_assigns_school_server_side(client, seeded, db_session_factory):
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="OTHER-SCHOOL", name="Other School", is_active=True))
+        db.add(orm.Drill(
+            drill_id="OTHER-DRILL", school_id="OTHER-SCHOOL", drill_type="fire",
+            scheduled_at=datetime.now(timezone.utc), completed=False,
+        ))
+        db.add(orm.Drill(
+            drill_id="LEGACY-DRILL", school_id=None, drill_type="evacuation",
+            scheduled_at=datetime.now(timezone.utc), completed=False,
+        ))
+        db.commit()
+
+    listed = client.get(f"{API}/drills")
+    assert listed.status_code == 200
+    ids = {row["drill_id"] for row in listed.json()}
+    assert ids == {"DRL-001", "DRL-002", "DRL-003"}
+    assert client.get(f"{API}/drills/OTHER-DRILL").status_code == 404
+    assert client.get(f"{API}/drills/LEGACY-DRILL").status_code == 404
+    assert client.patch(
+        f"{API}/drills/OTHER-DRILL/complete",
+        json={"response_time_seconds": 30},
+    ).status_code == 404
+
+    duplicate_foreign_id = client.post(
+        f"{API}/drills",
+        json={
+            "drill_id": "OTHER-DRILL",
+            "drill_type": "fire",
+            "scheduled_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+    assert duplicate_foreign_id.status_code == 409
+    assert "OTHER-DRILL" not in duplicate_foreign_id.text
+    assert "OTHER-SCHOOL" not in duplicate_foreign_id.text
+
+    created = client.post(
+        f"{API}/drills",
+        json={
+            "drill_id": "DEMO-NEW-DRILL",
+            "drill_type": "evacuation",
+            "scheduled_at": datetime.now(timezone.utc).isoformat(),
+            "notes": "School-scoped test drill",
+        },
+    )
+    assert created.status_code == 201
+    completed = client.patch(
+        f"{API}/drills/DEMO-NEW-DRILL/complete",
+        json={"response_time_seconds": 75, "notes": "Completed successfully"},
+    )
+    assert completed.status_code == 200
+    assert completed.json()["completed"] is True
+    with db_session_factory() as db:
+        assert db.get(orm.Drill, "DEMO-NEW-DRILL").school_id == "DEMO-SCHOOL-001"
+
+def test_runtime_settings_read_and_write_remain_disabled_until_tenant_storage(client, seeded):
+    from app.core.runtime_settings import get_runtime_settings
+
+    before = get_runtime_settings()
+    read_response = client.get(f"{API}/settings")
+    write_response = client.patch(
+        f"{API}/settings",
+        json={
+            "camera_max_fps": 12.0,
+            "camera_jpeg_quality": 55,
+            "bracelet_low_battery_percent": 35,
+        },
+    )
+    after = get_runtime_settings()
+
+    assert read_response.status_code == 503
+    assert read_response.json()["detail"]["code"] == "SCHOOL_SCOPED_SETTINGS_UNAVAILABLE"
+    assert write_response.status_code == 503
+    assert write_response.json()["detail"]["code"] == "SCHOOL_SCOPED_SETTINGS_UNAVAILABLE"
+    assert after == before
+
+def test_school_built_pedagogical_agent_excludes_other_school_snapshots(
+    seeded, db_session_factory, monkeypatch
+):
+    from dataclasses import replace
+    from app.services import agent_store, seed_data
+
+    with db_session_factory() as db:
+        _add_other_school(db)
+        demo_snapshot = seed_data.engagement_snapshots[0]
+        foreign_snapshot = replace(demo_snapshot, student_id="OTHER-STUDENT-001")
+        monkeypatch.setattr(
+            seed_data,
+            "engagement_snapshots",
+            [demo_snapshot, foreign_snapshot],
+        )
+
+        scoped_agent = agent_store.build_agent(
+            db, "DEMO-SCHOOL-001", include_feedback=False
+        )
+        assert scoped_agent.get_behavioral_history("OTHER-STUDENT-001", days=365) == []
+        assert scoped_agent.get_behavioral_history(
+            demo_snapshot.student_id, days=365
+        )

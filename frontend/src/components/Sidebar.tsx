@@ -1,5 +1,5 @@
 import {
-  Activity, LineChart, ShieldCheck, FileBarChart2, BellRing, LayoutGrid, BarChart3, Camera, Settings, LogOut,
+  Activity, LineChart, ShieldCheck, FileBarChart2, LayoutGrid, BarChart3, Camera, Settings, LogOut,
 } from "lucide-react";
 import { useAuth } from "../AuthContext";
 import type { Role } from "../auth";
@@ -12,7 +12,6 @@ const navigation: { label: string; icon: typeof Activity; page: NavPage; minRole
   { label: "System Units", icon: LayoutGrid, page: "units" },
   { label: "Analytics Overview", icon: BarChart3, page: "analytics" },
   { label: "Ministerial Reports", icon: FileBarChart2, page: "reports", minRole: "ministry" },
-  { label: "Parent Portal", icon: BellRing, page: "portal" },
   { label: "Control Panel", icon: Settings, page: "control" },
 ];
 

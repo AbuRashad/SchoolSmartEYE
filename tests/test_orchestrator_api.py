@@ -20,29 +20,24 @@ def test_teacher_cannot_call_principal_ministry_orchestrator(auth_headers):
     assert response.status_code == 403
 
 
-def test_orchestrator_fails_closed_until_analytics_are_school_scoped(client: TestClient):
+def test_orchestrator_uses_authenticated_school_scoped_analytics(client: TestClient):
+    from app.services import seed_data
+
+    seed_data.populate()
     response = client.post(
         "/api/v1/agent/orchestrate",
         json={"task": "Review aggregate school signals"},
     )
-    assert response.status_code == 503
-    return
+    assert response.status_code == 200
     payload = response.json()
-    assert payload["provider"] == "deterministic"
+    assert payload["provider"] in {"deterministic", "ollama"}
     assert payload["requires_human_review"] is True
     assert payload["autonomous_action_taken"] is False
     assert [stage["name"] for stage in payload["stages"]] == [
-        "analytics",
-        "safety",
-        "academic",
-        "operations",
-        "evidence",
-        "ethics_review",
+        "analytics", "safety", "academic", "operations", "evidence", "ethics_review",
     ]
-    assert payload["status"] == "completed"
     assert payload["report"]["data_status"] == "demo"
-    assert payload["report"]["data_notice"] == "These are illustrative demo metrics, not live school data."
-    assert any("not live school data" in item for item in payload["report"]["limitations"])
+    assert "not live school telemetry" in payload["report"]["data_notice"]
 
 
 def test_orchestrator_rejects_unknown_request_fields(client: TestClient):

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -129,8 +130,7 @@ def register_camera(
     school_id: str = Depends(get_current_school_id),
 ) -> CameraInfo:
     _require_school_zone(db, payload.zone_id, school_id)
-    if db.get(Camera, payload.camera_id) is not None:
-        raise HTTPException(status_code=409, detail="Camera ID is already registered")
+    # Camera IDs are globally unique in the current schema. Do not query another tenant's row.
     source = CameraSource(
         camera_id=payload.camera_id,
         zone_id=payload.zone_id,
@@ -145,7 +145,14 @@ def register_camera(
         is_active=True,
     )
     db.add(record)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Camera could not be registered because its identifier or submitted data conflicts with an existing record.",
+        ) from None
     try:
         ingestion_service.register(source, autostart=True)
         db.commit()

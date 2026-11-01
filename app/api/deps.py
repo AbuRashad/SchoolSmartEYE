@@ -144,3 +144,13 @@ require_teacher = require_roles(Role.TEACHER)
 require_principal = require_roles(Role.PRINCIPAL)
 require_ministry = require_roles(Role.MINISTRY)
 require_teacher_stream = require_roles_header_or_query(Role.TEACHER)
+
+
+def require_parent(user: User = Depends(get_current_user)) -> User:
+    """Allow only parent accounts; school staff roles are not parent identities."""
+    if user.role != "parent":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Parent account required",
+        )
+    return user
