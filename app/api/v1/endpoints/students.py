@@ -9,11 +9,11 @@ from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_school_id, require_principal, require_teacher
+from app.api.deps import get_current_school_id, get_current_user, require_principal, require_teacher
 from app.db import models as orm
 from app.db.session import get_db
 from app.models import (
@@ -231,13 +231,73 @@ def update_student(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_principal)],
 )
-def delete_student(student_id: str, db: Session = Depends(get_db), school_id: str = Depends(get_current_school_id)) -> Response:
+def delete_student(
+    student_id: str,
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
+    actor: orm.User = Depends(get_current_user),
+) -> Response:
+    """Fully erase student-linked records, memory snapshots and feedback log entries."""
     student = _find_student(db, student_id, school_id)
     if student is None:
-        raise HTTPException(status_code=404, detail=f"Student {student_id!r} not found")
-    # Cascade: the student's bracelet and attendance records are removed too
-    db.delete(student)
-    db.commit()
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    # Purge file-backed and in-memory artifacts before committing the relational
+    # deletion. The audit deliberately records counts only, never the student ID.
+    from app.core.config import settings
+    from app.services.agent_store import purge_student_artifacts
+
+    try:
+        purge_student_artifacts(student_id, settings.video_log_dir)
+    except (OSError, RuntimeError):
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Student erasure halted because a file-backed record could not be safely purged.",
+        ) from None
+
+    try:
+        attendance_count = db.execute(
+            delete(orm.AttendanceRecord).where(orm.AttendanceRecord.student_id == student_id)
+        ).rowcount or 0
+        notification_count = db.execute(
+            delete(orm.Notification).where(orm.Notification.student_id == student_id)
+        ).rowcount or 0
+        feedback_count = db.execute(
+            delete(orm.AgentFeedbackRecord).where(orm.AgentFeedbackRecord.student_id == student_id)
+        ).rowcount or 0
+        reading_count = db.execute(
+            delete(orm.BraceletReading).where(orm.BraceletReading.student_id == student_id)
+        ).rowcount or 0
+        parent_link_count = db.execute(
+            delete(orm.ParentStudentLink).where(orm.ParentStudentLink.student_id == student_id)
+        ).rowcount or 0
+        invitation_count = db.execute(
+            delete(orm.ParentInvitation).where(orm.ParentInvitation.student_id == student_id)
+        ).rowcount or 0
+        bracelet_count = db.execute(
+            delete(orm.Bracelet).where(orm.Bracelet.student_id == student_id)
+        ).rowcount or 0
+        db.delete(student)
+        db.add(orm.StudentErasureAudit(
+            school_id=school_id,
+            erased_by_user_id=actor.id,
+            erased_at=datetime.now(timezone.utc),
+            deleted_attendance_count=int(attendance_count),
+            deleted_notification_count=int(notification_count),
+            deleted_feedback_count=int(feedback_count),
+            deleted_bracelet_reading_count=int(reading_count),
+            deleted_parent_link_count=int(parent_link_count),
+            deleted_invitation_count=int(invitation_count),
+            deleted_bracelet_count=int(bracelet_count),
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Student erasure could not be completed; no success was recorded.",
+        ) from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
