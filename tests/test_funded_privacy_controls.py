@@ -212,7 +212,7 @@ def test_malformed_feedback_log_does_not_partially_purge_memory(tmp_path):
         seed_data.engagement_snapshots.append(snapshot)
 
     log_path = tmp_path / "agent_performance.jsonl"
-    malformed_content = '{"student_id": "OTHER"}\\n{malformed json\\n'
+    malformed_content = '{"student_id": "OTHER"}\n{malformed json\n'
     log_path.write_text(malformed_content, encoding="utf-8")
 
     with pytest.raises(RuntimeError, match="unreadable record"):
