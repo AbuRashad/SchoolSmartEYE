@@ -58,10 +58,8 @@ class ParentStudentSummary(BaseModel):
     student: ParentStudentOut
     attendance: list[ParentAttendanceOut]
     notifications: list[ParentNotificationOut]
-    data_notice: str = (
-        "Attendance and notifications are persisted school records. "
-        "Live location and camera-derived safety status are not exposed by this endpoint."
-    )
+    data_status: Literal["demo", "unknown"]
+    data_notice: str
 
 
 def _verified_link_query(user_id: int, student_id: str | None = None):
@@ -240,7 +238,20 @@ def get_linked_student_summary(
         .limit(10)
     ).all()
 
+    data_status: Literal["demo", "unknown"] = (
+        "demo" if student.school_id == "DEMO-SCHOOL-001" else "unknown"
+    )
+    data_notice = (
+        "Synthetic demo seed data; not live school telemetry. "
+        "Live location and camera-derived safety status are not exposed."
+        if data_status == "demo"
+        else "School-scoped persisted records; source provenance is unverified. "
+        "Live location and camera-derived safety status are not exposed."
+    )
+
     return ParentStudentSummary(
+        data_status=data_status,
+        data_notice=data_notice,
         student=ParentStudentOut(
             student_id=student.student_id,
             name=student.name,
