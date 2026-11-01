@@ -59,6 +59,8 @@ def test_report_previews_are_generated_from_authenticated_school_only(ministry_c
     assert all(report["persisted"] is False for report in reports)
     assert all(report["data_status"] == "demo" for report in reports)
     assert all("not live school telemetry" in report["data_notice"] for report in reports)
+    attendance_preview = next(report for report in reports if report["report_type"] == "operational")
+    assert sum(attendance_preview["data"]["attendance_by_status"].values()) == 10
     assert all(report["report_id"].startswith("DEMO-SCHOOL-001:") for report in reports)
     assert "ANALYTICS-FOREIGN" not in response.text
     assert "Foreign-only incident" not in response.text
