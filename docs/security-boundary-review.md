@@ -33,12 +33,12 @@ This is a code-review snapshot of the current demo architecture, not a penetrati
 
 **Required:** define per-school and, where applicable, class/student-level authorization; minimize returned fields by role and purpose; audit access to behavioral history and location-related data; and verify authorization failures with tests.
 
-### P1 — Keep external model use opt-in and privacy-reviewed
+### P1 — Keep external model use privacy-reviewed
 
-- The optional Ollama summary path is documented as sending validated aggregate metrics to a configured provider; free-form task text is not forwarded.
+- The hybrid model path can send validated aggregate metrics to a configured cloud provider; free-form task text and student identifiers are not forwarded.
 - Aggregate metrics may still be sensitive when small cohorts or rare incidents are involved. “Aggregate” does not automatically mean anonymous.
 
-**Required:** keep the deterministic provider as the default; require institutional approval before enabling external providers; document provider endpoint, retention, residency, and access controls; minimize metrics; and test that identifiers and free-form task text never reach the provider.
+**Required:** require institutional approval before enabling external providers; document endpoint, retention, residency, and access controls; minimize metrics; and test that identifiers and free-form task text never reach any provider. The local inference endpoint should remain on a trusted private network.
 
 ### P2 — Harden and verify the migration/runtime path
 
@@ -63,7 +63,7 @@ This is a code-review snapshot of the current demo architecture, not a penetrati
 - The orchestrator requires principal-level access, rejects unknown request fields, and declares human review required.
 - The orchestration response explicitly says no autonomous action was taken.
 - The specialist stages are deterministic Python functions; they should not be described as six independent autonomous LLM agents.
-- The optional LLM summary should never override deterministic evidence or safety boundaries.
+- Model-generated advisory analysis must never override deterministic evidence or safety boundaries.
 
 ## Validation note
 

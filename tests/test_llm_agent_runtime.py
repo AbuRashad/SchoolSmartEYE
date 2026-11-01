@@ -2,19 +2,22 @@ from app.services import llm_agent_runtime
 
 
 def test_provider_is_disabled_by_default(monkeypatch):
-    monkeypatch.delenv("SCHOOLSMARTEYE_LLM_PROVIDER", raising=False)
-    result, used = llm_agent_runtime.generate_specialist_analysis("safety", {"attendance_rate": 95}, "fallback")
-    assert result is None and used is False
+    monkeypatch.delenv("AI_PROVIDER", raising=False)
+    monkeypatch.delenv("AI_CLOUD_BASE_URL", raising=False)
+    monkeypatch.delenv("AI_LOCAL_BASE_URL", raising=False)
+    result, used, provider = llm_agent_runtime.generate_specialist_analysis("safety", {"attendance_rate": 95}, "fallback")
+    assert result is None and used is False and provider is None
 
 
 def test_unknown_agent_and_missing_model_fall_back(monkeypatch):
-    monkeypatch.setenv("SCHOOLSMARTEYE_LLM_PROVIDER", "ollama")
-    monkeypatch.setenv("OLLAMA_MODEL", "test-model")
-    result, used = llm_agent_runtime.generate_specialist_analysis("unknown", {"attendance_rate": 95}, "fallback")
-    assert result is None and used is False
-    monkeypatch.delenv("OLLAMA_MODEL")
-    result, used = llm_agent_runtime.generate_specialist_analysis("safety", {"attendance_rate": 95}, "fallback")
-    assert result is None and used is False
+    monkeypatch.setenv("AI_PROVIDER", "hybrid")
+    monkeypatch.setenv("AI_CLOUD_BASE_URL", "https://api.example.test/v1")
+    monkeypatch.delenv("AI_CLOUD_MODEL", raising=False)
+    monkeypatch.delenv("AI_LOCAL_BASE_URL", raising=False)
+    result, used, provider = llm_agent_runtime.generate_specialist_analysis("unknown", {"attendance_rate": 95}, "fallback")
+    assert result is None and used is False and provider is None
+    result, used, provider = llm_agent_runtime.generate_specialist_analysis("safety", {"attendance_rate": 95}, "fallback")
+    assert result is None and used is False and provider is None
 
 
 def test_structured_analysis_is_parsed():
@@ -61,9 +64,56 @@ def test_each_agent_has_a_distinct_specialist_mission():
     assert "privacy" in roles["ethics_review"].lower()
 
 
+def test_cloud_failure_falls_back_to_local(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "hybrid")
+    monkeypatch.setenv("AI_CLOUD_BASE_URL", "https://cloud.example.test/v1")
+    monkeypatch.setenv("AI_CLOUD_MODEL", "cloud-model")
+    monkeypatch.setenv("AI_CLOUD_API_KEY", "test-secret")
+    monkeypatch.setenv("AI_LOCAL_BASE_URL", "http://127.0.0.1:8081/v1")
+    monkeypatch.setenv("AI_LOCAL_MODEL", "local-model")
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, content=None, fail=False):
+            self.content, self.fail = content, fail
+        def raise_for_status(self):
+            if self.fail:
+                raise llm_agent_runtime.httpx.ConnectError("unavailable")
+        def json(self):
+            return {"choices": [{"message": {"content": self.content}}]}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def post(self, url, headers=None, json=None):
+            calls.append((url, headers, json))
+            if "cloud.example.test" in url:
+                return FakeResponse(fail=True)
+            return FakeResponse('{"summary":"Local result","observations":[],"follow_up_questions":[],"risks":[]}')
+
+    monkeypatch.setattr(llm_agent_runtime.httpx, "Client", FakeClient)
+    result, used, provider = llm_agent_runtime.generate_specialist_analysis(
+        "safety", {"attendance_rate": 95}, "fallback"
+    )
+    assert used is True and provider == "local"
+    assert result["summary"] == "Local result"
+    assert len(calls) == 2
+    assert calls[0][1]["Authorization"] == "Bearer test-secret"
+    assert calls[1][2]["model"] == "local-model"
+
+
+def test_cloud_is_rejected_without_https(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "cloud")
+    monkeypatch.setenv("AI_CLOUD_BASE_URL", "http://unsafe.example.test/v1")
+    monkeypatch.setenv("AI_CLOUD_MODEL", "model")
+    assert llm_agent_runtime._provider_configs() == []
+
+
 def test_provider_failure_falls_back(monkeypatch):
-    monkeypatch.setenv("SCHOOLSMARTEYE_LLM_PROVIDER", "ollama")
-    monkeypatch.setenv("OLLAMA_MODEL", "test-model")
+    monkeypatch.setenv("AI_PROVIDER", "local")
+    monkeypatch.setenv("AI_LOCAL_BASE_URL", "http://127.0.0.1:8081/v1")
+    monkeypatch.setenv("AI_LOCAL_MODEL", "test-model")
 
     class BrokenClient:
         def __init__(self, *args, **kwargs): pass
@@ -73,19 +123,19 @@ def test_provider_failure_falls_back(monkeypatch):
             raise llm_agent_runtime.httpx.ConnectError("unavailable")
 
     monkeypatch.setattr(llm_agent_runtime.httpx, "Client", BrokenClient)
-    result, used = llm_agent_runtime.generate_specialist_analysis("safety", {"attendance_rate": 95}, "fallback")
-    assert result is None and used is False
+    result, used, provider = llm_agent_runtime.generate_specialist_analysis("safety", {"attendance_rate": 95}, "fallback")
+    assert result is None and used is False and provider is None
 
 
 def test_agent_receives_only_aggregate_metrics_and_ethics_gets_peer_handoff(monkeypatch):
     from app.services import agent_orchestrator
-    monkeypatch.setenv("SCHOOLSMARTEYE_LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("AI_PROVIDER", "hybrid")
     captured = []
 
     def fake_analysis(agent_name, metrics, fallback_summary, prior_analyses=None):
         captured.append({"agent": agent_name, "metrics": dict(metrics), "prior": prior_analyses})
         return {"summary": f"AI review for {agent_name}", "observations": ["Review aggregate trend"],
-                "follow_up_questions": [], "risks": []}, True
+                "follow_up_questions": [], "risks": []}, True, "cloud"
 
     monkeypatch.setattr(agent_orchestrator, "generate_specialist_analysis", fake_analysis)
     result = agent_orchestrator.run_orchestration("Review PRIVATE-STUDENT-123 record", {
@@ -96,19 +146,19 @@ def test_agent_receives_only_aggregate_metrics_and_ethics_gets_peer_handoff(monk
     assert all("PRIVATE-STUDENT-123" not in str(item) for item in captured)
     assert captured[-1]["agent"] == "ethics_review" and len(captured[-1]["prior"]) == 5
     assert result["report"]["ai_agent_count"] == 6
-    assert result["provider"] == "ollama"
+    assert result["provider"] == "cloud"
     assert all(stage["analysis_status"] == "ai_completed" for stage in result["stages"])
     assert result["requires_human_review"] is True and result["autonomous_action_taken"] is False
 
 
 def test_task_text_never_reaches_agent_provider(monkeypatch):
     from app.services import agent_orchestrator
-    monkeypatch.setenv("SCHOOLSMARTEYE_LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("AI_PROVIDER", "hybrid")
     captured = []
 
     def fake_analysis(agent_name, metrics, fallback_summary, prior_analyses=None):
         captured.append(str(metrics) + str(prior_analyses))
-        return {"summary": "safe", "observations": [], "follow_up_questions": [], "risks": []}, True
+        return {"summary": "safe", "observations": [], "follow_up_questions": [], "risks": []}, True, "local"
 
     monkeypatch.setattr(agent_orchestrator, "generate_specialist_analysis", fake_analysis)
     agent_orchestrator.run_orchestration("DO-NOT-SEND-THIS-TASK", {"attendance_rate": 95})

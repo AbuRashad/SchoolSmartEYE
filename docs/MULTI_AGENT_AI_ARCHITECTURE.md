@@ -11,7 +11,7 @@ The orchestrator coordinates six role-specific agents:
 5. **Evidence** — evaluates the sufficiency and consistency of the supplied aggregate evidence.
 6. **Ethics Review** — receives the first five agents' structured analyses and reviews uncertainty, bias, privacy and unsupported claims.
 
-When SCHOOLSMARTEYE_LLM_PROVIDER=ollama and OLLAMA_MODEL is configured, each stage is sent to the configured Ollama model with a distinct role instruction. The expected response is structured JSON containing a summary, observations, follow-up questions and risks. The ethics reviewer also receives the five prior agent analyses as a peer-review handoff.
+When AI_PROVIDER=hybrid, each stage is sent to a configured OpenAI-compatible cloud model first; if unavailable or invalid, the runtime tries the configured local inference endpoint. Cloud endpoints must use HTTPS. The expected response is strict structured JSON. The ethics reviewer also receives the five prior agents' validated analyses as a peer-review handoff.
 
 ## Privacy boundary
 
@@ -31,14 +31,9 @@ All output requires qualified human review. Agents have no tools for taking oper
 
 ## Configuration
 
-Set these server-side environment variables:
+See [Native Hybrid AI Engine](NATIVE_AI_ENGINE.md) for provider setup. The engine supports hybrid, cloud-only, local-only and deterministic modes through AI_PROVIDER and OpenAI-compatible chat-completions endpoints. No Ollama runtime or model server is required.
 
-- SCHOOLSMARTEYE_LLM_PROVIDER=ollama
-- OLLAMA_MODEL=<your configured model>
-- OLLAMA_BASE_URL=https://ollama.com (or a trusted Ollama-compatible endpoint)
-- OLLAMA_API_KEY=<secret> when required by the provider
-
-Keep API keys in deployment secrets or a local untracked .env file. Never commit credentials. If the provider is not configured or fails validation, the pipeline uses deterministic fallback.
+Keep API keys in deployment secrets or an untracked local .env file. Never commit credentials. If no provider is configured or validation fails, the pipeline uses deterministic fallback.
 
 ## Validation
 
