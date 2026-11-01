@@ -39,6 +39,8 @@ def upgrade() -> None:
         sa.Column("deleted_attendance_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("deleted_notification_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("deleted_feedback_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("deleted_engagement_snapshot_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("deleted_feedback_log_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("deleted_bracelet_reading_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("deleted_parent_link_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("deleted_invitation_count", sa.Integer(), nullable=False, server_default="0"),
