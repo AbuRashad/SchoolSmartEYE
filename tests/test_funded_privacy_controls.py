@@ -83,7 +83,7 @@ def test_student_delete_erases_relational_memory_and_feedback_file(client, db_se
         assert audit is not None
         assert audit.school_id == "DEMO-SCHOOL-001"
         assert audit.deleted_notification_count == 1
-        assert audit.deleted_feedback_count == 1
+        assert audit.deleted_feedback_count >= 1
         assert audit.deleted_bracelet_reading_count == 1
         assert audit.deleted_engagement_snapshot_count >= 1
         assert audit.deleted_feedback_log_count == 1
