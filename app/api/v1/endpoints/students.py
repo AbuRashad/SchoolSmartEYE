@@ -248,7 +248,7 @@ def delete_student(
     from app.services.agent_store import purge_student_artifacts
 
     try:
-        purge_student_artifacts(student_id, settings.video_log_dir)
+        purged_artifacts = purge_student_artifacts(student_id, settings.video_log_dir)
     except (OSError, RuntimeError):
         db.rollback()
         raise HTTPException(
@@ -286,6 +286,8 @@ def delete_student(
             deleted_attendance_count=int(attendance_count),
             deleted_notification_count=int(notification_count),
             deleted_feedback_count=int(feedback_count),
+            deleted_engagement_snapshot_count=purged_artifacts["engagement_snapshots"],
+            deleted_feedback_log_count=purged_artifacts["feedback_log_entries"],
             deleted_bracelet_reading_count=int(reading_count),
             deleted_parent_link_count=int(parent_link_count),
             deleted_invitation_count=int(invitation_count),
