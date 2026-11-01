@@ -85,6 +85,8 @@ def test_student_delete_erases_relational_memory_and_feedback_file(client, db_se
         assert audit.deleted_notification_count == 1
         assert audit.deleted_feedback_count == 1
         assert audit.deleted_bracelet_reading_count == 1
+        assert audit.deleted_engagement_snapshot_count >= 1
+        assert audit.deleted_feedback_log_count == 1
         assert not hasattr(audit, "student_id")
 
     assert student_id not in log_path.read_text(encoding="utf-8")
@@ -156,4 +158,8 @@ def test_ollama_settings_have_local_endpoint_and_deterministic_default(monkeypat
     assert config.schoolsmarteye_llm_provider == "deterministic"
     assert config.ollama_base_url == "http://127.0.0.1:11434"
     assert config.ollama_model == ""
+    assert config.ollama_timeout_seconds == 12
     assert config.bracelet_reading_retention_days == 30
+
+    from app.services import llm_agent_runtime
+    assert llm_agent_runtime._ollama_chat_url() == "http://127.0.0.1:11434/api/chat"
