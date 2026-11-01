@@ -20,6 +20,10 @@ def test_alembic_upgrade_head_creates_verified_parent_link_schema(tmp_path, monk
     try:
         inspector = inspect(engine)
         assert "parent_student_links" in inspector.get_table_names()
+        assert "parent_invitations" in inspector.get_table_names()
+
+        invitation_columns = {column["name"] for column in inspector.get_columns("parent_invitations")}
+        assert {"school_id", "student_id", "invited_username", "full_name", "token_hash", "invited_by_user_id", "verification_method", "created_at", "expires_at", "accepted_at", "revoked_at"}.issubset(invitation_columns)
 
         columns = {column["name"] for column in inspector.get_columns("parent_student_links")}
         assert {
@@ -53,6 +57,6 @@ def test_alembic_upgrade_head_creates_verified_parent_link_schema(tmp_path, monk
         version = engine.connect().exec_driver_sql(
             "SELECT version_num FROM alembic_version"
         ).scalar_one()
-        assert version == "0006"
+        assert version == "0007"
     finally:
         engine.dispose()
