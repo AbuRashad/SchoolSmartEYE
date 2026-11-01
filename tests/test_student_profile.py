@@ -144,6 +144,71 @@ def test_profile_aggregates_all_sections(client, zone, db_session_factory) -> No
         assert db.get(orm.Bracelet, "BR-E2E-1") is None
 
 
+def test_profile_attendance_notifications_and_incidents_exclude_other_school(client, zone, db_session_factory) -> None:
+    _create_student(client)
+    today = datetime.now(timezone.utc).date()
+    now = datetime.now(timezone.utc)
+    with db_session_factory() as db:
+        db.add(orm.School(school_id="PROFILE-FOREIGN-SCHOOL", name="Foreign Profile School", is_active=True))
+        db.flush()
+        db.add(orm.Student(
+            student_id="PROFILE-FOREIGN-STUDENT",
+            school_id="PROFILE-FOREIGN-SCHOOL",
+            name="Foreign Student",
+            grade="G8",
+            class_section="B",
+            parent_id="PAR-E2E-1",
+        ))
+        db.add(orm.Zone(
+            zone_id="PROFILE-FOREIGN-ZONE",
+            school_id="PROFILE-FOREIGN-SCHOOL",
+            label="Foreign Zone",
+            zone_type="classroom",
+            capacity=20,
+            floor=1,
+            grid_x=8,
+            grid_y=8,
+        ))
+        db.flush()
+        db.add_all([
+            orm.AttendanceRecord(
+                student_id="PROFILE-FOREIGN-STUDENT", date=today, status="absent",
+            ),
+            orm.Notification(
+                notification_id="PROFILE-FOREIGN-NOTIFICATION",
+                parent_id="PAR-E2E-1",
+                student_id="PROFILE-FOREIGN-STUDENT",
+                message="Foreign school notification",
+                notification_type="safety",
+                sent_at=now,
+                read=False,
+            ),
+            orm.Incident(
+                incident_id="PROFILE-FOREIGN-INCIDENT",
+                zone_id="PROFILE-FOREIGN-ZONE",
+                severity="critical",
+                description="Foreign school incident",
+                detected_at=now,
+                resolved=False,
+            ),
+            orm.AttendanceRecord(
+                student_id=SID, date=today, status="present", last_seen_zone=zone.zone_id,
+            ),
+        ])
+        db.commit()
+
+    profile = client.get(f"{API}/students/{SID}/profile")
+    assert profile.status_code == 200
+    data = profile.json()
+    assert data["today_status"] == "present"
+    assert data["notifications"] == []
+    assert data["unread_notifications"] == 0
+    assert data["safety_status"] == "safe"
+    assert data["open_incidents_in_last_zone"] == 0
+    assert "PROFILE-FOREIGN-NOTIFICATION" not in profile.text
+    assert "Foreign school incident" not in profile.text
+
+
 def test_profile_for_student_without_data_is_unknown(client, zone) -> None:
     _create_student(client)
     d = client.get(f"{API}/students/{SID}/profile").json()
