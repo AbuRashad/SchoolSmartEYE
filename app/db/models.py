@@ -137,6 +137,24 @@ class SchoolMembership(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class ParentStudentLink(Base):
+    """Audited, school-owned link between a parent login and one student."""
+
+    __tablename__ = "parent_student_links"
+    __table_args__ = (
+        UniqueConstraint("user_id", "student_id", "school_id", name="uq_parent_student_school_link"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    student_id: Mapped[str] = mapped_column(ForeignKey("students.student_id", ondelete="CASCADE"), index=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id", ondelete="CASCADE"), index=True)
+    verified_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    verified_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    verification_method: Mapped[str] = mapped_column(String(32), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
 class Zone(Base):
     __tablename__ = "zones"
 
