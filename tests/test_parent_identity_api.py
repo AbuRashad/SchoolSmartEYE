@@ -75,6 +75,9 @@ def test_parent_cannot_self_create_link_or_access_unlinked_student(
     _create_parent(db_session_factory)
 
     headers = _parent_headers()
+    assert client.get(f"{API}/students", headers=headers).status_code == 403
+    assert client.get(f"{API}/reports/list", headers=headers).status_code == 403
+
     denied_link = client.post(
         f"{API}/parent/links",
         json={
