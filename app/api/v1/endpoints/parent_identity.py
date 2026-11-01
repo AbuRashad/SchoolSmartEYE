@@ -24,6 +24,7 @@ class ParentLinkCreate(BaseModel):
 
 
 class ParentLinkOut(BaseModel):
+    link_id: int
     student_id: str
     parent_username: str
     verification_method: str
@@ -153,6 +154,7 @@ def create_parent_link(
         raise HTTPException(status_code=409, detail="Parent link could not be created") from None
 
     return ParentLinkOut(
+        link_id=link.id,
         student_id=student.student_id,
         parent_username=parent.username,
         verification_method=link.verification_method,
@@ -162,24 +164,19 @@ def create_parent_link(
 
 
 @router.delete(
-    "/links/{student_id}/{parent_username}",
+    "/links/{link_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_principal)],
 )
 def revoke_parent_link(
-    student_id: str,
-    parent_username: str,
+    link_id: int,
     db: Session = Depends(get_db),
     school_id: str = Depends(get_current_school_id),
     principal: orm.User = Depends(require_principal),
 ) -> Response:
-    parent = db.scalar(select(orm.User).where(orm.User.username == parent_username, orm.User.role == "parent"))
-    if parent is None:
-        raise HTTPException(status_code=404, detail="Verified parent link not found")
     link = db.scalar(
         select(orm.ParentStudentLink).where(
-            orm.ParentStudentLink.user_id == parent.id,
-            orm.ParentStudentLink.student_id == student_id,
+            orm.ParentStudentLink.id == link_id,
             orm.ParentStudentLink.school_id == school_id,
             orm.ParentStudentLink.is_active.is_(True),
         )
