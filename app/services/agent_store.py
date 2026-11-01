@@ -79,20 +79,13 @@ def save_feedback(db: Session, entry: AgentFeedback) -> None:
     db.commit()
 
 
-
 def purge_student_artifacts(student_id: str, video_log_dir: str | None = None) -> dict[str, int]:
     """Purge in-memory engagement snapshots and student-linked feedback JSONL.
 
-    The JSONL rewrite fails closed on malformed records so an operator is not
-    told erasure succeeded when the file could not be safely inspected.
+    Validate and atomically rewrite the file-backed log before mutating the
+    in-memory cache. A malformed or unwritable log therefore leaves both
+    stores untouched and lets the caller fail closed.
     """
-    with seed_data.engagement_snapshots_lock:
-        before = len(seed_data.engagement_snapshots)
-        seed_data.engagement_snapshots[:] = [
-            item for item in seed_data.engagement_snapshots if item.student_id != student_id
-        ]
-        removed_snapshots = before - len(seed_data.engagement_snapshots)
-
     removed_feedback_logs = 0
     if video_log_dir:
         log_path = Path(video_log_dir) / "agent_performance.jsonl"
@@ -112,7 +105,7 @@ def purge_student_artifacts(student_id: str, video_log_dir: str | None = None) -
                         if record.get("student_id") == student_id:
                             removed_feedback_logs += 1
                         else:
-                            retained.append(json.dumps(record, ensure_ascii=False) + "\n")
+                            retained.append(json.dumps(record, ensure_ascii=False) + "\\n")
                 temporary = log_path.with_name(log_path.name + ".erasure-tmp")
                 try:
                     with temporary.open("w", encoding="utf-8") as handle:
@@ -123,6 +116,13 @@ def purge_student_artifacts(student_id: str, video_log_dir: str | None = None) -
                 finally:
                     if temporary.exists():
                         temporary.unlink()
+
+    with seed_data.engagement_snapshots_lock:
+        before = len(seed_data.engagement_snapshots)
+        seed_data.engagement_snapshots[:] = [
+            item for item in seed_data.engagement_snapshots if item.student_id != student_id
+        ]
+        removed_snapshots = before - len(seed_data.engagement_snapshots)
 
     return {
         "engagement_snapshots": removed_snapshots,
