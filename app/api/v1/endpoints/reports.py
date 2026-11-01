@@ -76,6 +76,8 @@ def _report_previews(db: Session, school_id: str) -> list[dict[str, object]]:
             "content_summary": f"{sum(incidents.values())} open incidents across the school's zones.",
             "data": {"open_incidents_by_severity": incidents},
             "persisted": False,
+            "data_status": data_status,
+            "data_notice": data_notice,
         },
         {
             "report_id": f"{school_id}:ssi:30d",
@@ -90,6 +92,8 @@ def _report_previews(db: Session, school_id: str) -> list[dict[str, object]]:
             ),
             "data": ssi,
             "persisted": False,
+            "data_status": data_status,
+            "data_notice": data_notice,
         },
     ]
 
