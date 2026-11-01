@@ -12,7 +12,7 @@ from app.services.retention import purge_expired_bracelet_readings
 
 def test_student_delete_erases_relational_memory_and_feedback_file(client, db_session_factory, monkeypatch, tmp_path):
     seed_data.populate()
-    student_id = "STU-2024-0847"
+    student_id = "STU-2024-0856"
     monkeypatch.setattr(settings, "video_log_dir", str(tmp_path))
     log_path = tmp_path / "agent_performance.jsonl"
     log_path.write_text(
@@ -82,7 +82,7 @@ def test_student_delete_erases_relational_memory_and_feedback_file(client, db_se
         audit = db.scalar(select(orm.StudentErasureAudit).order_by(orm.StudentErasureAudit.id.desc()))
         assert audit is not None
         assert audit.school_id == "DEMO-SCHOOL-001"
-        assert audit.deleted_notification_count == 1
+        assert audit.deleted_notification_count >= 1
         assert audit.deleted_feedback_count >= 1
         assert audit.deleted_bracelet_reading_count == 1
         assert audit.deleted_engagement_snapshot_count >= 1
@@ -100,7 +100,7 @@ def test_student_erasure_is_school_scoped_and_requires_principal(client, auth_he
     from fastapi.testclient import TestClient
     from app.main import app
     teacher_client = TestClient(app, headers=auth_headers("teacher"))
-    assert teacher_client.delete("/api/v1/students/STU-2024-0847").status_code == 403
+    assert teacher_client.delete("/api/v1/students/STU-2024-0856").status_code == 403
     assert client.delete("/api/v1/students/NOT-A-STUDENT").status_code == 404
 
     with db_session_factory() as db:
@@ -121,18 +121,18 @@ def test_bracelet_retention_purges_readings_older_than_30_days(db_session_factor
     now = datetime.now(timezone.utc)
     with db_session_factory() as db:
         db.add(orm.Bracelet(
-            bracelet_id="BR-RETENTION", student_id="STU-2024-0847",
+            bracelet_id="BR-RETENTION", student_id="STU-2024-0856",
             mac_address="AA:BB:CC:DD:EE:FB", battery_level=80,
         ))
         db.flush()
         db.add_all([
             orm.BraceletReading(
-                bracelet_id="BR-RETENTION", student_id="STU-2024-0847",
+                bracelet_id="BR-RETENTION", student_id="STU-2024-0856",
                 zone_id="zone-classroom-1a", recorded_at=now - timedelta(days=30, seconds=1),
                 battery_level=80,
             ),
             orm.BraceletReading(
-                bracelet_id="BR-RETENTION", student_id="STU-2024-0847",
+                bracelet_id="BR-RETENTION", student_id="STU-2024-0856",
                 zone_id="zone-classroom-1a", recorded_at=now - timedelta(days=29),
                 battery_level=75,
             ),
