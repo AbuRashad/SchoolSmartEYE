@@ -237,12 +237,24 @@ def test_camera_registration_requires_zone_from_authenticated_school(
             "source_url": "0",
         },
     )
+    duplicate_foreign_camera_id = client.post(
+        f"{API}/cameras",
+        json={
+            "camera_id": "OTHER-CAMERA-001",
+            "zone_id": "zone-main-gate",
+            "label": "Conflicting Camera",
+            "source_url": "0",
+        },
+    )
     denied_start = client.post(f"{API}/cameras/OTHER-CAMERA-001/start")
     denied_stop = client.post(f"{API}/cameras/OTHER-CAMERA-001/stop")
     denied_delete = client.delete(f"{API}/cameras/OTHER-CAMERA-001")
     denied_snapshot = client.get(f"{API}/cameras/OTHER-CAMERA-001/snapshot.jpg")
     denied_stream = client.get(f"{API}/cameras/OTHER-CAMERA-001/stream.mjpg")
     assert denied_create.status_code == 404
+    assert duplicate_foreign_camera_id.status_code == 409
+    assert "OTHER-CAMERA-001" not in duplicate_foreign_camera_id.text
+    assert "OTHER-SCHOOL" not in duplicate_foreign_camera_id.text
     assert denied_start.status_code == 404
     assert denied_stop.status_code == 404
     assert denied_delete.status_code == 404
