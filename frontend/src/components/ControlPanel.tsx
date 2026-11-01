@@ -1,24 +1,30 @@
 import { useCallback, useState } from "react";
 import {
   Camera, Users, Watch, Settings as SettingsIcon,
-  AlertTriangle, CheckCircle2,
+  AlertTriangle, CheckCircle2, Link2,
 } from "lucide-react";
 import { CamerasTab } from "./control/CamerasTab";
 import { BraceletsTab } from "./control/BraceletsTab";
 import { StudentsTab } from "./control/StudentsTab";
 import { SettingsTab } from "./control/SettingsTab";
+import { ParentLinksTab } from "./control/ParentLinksTab";
+import { useAuth } from "../AuthContext";
+import type { Role } from "../auth";
 import type { Flash } from "./control/ui";
 
-type Tab = "cameras" | "bracelets" | "students" | "settings";
+type Tab = "cameras" | "bracelets" | "students" | "parents" | "settings";
 
-const TABS: { id: Tab; label: string; icon: typeof Camera }[] = [
+const TABS: { id: Tab; label: string; icon: typeof Camera; minRole?: Role }[] = [
   { id: "cameras", label: "Cameras", icon: Camera },
   { id: "bracelets", label: "Bracelets", icon: Watch },
   { id: "students", label: "Students", icon: Users },
+  { id: "parents", label: "Parent Links", icon: Link2, minRole: "principal" },
   { id: "settings", label: "Advanced Settings", icon: SettingsIcon },
 ];
 
 export function ControlPanel() {
+  const { can } = useAuth();
+  const visibleTabs = TABS.filter((item) => !item.minRole || can(item.minRole));
   const [tab, setTab] = useState<Tab>("cameras");
   const [toast, setToast] = useState<{ kind: "ok" | "err"; message: string } | null>(null);
 
@@ -39,7 +45,7 @@ export function ControlPanel() {
       </header>
 
       <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => {
+        {visibleTabs.map((t) => {
           const Icon = t.icon;
           const active = t.id === tab;
           return (
@@ -80,7 +86,8 @@ export function ControlPanel() {
       {tab === "cameras" && <CamerasTab flash={flash} />}
       {tab === "bracelets" && <BraceletsTab flash={flash} />}
       {tab === "students" && <StudentsTab flash={flash} />}
-      {tab === "settings" && <SettingsTab flash={flash} />}
+      {tab === "parents" && can("principal") && <ParentLinksTab flash={flash} />}
+      {tab === "settings" && <SettingsTab flash={flash} />
     </section>
   );
 }
