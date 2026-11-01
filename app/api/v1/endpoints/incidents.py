@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_school_id, get_current_user, require_principal, require_teacher
@@ -102,8 +103,7 @@ def create_incident(
     )
     if zone is None:
         raise HTTPException(status_code=404, detail="Zone not found in this school")
-    if db.get(orm.Incident, payload.incident_id) is not None:
-        raise HTTPException(status_code=409, detail="Incident ID already exists")
+    # The database enforces global ID uniqueness; avoid cross-school preflight reads.
     incident = orm.Incident(
         incident_id=payload.incident_id,
         zone_id=zone.zone_id,
@@ -113,7 +113,14 @@ def create_incident(
         resolved=False,
     )
     db.add(incident)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Incident could not be created because its identifier or submitted data conflicts with an existing record.",
+        ) from None
     db.refresh(incident)
     return IncidentOut.model_validate(incident, from_attributes=True)
 
