@@ -34,6 +34,8 @@ def test_analytics_overview_excludes_other_school_data(client, db_session_factor
     data = response.json()
     assert data["school_id"] == "DEMO-SCHOOL-001"
     assert data["students"]["active"] == 10
+    assert data["data_status"] == "demo"
+    assert "not live school telemetry" in data["data_notice"]
     assert "ANALYTICS-FOREIGN-INCIDENT" not in response.text
     assert "Foreign-only incident" not in response.text
 
@@ -49,6 +51,8 @@ def test_report_previews_are_generated_from_authenticated_school_only(ministry_c
     reports = response.json()
     assert len(reports) == 3
     assert all(report["persisted"] is False for report in reports)
+    assert all(report["data_status"] == "demo" for report in reports)
+    assert all("not live school telemetry" in report["data_notice"] for report in reports)
     assert all(report["report_id"].startswith("DEMO-SCHOOL-001:") for report in reports)
     assert "ANALYTICS-FOREIGN" not in response.text
     assert "Foreign-only incident" not in response.text
