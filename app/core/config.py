@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     api_v1_str: str = Field(default="/api/v1")
     video_log_dir: str = Field(default="./video_logs")
     video_ttl_hours: int = Field(default=72)
+    bracelet_reading_retention_days: int = Field(default=30, ge=1, le=3650)
 
     # ── Database ──────────────────────────────────────────────────────────
     # Any SQLAlchemy URL. SQLite by default; for PostgreSQL use e.g.
@@ -51,6 +52,15 @@ class Settings(BaseSettings):
     demo_principal_password: str = Field(default=DEFAULT_DEMO_PASSWORDS["principal"])
     demo_ministry_password: str = Field(default=DEFAULT_DEMO_PASSWORDS["ministry"])
 
+    # ── Optional local / cloud Ollama provider ────────────────────────────
+    # Deterministic remains the safe default. Local Ollama normally listens on
+    # 127.0.0.1:11434; Docker Desktop can use host.docker.internal.
+    schoolsmarteye_llm_provider: str = Field(default="deterministic")
+    ollama_base_url: str = Field(default="http://127.0.0.1:11434")
+    ollama_model: str = Field(default="")
+    ollama_api_key: str = Field(default="")
+    ollama_timeout_seconds: float = Field(default=12.0, gt=0, le=120)
+
     # ── CORS ──────────────────────────────────────────────────────────────
     # Comma-separated list of allowed browser origins.
     cors_origins: str = Field(default="http://127.0.0.1:5173,http://localhost:5173")
@@ -66,7 +76,12 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     def validate_for_production(self) -> None:
-        """Fail loudly if insecure defaults are used in production."""
+        """Fail loudly if insecure defaults or invalid AI provider settings are used."""
+        provider = self.schoolsmarteye_llm_provider.strip().lower()
+        if provider not in {"deterministic", "ollama"}:
+            raise RuntimeError("SCHOOLSMARTEYE_LLM_PROVIDER must be deterministic or ollama.")
+        if self.ollama_base_url and not self.ollama_base_url.strip().startswith(("http://", "https://")):
+            raise RuntimeError("OLLAMA_BASE_URL must be an HTTP(S) URL.")
         if self.is_production and self.jwt_secret_key == DEFAULT_JWT_SECRET:
             raise RuntimeError(
                 "JWT_SECRET_KEY is still the insecure default while APP_ENV=production. "
