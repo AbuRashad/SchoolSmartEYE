@@ -112,7 +112,7 @@ Completed:
 
 Still required:
 - Implement verified ownership for remaining operational stores and per-school runtime settings; partition the dashboard streaming/cache layer before enabling WebSocket, and partition sensor/health inputs before enabling live SSI or unit-health feeds.
-- Incident list/detail/create/resolve and drill list/detail/create/complete endpoints are implemented with server-resolved school scope. Student profile attendance, notification, and incident-derived reads are school-filtered. Analytics overview and ministry report previews are now school-scoped; previews are generated on request and are not stored. Standalone parent notification access remains withheld until verified parent/student identity mapping is complete. Continue auditing attendance-write and export/download paths.
+- Incident list/detail/create/resolve and drill list/detail/create/complete endpoints are implemented with server-resolved school scope. Student profile attendance, notification, and incident-derived reads are school-filtered. Analytics overview and ministry report previews are now school-scoped; previews are generated on request and are not stored. Read-only parent summaries are now available through verified parent/student identity mappings; notification-management remains unimplemented. Continue auditing attendance-write and export/download paths.
 - Add tenant ownership or a validated parent relationship to every remaining school-owned table and every in-memory/cache source; add class-level authorization and audit logging.
 - Define a safe, reviewed backfill for existing users, students, and operational data. Never assign all existing rows to the demo school by default.
 - Add migration upgrade/downgrade tests against the supported database engines and full API isolation matrix tests.
@@ -133,7 +133,7 @@ Still required:
 - Added drill list/detail/create/complete endpoints. Every drill read and mutation filters by the authenticated school's `school_id`; new drills receive school ownership from the server, never from request data.
 - Legacy incidents attached to unassigned zones and drills with null school ownership are not returned.
 - Added cross-school denial tests for guessed incident/drill IDs, foreign-zone incident creation, and server-side tenant assignment.
-- No notification-management API was added: existing profile notification reads are scoped through the student relationship, while standalone parent access remains blocked pending verified parent/student identity links.
+- No notification-management API was added. Read-only parent notification summaries are now exposed only through active verified parent/student links.
 - Automated test execution and production deployment remain pending.
 
 
@@ -148,7 +148,7 @@ Still required:
 
 - `get_school_metrics` now requires an explicit school ID and filters attendance, student totals, incidents, and cameras to that school. Regression tests create a second school and verify that its records do not change the first school's metrics. The SSI value in this helper remains illustrative, not live.
 - Ministry report and semester report generators are pure transformations over caller-supplied collections; they must receive data from a separately authorized school-scoped loader before any API/export integration.
-- Parent portal and attendance-safety in-memory helpers do not independently enforce school ownership. The authenticated portal endpoint remains unavailable until verified parent/student identity mapping and school-scoped loading are complete.
+- Parent portal and attendance-safety in-memory helpers do not independently enforce school ownership. The legacy `/portal/student` endpoint remains withheld; the new `/parent` API uses verified links and school-scoped loading.
 - There is no standalone export endpoint in the current API router inventory; report list/stat routes remain fail-closed.
 
 
@@ -167,7 +167,7 @@ Still required:
 
 - Dashboard, analytics, reports, and orchestration explicitly label the demo tenant's seeded records as synthetic demo data, not live telemetry. Other tenants are marked unknown until record-level provenance is verified.
 - Attendance reads in student profiles, attendance-risk, dashboard, analytics, and report previews are scoped through the owning Student row. There is no standalone attendance CRUD/ingestion endpoint in the current API router.
-- Notification reads are limited to the student profile and require a school-owned Student join plus matching current parent_id. No standalone notification-management or parent-facing API is exposed.
+- Notification reads are limited to the student profile and require a school-owned Student join plus matching current parent_id. No notification-management API is exposed; read-only parent summaries are exposed through the verified `/parent` routes.
 - Incident list/detail/create/resolve and dashboard/analytics/report incident aggregates inherit school ownership through the persisted Zone join. Unassigned legacy zones and their incidents remain inaccessible.
 - The in-memory attendance-safety and parent-portal helpers do not independently enforce tenant scope; keep them disconnected from authenticated routes until a verified, school-scoped data loader is introduced.
 
