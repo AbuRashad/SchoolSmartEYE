@@ -94,7 +94,7 @@ export type LiveCameraInfo = {
 };
 
 export type AnalyticsOverview = {
-  data_status: "demo";
+  data_status: "demo" | "unknown";
   data_notice: string;
   attendance_rate: number;
   total_students: number;
