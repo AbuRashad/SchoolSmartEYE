@@ -80,7 +80,7 @@ SchoolSmartEYE/
 │   │   └── v1/
 │   │       ├── router.py           # Mounts all endpoint routers
 │   │       └── endpoints/          # health, auth, dashboard, ssi, units, analytics, reports,
-│   │                               # portal, cameras, students, bracelets, settings, agent
+│   │                               # portal, parent_identity, cameras, students, bracelets, settings, agent
 │   ├── units/                      # 15 integrated monitoring units (unit_01 … unit_15)
 │   ├── services/                   # Core AI/analytics services + seed_data.py
 │   ├── schemas/                    # Pydantic request/response schemas
@@ -449,4 +449,4 @@ python scripts/test_control_api.py
 cd frontend && npm run build
 ```
 
-Tests cover: database seeding and persistence, JWT authentication and the role matrix, student CRUD and the profile endpoint, bracelets, governance layer, health, dashboard, SSI, drill simulation, ministry reports, parent portal, report generator, risk heatmap, school safety index, spatial behavioral memory, attendance-safety integration, collective behavioral coherence, crowd density forecasting and the Unit 15 pedagogical agent.
+Tests cover: database seeding and persistence, JWT authentication and the role matrix, student CRUD and the profile endpoint, bracelets, verified parent identity and portal authorization, full Alembic migration upgrade, governance layer, health, dashboard, SSI, drill simulation, school-scoped report previews, risk heatmap, school safety index, spatial behavioral memory, attendance-safety integration, collective behavioral coherence, crowd density forecasting and the Unit 15 pedagogical agent.
