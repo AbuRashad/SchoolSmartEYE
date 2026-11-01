@@ -142,6 +142,31 @@ export type StudentPortalData = {
   student: null;
 };
 
+export type ParentStudent = {
+  student_id: string;
+  name: string;
+  grade: string;
+  class_section: string;
+};
+
+export type ParentStudentSummary = {
+  student: ParentStudent;
+  attendance: {
+    date: string;
+    status: string;
+    arrival_time: string | null;
+    departure_time: string | null;
+  }[];
+  notifications: {
+    notification_id: string;
+    message: string;
+    notification_type: string;
+    sent_at: string;
+    read: boolean;
+  }[];
+  data_notice: string;
+};
+
 // ── Control Panel ────────────────────────────────────────────────────────────
 
 export type StudentRecord = {
