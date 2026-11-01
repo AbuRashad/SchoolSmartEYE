@@ -15,6 +15,8 @@ def test_dashboard_rest_endpoints_return_school_scoped_database_views(client: Te
     assert summary.json()["schoolId"] == "DEMO-SCHOOL-001"
     assert summary.json()["totalStudents"] == 10
     assert summary.json()["dataSource"] == "school_scoped_database"
+    assert summary.json()["dataStatus"] == "demo"
+    assert "not live school telemetry" in summary.json()["dataNotice"]
     assert summary.json()["ssiStatus"] in {"measured", "awaiting_school_measurement"}
 
     alerts = client.get("/api/v1/dashboard/alerts")
@@ -24,6 +26,7 @@ def test_dashboard_rest_endpoints_return_school_scoped_database_views(client: Te
     heatmap = client.get("/api/v1/dashboard/heatmap")
     assert heatmap.status_code == 200
     assert heatmap.json()["dataSource"] == "school_scoped_database"
+    assert heatmap.json()["dataStatus"] == "demo"
     assert all("zone_id" in cell and "signal_source" in cell for cell in heatmap.json()["cells"])
 
     live = client.get("/api/v1/dashboard/live")
