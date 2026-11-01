@@ -106,11 +106,8 @@ def orchestrate_agents(
                 "incidents_today": analytics["incidents"]["today"],
                 "incidents_week": analytics["incidents"]["last_7_days"],
                 "attendance_rate": latest_attendance.get("attendance_rate"),
-                "data_status": "unknown",
-                "data_notice": (
-                    "School-scoped database records are isolated, but per-record demo/live provenance "
-                    "is not yet labelled. Verify source and freshness before operational decisions."
-                ),
+                "data_status": analytics["data_status"],
+                "data_notice": analytics["data_notice"],
             },
         )
     except ValueError as exc:
