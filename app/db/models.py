@@ -79,6 +79,19 @@ class Bracelet(Base):
     student: Mapped[Student] = relationship(back_populates="bracelet")
 
 
+class BraceletReading(Base):
+    """Timestamped bracelet telemetry retained for at most the configured 30-day window."""
+
+    __tablename__ = "bracelet_readings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bracelet_id: Mapped[str] = mapped_column(ForeignKey("bracelets.bracelet_id", ondelete="CASCADE"), index=True)
+    student_id: Mapped[str] = mapped_column(ForeignKey("students.student_id", ondelete="CASCADE"), index=True)
+    zone_id: Mapped[str] = mapped_column(String(64))
+    recorded_at: Mapped[datetime] = mapped_column(UTCDateTime, index=True)
+    battery_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 class AttendanceRecord(Base):
     __tablename__ = "attendance_records"
     __table_args__ = (UniqueConstraint("student_id", "date", name="uq_attendance_student_date"),)
@@ -256,3 +269,21 @@ class ParentInvitation(Base):
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     accepted_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
+class StudentErasureAudit(Base):
+    """Privacy-preserving proof of erasure; deliberately stores no student identifier."""
+
+    __tablename__ = "student_erasure_audits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id"), index=True)
+    erased_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    erased_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    deleted_attendance_count: Mapped[int] = mapped_column(Integer, default=0)
+    deleted_notification_count: Mapped[int] = mapped_column(Integer, default=0)
+    deleted_feedback_count: Mapped[int] = mapped_column(Integer, default=0)
+    deleted_bracelet_reading_count: Mapped[int] = mapped_column(Integer, default=0)
+    deleted_parent_link_count: Mapped[int] = mapped_column(Integer, default=0)
+    deleted_invitation_count: Mapped[int] = mapped_column(Integer, default=0)
+    deleted_bracelet_count: Mapped[int] = mapped_column(Integer, default=0)
