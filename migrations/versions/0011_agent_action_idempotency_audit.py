@@ -14,10 +14,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_unique_constraint(
+    # A unique index enforces the same invariant and is supported by SQLite
+    # as well as PostgreSQL, including local test databases.
+    op.create_index(
         "uq_agent_action_school_run_kind",
         "agent_action_tasks",
         ["school_id", "source_request_id", "action_kind"],
+        unique=True,
     )
 
     op.create_table(
@@ -54,4 +57,4 @@ def downgrade() -> None:
     op.drop_index("ix_agent_action_audit_action_id", table_name="agent_action_audit_events")
     op.drop_index("ix_agent_action_audit_school_id", table_name="agent_action_audit_events")
     op.drop_table("agent_action_audit_events")
-    op.drop_constraint("uq_agent_action_school_run_kind", "agent_action_tasks", type_="unique")
+    op.drop_index("uq_agent_action_school_run_kind", table_name="agent_action_tasks")
