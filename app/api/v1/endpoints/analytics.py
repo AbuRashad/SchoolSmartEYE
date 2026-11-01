@@ -55,6 +55,22 @@ def analytics_overview(
         .join(orm.Zone, orm.Zone.zone_id == orm.Incident.zone_id)
         .where(orm.Zone.school_id == school_id, orm.Incident.resolved.is_(False))
     ) or 0
+    incidents_today = db.scalar(
+        select(func.count()).select_from(orm.Incident)
+        .join(orm.Zone, orm.Zone.zone_id == orm.Incident.zone_id)
+        .where(
+            orm.Zone.school_id == school_id,
+            orm.Incident.detected_at >= datetime.combine(now.date(), datetime.min.time(), tzinfo=timezone.utc),
+        )
+    ) or 0
+    incidents_last_7_days = db.scalar(
+        select(func.count()).select_from(orm.Incident)
+        .join(orm.Zone, orm.Zone.zone_id == orm.Incident.zone_id)
+        .where(
+            orm.Zone.school_id == school_id,
+            orm.Incident.detected_at >= now - timedelta(days=7),
+        )
+    ) or 0
 
     daily = []
     for day, statuses in sorted(attendance_by_day.items()):
@@ -77,6 +93,8 @@ def analytics_overview(
         "cameras": {"active": int(active_cameras)},
         "incidents": {
             "open": int(open_incidents),
+            "today": int(incidents_today),
+            "last_7_days": int(incidents_last_7_days),
             "last_30_days_by_severity": incident_by_severity,
         },
         "attendance": {
