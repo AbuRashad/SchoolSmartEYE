@@ -114,6 +114,9 @@ export function ParentPortalDashboard() {
 
         {summary && !loadingSummary && (
           <>
+            <div role="status" className="rounded-2xl border border-warning/30 bg-warning/10 px-5 py-3 text-sm text-warning">
+              {summary.data_status === "demo" ? "Demo data — not live school measurements." : "Source provenance has not yet been verified for this school."}
+            </div>
             <section className="rounded-[2rem] border border-white/10 bg-panel/80 p-6 shadow-panel">
               <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-sky" /><h2 className="text-lg font-semibold">Attendance — last 7 days</h2></div>
               <p className="mt-1 text-sm text-mist/55">{summary.student.name} · {summary.student.grade} · {summary.student.class_section}</p>
