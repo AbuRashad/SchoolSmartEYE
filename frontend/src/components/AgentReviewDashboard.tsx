@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Clock3, RefreshCw, ShieldAlert, X } from "lucide-react";
+import { Check, Clock3, FileText, RefreshCw, ShieldAlert, X } from "lucide-react";
 import { useAuth } from "../AuthContext";
 import { api } from "./control/api";
+
+type AuditEvent = {
+  event_id: string;
+  event_type: string;
+  actor_type: string;
+  actor_user_id: number | null;
+  from_status: string | null;
+  to_status: string | null;
+  event_metadata: Record<string, unknown>;
+  created_at: string;
+};
 
 type ReviewTask = {
   action_id: string;
@@ -40,6 +51,9 @@ export function AgentReviewDashboard() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
+  const [expandedAuditId, setExpandedAuditId] = useState<string | null>(null);
+  const [auditEvents, setAuditEvents] = useState<Record<string, AuditEvent[]>>({});
+  const [auditLoadingId, setAuditLoadingId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setError(null);
@@ -65,6 +79,26 @@ export function AgentReviewDashboard() {
   }), [tasks]);
 
   const visibleTasks = filter === "all" ? tasks : tasks.filter((task) => task.status === filter);
+
+  async function toggleAudit(task: ReviewTask) {
+    if (expandedAuditId === task.action_id) {
+      setExpandedAuditId(null);
+      return;
+    }
+    setExpandedAuditId(task.action_id);
+    if (auditEvents[task.action_id]) return;
+    setAuditLoadingId(task.action_id);
+    try {
+      const events = await api<AuditEvent[]>(
+        `/agent/actions/${encodeURIComponent(task.action_id)}/audit`,
+      );
+      setAuditEvents((current) => ({ ...current, [task.action_id]: events }));
+    } catch (err) {
+      setError((err as Error).message || "Unable to load the audit history.");
+    } finally {
+      setAuditLoadingId(null);
+    }
+  }
 
   async function act(task: ReviewTask, action: "approve" | "reject" | "complete") {
     setBusyId(task.action_id);
@@ -194,6 +228,43 @@ export function AgentReviewDashboard() {
                     {task.completed_at && <span className="ml-3">Completed: {formatDate(task.completed_at)} · User #{task.completed_by_user_id}</span>}
                   </div>
                 )}
+
+                <div className="mt-3 border-t border-white/8 pt-3">
+                  <button type="button" onClick={() => void toggleAudit(task)}
+                    className="inline-flex items-center gap-2 text-xs font-medium text-mist/65 hover:text-white">
+                    <FileText className="h-3.5 w-3.5" />
+                    {expandedAuditId === task.action_id ? "Hide audit history" : "View audit history"}
+                  </button>
+                  {expandedAuditId === task.action_id && (
+                    <div className="mt-3 rounded-xl border border-white/8 bg-black/15 p-3">
+                      {auditLoadingId === task.action_id ? (
+                        <p className="text-xs text-mist/50">Loading audit history…</p>
+                      ) : (auditEvents[task.action_id] || []).length === 0 ? (
+                        <p className="text-xs text-mist/50">No audit events are available.</p>
+                      ) : (
+                        <ol className="space-y-3">
+                          {(auditEvents[task.action_id] || []).map((event) => (
+                            <li key={event.event_id} className="flex flex-wrap items-start justify-between gap-2 text-xs">
+                              <div>
+                                <p className="font-medium capitalize text-white">{event.event_type.replace(/_/g, " ")}</p>
+                                <p className="mt-1 text-mist/55">
+                                  {event.actor_type === "agent" ? "Automated rule engine" : `Authorised user #${event.actor_user_id ?? "unknown"}`}
+                                  {event.from_status && ` · ${event.from_status.replace(/_/g, " ")} → ${event.to_status?.replace(/_/g, " ")}`}
+                                </p>
+                                {Array.isArray(event.event_metadata.signal_codes) && event.event_metadata.signal_codes.length > 0 && (
+                                  <p className="mt-1 text-mist/40">
+                                    Signals: {(event.event_metadata.signal_codes as string[]).join(", ").replace(/_/g, " ")}
+                                  </p>
+                                )}
+                              </div>
+                              <time className="text-mist/40">{formatDate(event.created_at)}</time>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  )}
+                </div>
               </article>
             ))}
           </div>
