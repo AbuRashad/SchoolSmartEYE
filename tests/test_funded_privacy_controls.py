@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import json
 
+import pytest
+from pydantic import ValidationError
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -187,3 +189,5 @@ def test_ollama_settings_have_local_endpoint_and_deterministic_default(monkeypat
 
     from app.services import llm_agent_runtime
     assert llm_agent_runtime._ollama_chat_url() == "http://127.0.0.1:11434/api/chat"
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, bracelet_reading_retention_days=31)
