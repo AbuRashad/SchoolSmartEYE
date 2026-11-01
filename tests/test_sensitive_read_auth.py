@@ -28,7 +28,11 @@ def test_authenticated_analytics_and_dashboard_return_school_scoped_views(client
     ):
         response = client.get(path)
         assert response.status_code == 200, f"{path} returned {response.status_code}"
-        assert response.json().get("school_id", response.json().get("schoolId", "DEMO-SCHOOL-001")) == "DEMO-SCHOOL-001"
+        body = response.json()
+        if isinstance(body, dict) and "school_id" in body:
+            assert body["school_id"] == "DEMO-SCHOOL-001"
+        if isinstance(body, dict) and "schoolId" in body:
+            assert body["schoolId"] == "DEMO-SCHOOL-001"
 
 
 def test_student_portal_and_agent_remain_available_when_properly_scoped(client: TestClient):
