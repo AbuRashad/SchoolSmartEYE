@@ -179,7 +179,7 @@ def test_bracelet_endpoints_follow_the_owning_students_school(
     assert cross_school_assignment.status_code == 400
 
 
-def test_camera_and_zone_dependent_services_fail_closed(client, seeded):
+def test_camera_and_zone_dependent_analytics_and_dashboard_are_school_scoped(client, seeded):
     camera_list = client.get(f"{API}/cameras")
     assert camera_list.status_code == 200
     for path in (
@@ -190,7 +190,7 @@ def test_camera_and_zone_dependent_services_fail_closed(client, seeded):
         f"{API}/dashboard/live",
     ):
         response = client.get(path)
-        assert response.status_code == 503, f"{path} returned {response.status_code}"
+        assert response.status_code == 200, f"{path} returned {response.status_code}"
 
 
 def test_global_operational_feeds_fail_closed_until_school_partitioned(client, seeded):
