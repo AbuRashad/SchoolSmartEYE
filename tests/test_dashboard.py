@@ -44,6 +44,11 @@ def test_dashboard_views_exclude_other_school_records(client: TestClient, db_ses
             student_id="DASH-FOREIGN-STUDENT", school_id="DASH-FOREIGN", name="Foreign",
             grade="G8", class_section="A", parent_id="P-F",
         ))
+        db.add(orm.AttendanceRecord(
+            student_id="DASH-FOREIGN-STUDENT",
+            date=datetime.now(timezone.utc).date(),
+            status="present",
+        ))
         db.add(orm.Zone(
             zone_id="DASH-FOREIGN-ZONE", school_id="DASH-FOREIGN", label="Foreign Zone",
             zone_type="classroom", capacity=20, floor=1, grid_x=99, grid_y=99,
@@ -64,6 +69,7 @@ def test_dashboard_views_exclude_other_school_records(client: TestClient, db_ses
     alerts = client.get("/api/v1/dashboard/alerts").json()
     heatmap = client.get("/api/v1/dashboard/heatmap").json()
     assert summary["totalStudents"] == 10
+    assert summary["presentToday"] == 9
     assert summary["activeCameras"] == 12
     assert all(item["id"] != "DASH-FOREIGN-INCIDENT" for item in alerts)
     assert all(cell["zone_id"] != "DASH-FOREIGN-ZONE" for cell in heatmap["cells"])
