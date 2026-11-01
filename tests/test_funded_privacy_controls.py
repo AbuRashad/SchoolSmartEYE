@@ -166,6 +166,11 @@ def test_bracelet_ping_persists_reading_and_history_is_limited_to_30_days(client
     assert len(history.json()) == 1
     assert history.json()[0]["zone_id"] == "zone-cafeteria"
     assert client.get("/api/v1/bracelets/BR-0001/readings?days=31").status_code == 422
+    assert client.delete("/api/v1/bracelets/BR-0001").status_code == 204
+    with db_session_factory() as db:
+        assert db.scalar(select(orm.BraceletReading.id).where(
+            orm.BraceletReading.bracelet_id == "BR-0001"
+        )) is None
 
 
 def test_ollama_settings_have_local_endpoint_and_deterministic_default(monkeypatch):
