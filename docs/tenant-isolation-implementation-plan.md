@@ -170,3 +170,13 @@ Still required:
 - Notification reads are limited to the student profile and require a school-owned Student join plus matching current parent_id. No standalone notification-management or parent-facing API is exposed.
 - Incident list/detail/create/resolve and dashboard/analytics/report incident aggregates inherit school ownership through the persisted Zone join. Unassigned legacy zones and their incidents remain inaccessible.
 - The in-memory attendance-safety and parent-portal helpers do not independently enforce tenant scope; keep them disconnected from authenticated routes until a verified, school-scoped data loader is introduced.
+
+
+## Parent identity implementation — 2026-11-01
+
+- Added migration 0006 and the `ParentStudentLink` model. Links are unique by parent user, student, and school, and carry verifier, verification timestamp, method, and active/revoked state.
+- Added principal-only create/revoke endpoints. The school is derived from the principal's active membership; the student must belong to that school; the selected account must already exist, be active, and have role exactly `parent`.
+- Added parent-only read endpoints for linked students and minimal student summaries. Parent access requires a verified active link joined to the student using both student_id and school_id.
+- Parent summaries include only persisted attendance for the linked student and notifications still addressed to the student's current parent reference. Live location, camera detections, and internal safety signals remain withheld.
+- No parent accounts are auto-created, no parent-child links are auto-inferred, and no existing parent_id is treated as authentication proof. School identity verification and secure parent account provisioning remain operational prerequisites.
+- The new migration is additive and has not been run against production. No legacy data was backfilled.
