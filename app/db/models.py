@@ -299,6 +299,7 @@ class AgentActionTask(Base):
     action_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     school_id: Mapped[str] = mapped_column(ForeignKey("schools.school_id", ondelete="CASCADE"), index=True)
     source_request_id: Mapped[str] = mapped_column(String(36), index=True)
+    action_kind: Mapped[str] = mapped_column(String(40), nullable=False)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str] = mapped_column(String(1200), nullable=False)
     assigned_role: Mapped[str] = mapped_column(String(16), nullable=False, default="principal")
