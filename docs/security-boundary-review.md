@@ -98,3 +98,13 @@ This document records static code observations only. It does not claim that the 
 - Student and bracelet create conflicts now use neutral messages and no cross-school existence preflight. Current schema still uses globally unique student IDs, bracelet IDs, and MAC addresses; this is a schema-level limitation, not proof of per-school identifier namespaces.
 - Existing profile attendance, notification, and incident-derived fields are scoped in their SQL joins/filters. Attendance-risk, dashboard, analytics, and report aggregates also use Student/Zone ownership joins. There is no standalone attendance CRUD/ingestion API or notification-management API in the current router; the pure in-memory `attendance_safety_integration` and `ParentPortalService` helpers do not enforce tenant ownership themselves and must remain disconnected from authenticated school/parent routes until supplied by a server-side school-scoped loader. Standalone parent notification access remains unavailable.
 - Legacy records with null school ownership remain inaccessible to school-scoped routes. No automatic backfill or production data reassignment is authorized by this change.
+
+
+## Verified parent identity — 2026-11-01
+
+- Added `parent_student_links` as an audited mapping from a parent login (`users.id`, role exactly `parent`) to a student and school. Each active mapping requires a verifier user, verification timestamp, and verification method.
+- Only a principal with an active school membership can create or revoke a mapping. The server resolves the principal's school and assigns it; clients cannot submit `user_id`, `school_id`, verifier identity, or verification timestamp.
+- Parent read routes require the exact `parent` role and an active, verified mapping. Queries join the link to the student on both student_id and school_id. A parent cannot create or self-activate a link.
+- Parent summaries expose only the linked student's last seven days of persisted attendance and notifications whose parent_id still matches the student's current parent reference. They do not expose camera frames, live location, raw detections, or internal risk signals.
+- Parent account creation and out-of-band identity verification are not automated. The school must verify the adult against its authoritative records before a principal provisions the link. Parent login credentials must be issued through a separate secure account-provisioning process.
+- Migration 0006 creates the mapping table only; it does not backfill or infer any parent links. Existing parent_id values are not treated as proof of account identity.
