@@ -87,7 +87,7 @@ export function ControlPanel() {
       {tab === "bracelets" && <BraceletsTab flash={flash} />}
       {tab === "students" && <StudentsTab flash={flash} />}
       {tab === "parents" && can("principal") && <ParentLinksTab flash={flash} />}
-      {tab === "settings" && <SettingsTab flash={flash} />
+      {tab === "settings" && <SettingsTab flash={flash} />}
     </section>
   );
 }
