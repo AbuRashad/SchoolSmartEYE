@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_school_id, require_principal
@@ -20,16 +22,20 @@ router = APIRouter(prefix="/agent/actions", tags=["agent-action-approval"])
 
 class ProposeReviewTask(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    source_request_id: str = Field(min_length=1, max_length=36)
-    title: str = Field(min_length=3, max_length=160)
-    description: str = Field(min_length=5, max_length=1200)
-    assigned_role: str = Field(default="principal", pattern="^(principal|teacher)$")
+    source_request_id: UUID
+    action_kind: Literal[
+        "review_attendance_trend",
+        "review_safety_signals",
+        "review_operational_readiness",
+        "verify_evidence_quality",
+    ]
 
 
 class ReviewTaskResponse(BaseModel):
     action_id: str
     school_id: str
     source_request_id: str
+    action_kind: str
     title: str
     description: str
     assigned_role: str
@@ -51,8 +57,7 @@ def propose_task(
 ) -> ReviewTaskResponse:
     task = propose_review_task(
         db, school_id=school_id, user_id=user.id,
-        source_request_id=payload.source_request_id, title=payload.title,
-        description=payload.description, assigned_role=payload.assigned_role,
+        source_request_id=str(payload.source_request_id), action_kind=payload.action_kind,
     )
     return ReviewTaskResponse.model_validate(task)
 
