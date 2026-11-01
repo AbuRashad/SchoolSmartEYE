@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import AgentActionTask
+from app.db.models import AgentActionTask, AgentRunRecord
 
 # Fixed server-owned templates prevent an agent or caller from injecting arbitrary
 # messages, student identifiers, or external commands into the action queue.
@@ -45,6 +45,12 @@ def propose_review_task(
     action_kind: str,
 ) -> AgentActionTask:
     """Persist a pending, predefined internal review task; perform no side effect."""
+    run = db.scalar(select(AgentRunRecord).where(
+        AgentRunRecord.request_id == source_request_id,
+        AgentRunRecord.school_id == school_id,
+    ))
+    if run is None:
+        raise HTTPException(status_code=404, detail="Source agent run not found in this school")
     template = _ACTION_TEMPLATES.get(action_kind)
     if template is None:
         raise HTTPException(status_code=422, detail="Unsupported agent action")
