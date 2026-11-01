@@ -268,6 +268,11 @@ def delete_bracelet(
     bracelet = _find(db, bracelet_id, school_id)
     if bracelet is None:
         raise HTTPException(status_code=404, detail=f"Bracelet {bracelet_id!r} not found")
+    # SQLite deployments may not enforce ON DELETE CASCADE unless explicitly
+    # configured; remove the associated telemetry before deleting the device.
+    db.execute(delete(orm.BraceletReading).where(
+        orm.BraceletReading.bracelet_id == bracelet_id
+    ))
     db.delete(bracelet)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
