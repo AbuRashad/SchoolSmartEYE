@@ -156,12 +156,12 @@ export function AgentReviewDashboard() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="font-semibold text-white">{task.title}</h4>
                       <span className={`rounded-full border px-2.5 py-1 text-[11px] capitalize ${statusStyles[task.status] || "border-white/10 bg-white/5 text-mist/70"}`}>
-                        {task.status.replaceAll("_", " ")}
+                        {task.status.replace(/_/g, " ")}
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-mist/70">{task.description}</p>
                     <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-mist/45">
-                      <span>Type: {task.action_kind.replaceAll("_", " ")}</span>
+                      <span>Type: {task.action_kind.replace(/_/g, " ")}</span>
                       <span>Assigned role: {task.assigned_role}</span>
                       <span>Proposed: {formatDate(task.created_at)}</span>
                     </div>
