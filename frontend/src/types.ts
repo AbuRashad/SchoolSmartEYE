@@ -77,7 +77,7 @@ export type SSILiveData = {
   computed_at: string;
 };
 
-export type NavPage = "dashboard" | "ssi" | "units" | "reports" | "portal" | "analytics" | "cameras" | "control";
+export type NavPage = "dashboard" | "ssi" | "units" | "reports" | "analytics" | "cameras" | "control";
 
 export type LiveCameraInfo = {
   camera_id: string;
