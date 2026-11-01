@@ -1,14 +1,17 @@
 """Authenticated API for the bounded specialist-agent orchestrator."""
 from __future__ import annotations
 
-from typing import Literal
+from datetime import datetime, timezone
+from typing import Any, Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.api.deps import get_current_school_id, require_principal
 from app.api.v1.endpoints.analytics import analytics_overview
-from app.db.models import User
+from app.db.models import AgentRunRecord, User
 from app.db.session import get_db
 from sqlalchemy.orm import Session
 from app.services.agent_orchestrator import run_orchestration
@@ -112,4 +115,32 @@ def orchestrate_agents(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
+    db.add(AgentRunRecord(
+        request_id=result["request_id"],
+        school_id=school_id,
+        requested_by_user_id=_user.id,
+        task=payload.task,
+        provider=result["provider"],
+        status=result["status"],
+        result=result,
+        created_at=datetime.now(timezone.utc),
+    ))
+    db.commit()
     return OrchestrateResponse.model_validate(result)
+
+
+@router.get("/runs/{request_id}")
+def get_agent_run(
+    request_id: UUID,
+    _user: User = Depends(require_principal),
+    db: Session = Depends(get_db),
+    school_id: str = Depends(get_current_school_id),
+) -> dict[str, Any]:
+    """Return a prior run only within the caller's resolved school."""
+    record = db.scalar(select(AgentRunRecord).where(
+        AgentRunRecord.request_id == str(request_id),
+        AgentRunRecord.school_id == school_id,
+    ))
+    if record is None:
+        raise HTTPException(status_code=404, detail="Agent run not found")
+    return record.result
